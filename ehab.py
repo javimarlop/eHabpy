@@ -181,6 +181,8 @@ yoff = int((gt_dem_global[3]-gt_eco[3])/1000)
 dem_eco_bb0 = dem_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 dem_eco_bb = dem_eco_bb0.flatten()
 dem_eco = np.where(eco_mask == 1, (dem_eco_bb),(0))
+maskdem = np.isnan(dem_eco)
+dem_eco[maskdem] = np.interp(np.flatnonzero(maskdem), np.flatnonzero(~maskdem), dem_eco[~maskdem])
 
 print 'eco dem'
 
@@ -189,6 +191,8 @@ yoff = int((gt_epr_global[3]-gt_eco[3])/1000)
 epr_eco_bb0 = epr_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 epr_eco_bb = epr_eco_bb0.flatten()
 epr_eco = np.where(eco_mask == 1, (epr_eco_bb),(0))
+maskepr = np.isnan(epr_eco)
+epr_eco[maskepr] = np.interp(np.flatnonzero(maskepr), np.flatnonzero(~maskepr), epr_eco[~maskepr])
 
 print 'eco epr'
 
@@ -197,6 +201,8 @@ yoff = int((gt_slope_global[3]-gt_eco[3])/1000)
 slope_eco_bb0 = slope_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 slope_eco_bb = slope_eco_bb0.flatten()
 slope_eco = np.where(eco_mask == 1, (slope_eco_bb),(0))
+maskslope = np.isnan(slope_eco)
+slope_eco[maskslope] = np.interp(np.flatnonzero(maskslope), np.flatnonzero(~maskslope), slope_eco[~maskslope])
 
 print 'eco slope'
 
@@ -205,6 +211,8 @@ yoff = int((gt_ndvi_global[3]-gt_eco[3])/1000)
 ndvi_eco_bb0 = ndvi_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 ndvi_eco_bb = ndvi_eco_bb0.flatten()
 ndvi_eco = np.where(eco_mask == 1, (ndvi_eco_bb),(0))
+maskndvi = np.isnan(ndvi_eco)
+ndvi_eco[maskndvi] = np.interp(np.flatnonzero(maskndvi), np.flatnonzero(~maskndvi), ndvi_eco[~maskndvi])
 
 print 'eco ndvi'
 
@@ -213,6 +221,8 @@ yoff = int((gt_ndwi_global[3]-gt_eco[3])/1000)
 ndwi_eco_bb0 = ndwi_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 ndwi_eco_bb = ndwi_eco_bb0.flatten()
 ndwi_eco = np.where(eco_mask == 1, (ndwi_eco_bb),(0))
+maskndwi = np.isnan(ndwi_eco)
+ndwi_eco[maskndwi] = np.interp(np.flatnonzero(maskndwi), np.flatnonzero(~maskndwi), ndwi_eco[~maskndwi])
 
 print 'eco ndwi'
 
@@ -221,6 +231,8 @@ yoff = int((gt_pre_global[3]-gt_eco[3])/1000)
 pre_eco_bb0 = pre_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 pre_eco_bb = pre_eco_bb0.flatten()
 pre_eco = np.where(eco_mask == 1, (pre_eco_bb),(0))
+maskpre = np.isnan(pre_eco)
+pre_eco[maskpre] = np.interp(np.flatnonzero(maskpre), np.flatnonzero(~maskpre), pre_eco[~maskpre])
 
 print 'eco pre'
 
@@ -229,6 +241,8 @@ yoff = int((gt_bio_global[3]-gt_eco[3])/1000)
 bio_eco_bb0 = bio_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 bio_eco_bb = bio_eco_bb0.flatten()
 bio_eco = np.where(eco_mask == 1, (bio_eco_bb),(0))
+maskbio = np.isnan(bio_eco)
+bio_eco[maskbio] = np.interp(np.flatnonzero(maskbio), np.flatnonzero(~maskbio), bio_eco[~maskbio])
 
 print 'eco bio'
 
@@ -237,6 +251,8 @@ yoff = int((gt_tree_global[3]-gt_eco[3])/1000)
 tree_eco_bb0 = tree_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 tree_eco_bb = tree_eco_bb0.flatten()
 tree_eco = np.where(eco_mask == 1, (tree_eco_bb),(0))
+masktree = np.isnan(tree_eco)
+tree_eco[masktree] = np.interp(np.flatnonzero(masktree), np.flatnonzero(~masktree), tree_eco[~masktree])
 
 print 'eco tree'
 
@@ -245,6 +261,8 @@ yoff = int((gt_herb_global[3]-gt_eco[3])/1000)
 herb_eco_bb0 = herb_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 herb_eco_bb = herb_eco_bb0.flatten()
 herb_eco = np.where(eco_mask == 1, (herb_eco_bb),(0))
+maskherb = np.isnan(herb_eco)
+herb_eco[maskherb] = np.interp(np.flatnonzero(maskherb), np.flatnonzero(~maskherb), herb_eco[~maskherb])
 
 print 'eco herb'
 
@@ -286,7 +304,8 @@ for px in range(0,n):
  dem_pa_bb0 = dem_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  dem_pa_bb = dem_pa_bb0.flatten()
  dem_pa = dem_pa_bb[ind]
- 
+ mask2dem = np.isnan(dem_pa)
+ dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
  
  print 'pa dem'
  print dem_pa.min()
@@ -297,6 +316,8 @@ for px in range(0,n):
  tree_pa_bb0 = tree_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  tree_pa_bb = tree_pa_bb0.flatten()
  tree_pa = tree_pa_bb[ind]
+ mask2tree = np.isnan(tree_pa)
+ tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
  
  print 'pa tree'
  print tree_pa.min()
@@ -307,6 +328,8 @@ for px in range(0,n):
  epr_pa_bb0 = epr_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  epr_pa_bb = epr_pa_bb0.flatten()
  epr_pa = epr_pa_bb[ind]
+ mask2epr = np.isnan(epr_pa)
+ epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
  
  print 'pa epr'
  print epr_pa.min()
@@ -317,6 +340,8 @@ for px in range(0,n):
  pre_pa_bb0 = pre_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  pre_pa_bb = pre_pa_bb0.flatten()
  pre_pa = pre_pa_bb[ind]
+ mask2pre = np.isnan(pre_pa)
+ pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
  
  print 'pa pre'
  print pre_pa.min()
@@ -327,7 +352,9 @@ for px in range(0,n):
  bio_pa_bb0 = bio_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  bio_pa_bb = bio_pa_bb0.flatten()
  bio_pa = bio_pa_bb[ind]
- 
+ mask2bio = np.isnan(bio_pa)
+ bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
+
  print 'pa bio'
  print bio_pa.min()
  print bio_pa.max()
@@ -337,7 +364,9 @@ for px in range(0,n):
  slope_pa_bb0 = slope_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  slope_pa_bb = slope_pa_bb0.flatten()
  slope_pa = slope_pa_bb[ind]
- 
+ mask2slope = np.isnan(slope_pa)
+ slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
+
  print 'pa slope'
  print slope_pa.min()
  print slope_pa.max()
@@ -347,7 +376,9 @@ for px in range(0,n):
  ndwi_pa_bb0 = ndwi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  ndwi_pa_bb = ndwi_pa_bb0.flatten()
  ndwi_pa = ndwi_pa_bb[ind]
- 
+ mask2ndwi = np.isnan(ndwi_pa)
+ ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
+
  print 'pa ndwi'
  print ndwi_pa.min()
  print ndwi_pa.max()
@@ -357,7 +388,9 @@ for px in range(0,n):
  ndvi_pa_bb0 = ndvi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  ndvi_pa_bb = ndvi_pa_bb0.flatten()
  ndvi_pa = ndvi_pa_bb[ind]
- 
+ mask2ndvi = np.isnan(ndvi_pa)
+ ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
+
  print 'pa ndvi'
  print ndvi_pa.min()
  print ndvi_pa.max()
@@ -367,7 +400,9 @@ for px in range(0,n):
  herb_pa_bb0 = herb_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
  herb_pa_bb = herb_pa_bb0.flatten()
  herb_pa = herb_pa_bb[ind]
- 
+ mask2herb = np.isnan(herb_pa)
+ herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
+
  print 'pa herb'
  print herb_pa.min()
  print herb_pa.max()
