@@ -180,7 +180,7 @@ xoff = int((gt_eco[0]-gt_dem_global[0])/1000)
 yoff = int((gt_dem_global[3]-gt_eco[3])/1000)
 dem_eco_bb0 = dem_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 dem_eco_bb = dem_eco_bb0.flatten()
-dem_eco = np.where(eco_mask == 1, (dem_eco_bb),(None))
+dem_eco = np.where(eco_mask == 1, (dem_eco_bb),(0))
 
 print 'eco dem'
 
