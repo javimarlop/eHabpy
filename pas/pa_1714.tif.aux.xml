@@ -1,0 +1,13 @@
+<PAMDataset>
+  <PAMRasterBand band="1">
+    <Metadata>
+      <MDI key="COLOR_TABLE_RULE_RGB_0">0.000000e+00 0.000000e+00 255 0 127 255 0 127</MDI>
+      <MDI key="COLOR_TABLE_RULES_COUNT">1</MDI>
+      <MDI key="Generated_with">GRASS GIS 7.0.svn</MDI>
+      <MDI key="STATISTICS_MAXIMUM">0</MDI>
+      <MDI key="STATISTICS_MEAN">0</MDI>
+      <MDI key="STATISTICS_MINIMUM">0</MDI>
+      <MDI key="STATISTICS_STDDEV">0</MDI>
+    </Metadata>
+  </PAMRasterBand>
+</PAMDataset>
