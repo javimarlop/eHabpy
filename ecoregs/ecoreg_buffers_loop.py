@@ -20,7 +20,7 @@ print grass.gisenv()
 
 source = 'ecoregs_moll'
 grass. message ("Extracting list of ecoregs")
-pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
+pa_list0 = grass. read_command ('v.db.select', map=source,column='eco_id'). splitlines ()
 pa_list = np.unique(pa_list0)
 # save it as a csv excluding last item!
 

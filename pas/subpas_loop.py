@@ -3,10 +3,11 @@ import sys
 import numpy as np
 from tqdm import *
 
-gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
+#gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
+gisbase = os.environ['GISBASE'] = "/home/majavie/grass7_source/g71/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 gisdbase = os.path.join("/local1/majavie/hanksgrass7")
 location = "global_MW"
-mapset   = "rasterized_parks"
+mapset   = "ehabitat"#"rasterized_parks"
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
 
@@ -56,15 +57,24 @@ for px in tqdm(range(0,n)):
  grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
  grass.run_command('g.remove', rast='MASK')
  grass.run_command('r.null',map=pa4,null=0)
- grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
+ eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
+ print eco_list
+ eco = eco_list[0]
+ print eco
+ econame = str(eco)+'.csv'
+ #grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
  grass. message ("Deleting tmp layers") 
  grass.run_command('g.mremove',rast='*v3',flags='f') 
  grass.run_command('g.mremove',rast='*v2',flags='f') 
  grass.run_command('g.mremove',rast='v0_*',flags='f') 
  grass.run_command('g.mremove',vect='v0_*',flags='f') 
  grass.run_command('g.mremove',rast='vv*',flags='f')
- wb = open('parks.csv','a')
+ wb = open(econame,'a')
  wb.write(pa)
+ wb.write('\n')
+ wb.close() 
+ wb = open('ecoregs.csv','a')
+ wb.write(eco)
  wb.write('\n')
  wb.close() 
  grass. message ("Done")
