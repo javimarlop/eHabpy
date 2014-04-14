@@ -3,7 +3,8 @@ import sys
 import numpy as np
 from tqdm import *
 
-gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
+#gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
+gisbase = os.environ['GISBASE'] = "/home/majavie/grass7_source/g71/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 gisdbase = os.path.join("/local1/majavie/hanksgrass7")
 location = "global_MW"
 mapset   = "rasterized_parks"
