@@ -171,7 +171,7 @@ eco_list = np.unique(eco_list0)
 
 m = len(eco_list)
 #print pa_list[1]
-for pm in tqdm(range(0,m)):
+for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
  eco = eco_list[pm]
  print eco
  ecofile='ecoregs/eco_'+str(eco)+'.tif'
@@ -285,7 +285,7 @@ for pm in tqdm(range(0,m)):
 
  n = len(pa_list)
 #print pa_list[1]
- for px in range(0,n):
+ for px in range(0,n): # 0,n
 
 #for pa in pa_list:
   pa = pa_list[px]
@@ -293,167 +293,183 @@ for pm in tqdm(range(0,m)):
   outfile = 'results/'+str(pa)+'_eco.tif'
   pa4 = 'pas/pa_'+str(pa)+'.tif'
   
-  num_bands=src_ds_eco.RasterCount
-  driver = gdal.GetDriverByName("GTiff")
-  dst_ds = driver.Create( outfile,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Float32)
-  dst_ds.SetGeoTransform( src_ds_eco.GetGeoTransform())
-  dst_ds.SetProjection( src_ds_eco.GetProjectionRef())
- 
-  pafile=pa4
-  src_ds_pa = gdal.Open(pafile)
-  par = src_ds_pa.GetRasterBand(1)
-  pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
-  pa_mask = pa_mask0.flatten()
-  ind = pa_mask > 0
-  gt_pa = src_ds_pa.GetGeoTransform()
-
-  xoff = int((gt_pa[0]-gt_dem_global[0])/1000)
-  yoff = int((gt_dem_global[3]-gt_pa[3])/1000)
-  dem_pa_bb0 = dem_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  dem_pa_bb = dem_pa_bb0.flatten()
-  dem_pa = dem_pa_bb[ind]
-  mask2dem = np.isnan(dem_pa)
-  dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
- 
-  print 'pa dem'
-  print dem_pa.min()
-  print dem_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_tree_global[0])/1000)
-  yoff = int((gt_tree_global[3]-gt_pa[3])/1000)
-  tree_pa_bb0 = tree_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  tree_pa_bb = tree_pa_bb0.flatten()
-  tree_pa = tree_pa_bb[ind]
-  mask2tree = np.isnan(tree_pa)
-  tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
- 
-  print 'pa tree'
-  print tree_pa.min()
-  print tree_pa.max()
+  import os.path
+  done = os.path.isfile(outfile)
   
-  xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
-  yoff = int((gt_epr_global[3]-gt_pa[3])/1000)
-  epr_pa_bb0 = epr_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  epr_pa_bb = epr_pa_bb0.flatten()
-  epr_pa = epr_pa_bb[ind]
-  mask2epr = np.isnan(epr_pa)
-  epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
- 
-  print 'pa epr'
-  print epr_pa.min()
-  print epr_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
-  yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
-  pre_pa_bb0 = pre_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  pre_pa_bb = pre_pa_bb0.flatten()
-  pre_pa = pre_pa_bb[ind]
-  mask2pre = np.isnan(pre_pa)
-  pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
- 
-  print 'pa pre'
-  print pre_pa.min()
-  print pre_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
-  yoff = int((gt_bio_global[3]-gt_pa[3])/1000)
-  bio_pa_bb0 = bio_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  bio_pa_bb = bio_pa_bb0.flatten()
-  bio_pa = bio_pa_bb[ind]
-  mask2bio = np.isnan(bio_pa)
-  bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
+  if done == False:
+  
+	  num_bands=src_ds_eco.RasterCount
+	  driver = gdal.GetDriverByName("GTiff")
+	  dst_ds = driver.Create( outfile,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Float32)
+	  dst_ds.SetGeoTransform( src_ds_eco.GetGeoTransform())
+	  dst_ds.SetProjection( src_ds_eco.GetProjectionRef())
+	 
+	  pafile=pa4
+	  src_ds_pa = gdal.Open(pafile)
+	  par = src_ds_pa.GetRasterBand(1)
+	  pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
+	  pa_mask = pa_mask0.flatten()
+	  ind = pa_mask > 0
+	  gt_pa = src_ds_pa.GetGeoTransform()
 
-  print 'pa bio'
-  print bio_pa.min()
-  print bio_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
-  yoff = int((gt_slope_global[3]-gt_pa[3])/1000)
-  slope_pa_bb0 = slope_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  slope_pa_bb = slope_pa_bb0.flatten()
-  slope_pa = slope_pa_bb[ind]
-  mask2slope = np.isnan(slope_pa)
-  slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
+	  xoff = int((gt_pa[0]-gt_dem_global[0])/1000)
+	  yoff = int((gt_dem_global[3]-gt_pa[3])/1000)
+	  dem_pa_bb0 = dem_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  dem_pa_bb = dem_pa_bb0.flatten()
+	  dem_pa = dem_pa_bb[ind]
+	  mask2dem = np.isnan(dem_pa)
+	  dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
+	 
+	  print 'pa dem'
+	  print dem_pa.min()
+	  print dem_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_tree_global[0])/1000)
+	  yoff = int((gt_tree_global[3]-gt_pa[3])/1000)
+	  tree_pa_bb0 = tree_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  tree_pa_bb = tree_pa_bb0.flatten()
+	  tree_pa = tree_pa_bb[ind]
+	  mask2tree = np.isnan(tree_pa)
+	  tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
+	 
+	  print 'pa tree'
+	  print tree_pa.min()
+	  print tree_pa.max()
+	  
+	  xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
+	  yoff = int((gt_epr_global[3]-gt_pa[3])/1000)
+	  epr_pa_bb0 = epr_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  epr_pa_bb = epr_pa_bb0.flatten()
+	  epr_pa = epr_pa_bb[ind]
+	  mask2epr = np.isnan(epr_pa)
+	  epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
+	 
+	  print 'pa epr'
+	  print epr_pa.min()
+	  print epr_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
+	  yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
+	  pre_pa_bb0 = pre_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  pre_pa_bb = pre_pa_bb0.flatten()
+	  pre_pa = pre_pa_bb[ind]
+	  mask2pre = np.isnan(pre_pa)
+	  pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
+	 
+	  print 'pa pre'
+	  print pre_pa.min()
+	  print pre_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
+	  yoff = int((gt_bio_global[3]-gt_pa[3])/1000)
+	  bio_pa_bb0 = bio_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  bio_pa_bb = bio_pa_bb0.flatten()
+	  bio_pa = bio_pa_bb[ind]
+	  mask2bio = np.isnan(bio_pa)
+	  bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
 
-  print 'pa slope'
-  print slope_pa.min()
-  print slope_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
-  yoff = int((gt_ndwi_global[3]-gt_pa[3])/1000)
-  ndwi_pa_bb0 = ndwi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  ndwi_pa_bb = ndwi_pa_bb0.flatten()
-  ndwi_pa = ndwi_pa_bb[ind]
-  mask2ndwi = np.isnan(ndwi_pa)
-  ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
+	  print 'pa bio'
+	  print bio_pa.min()
+	  print bio_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
+	  yoff = int((gt_slope_global[3]-gt_pa[3])/1000)
+	  slope_pa_bb0 = slope_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  slope_pa_bb = slope_pa_bb0.flatten()
+	  slope_pa = slope_pa_bb[ind]
+	  mask2slope = np.isnan(slope_pa)
+	  slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
 
-  print 'pa ndwi'
-  print ndwi_pa.min()
-  print ndwi_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_ndvi_global[0])/1000)
-  yoff = int((gt_ndvi_global[3]-gt_pa[3])/1000)
-  ndvi_pa_bb0 = ndvi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  ndvi_pa_bb = ndvi_pa_bb0.flatten()
-  ndvi_pa = ndvi_pa_bb[ind]
-  mask2ndvi = np.isnan(ndvi_pa)
-  ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
+	  print 'pa slope'
+	  print slope_pa.min()
+	  print slope_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
+	  yoff = int((gt_ndwi_global[3]-gt_pa[3])/1000)
+	  ndwi_pa_bb0 = ndwi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  ndwi_pa_bb = ndwi_pa_bb0.flatten()
+	  ndwi_pa = ndwi_pa_bb[ind]
+	  mask2ndwi = np.isnan(ndwi_pa)
+	  ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
 
-  print 'pa ndvi'
-  print ndvi_pa.min()
-  print ndvi_pa.max()
- 
-  xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
-  yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
-  herb_pa_bb0 = herb_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-  herb_pa_bb = herb_pa_bb0.flatten()
-  herb_pa = herb_pa_bb[ind]
-  mask2herb = np.isnan(herb_pa)
-  herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
+	  print 'pa ndwi'
+	  print ndwi_pa.min()
+	  print ndwi_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_ndvi_global[0])/1000)
+	  yoff = int((gt_ndvi_global[3]-gt_pa[3])/1000)
+	  ndvi_pa_bb0 = ndvi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  ndvi_pa_bb = ndvi_pa_bb0.flatten()
+	  ndvi_pa = ndvi_pa_bb[ind]
+	  mask2ndvi = np.isnan(ndvi_pa)
+	  ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
 
-  print 'pa herb'
-  print herb_pa.min()
-  print herb_pa.max()
- 
-  ind_pa = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvi_pa,ndwi_pa,slope_pa,tree_pa))
+	  print 'pa ndvi'
+	  print ndvi_pa.min()
+	  print ndvi_pa.max()
+	 
+	  xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
+	  yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
+	  herb_pa_bb0 = herb_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+	  herb_pa_bb = herb_pa_bb0.flatten()
+	  herb_pa = herb_pa_bb[ind]
+	  mask2herb = np.isnan(herb_pa)
+	  herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
 
-  print ind_pa.shape
- 
-  print "PA masked"
+	  print 'pa herb'
+	  print herb_pa.min()
+	  print herb_pa.max()
+	 
+	  #tot = tree_pa.max() + herb_pa.min()
+	  #print tot
+	  #if  tot == 100: tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
+	  
+	  tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
+	  herb_pa = np.random.random_sample(len(herb_pa),) + herb_pa
+	  
+	  ind_pa = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvi_pa,ndwi_pa,slope_pa,tree_pa))
 
-  Ymean = np.mean(ind_pa,axis=0)
-  print "Ymean ok"
-  Ycov = np.cov(ind_pa,rowvar=False)
-  print "Ycov ok"
+	  print ind_pa.shape
+	 
+	  print "PA masked"
 
-#mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
-  mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
-# mh = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
-# mh = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
-  print "mh ok"
+	  Ymean = np.mean(ind_pa,axis=0)
+	  #print Ymean
+	  print "Ymean ok"
+	  Ycov = np.cov(ind_pa,rowvar=False)
+	  #print 'Ycov'
+	  #print Ycov
+	  print "Ycov ok"
 
-  from scipy.stats import chisqprob
-  pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
-  pmhh = np.where(pmh <= 1e-10,None, pmh)
-  print "pmh ok" # quitar valores muy bajos!
+	#mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
+	  #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
+	  mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
+	  mh = mh2*mh2
+	# mh = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
+	  print "mh ok"
 
-  dst_ds.GetRasterBand(1).WriteArray(pmhh)
+	  from scipy.stats import chisqprob
+	  pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
+	  pmhh = np.where(pmh <= 1e-10,None, pmh)
+	  print "pmh ok" # quitar valores muy bajos!
 
-# calculate single HRI 0.5 value
-  pmh2 = pmhh.flatten()
-  hr1 = np.where(pmh2 >= 0.5, 1,0)
-  hr2 = sum(hr1) #- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
-  print hr2
-  hr3 = float(hr2/ind_pa.shape[0])
-  print hr3
-  wb = open('results/hri_results.csv','a')
-  var = str(pa)+' '+str(hr3)
-  wb.write(var)
-  wb.write('\n')
-  wb.close()
+	  dst_ds.GetRasterBand(1).WriteArray(pmhh)
 
-#before the loop! file_writer.writerow(['wdpa_id', 'ap', 'wn', 'time1', 'time2']) 
-  print "results exported"
+	# calculate single HRI 0.5 value
+	  pmh2 = pmhh.flatten()
+	  hr1 = np.where(pmh2 >= 0.5, 1,0)
+	  hr2 = sum(hr1) #- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
+	  print hr2
+	  hr3 = float(hr2/ind_pa.shape[0])
+	  print hr3
+	  wb = open('results/hri_results.csv','a')
+	  var = str(pa)+' '+str(hr3)
+	  wb.write(var)
+	  wb.write('\n')
+	  wb.close()
+
+	#before the loop! file_writer.writerow(['wdpa_id', 'ap', 'wn', 'time1', 'time2']) 
+	  print "results exported"
  
 t1 = clock()
 print("Time spent: %f min" % ((t1-t0)/60,))

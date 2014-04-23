@@ -19,7 +19,7 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
-source = 'parks_80601'
+source = 'wdpa_snapshot_new_mollweide'
 #grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='WDPA_ID'). splitlines ()
@@ -62,7 +62,7 @@ for px in tqdm(range(0,n)):
  eco = eco_list[0]
  print eco
  econame = str(eco)+'.csv'
- #grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
+ grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
  grass. message ("Deleting tmp layers") 
  grass.run_command('g.mremove',rast='*v3',flags='f') 
  grass.run_command('g.mremove',rast='*v2',flags='f') 
