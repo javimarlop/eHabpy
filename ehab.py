@@ -331,12 +331,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  dem_pa = np.where(dem_pa0 == 65535.0, (float('NaN')),(dem_pa0))
 	  mask2dem = np.isnan(dem_pa)
 	  if mask2dem.all() == True:
-       dropcols[0] = -1
-      else:
-       dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
-	   print 'pa dem'
-	   print dem_pa.min()
-	   print dem_pa.max()
+		dropcols[0] = -1
+	  else:
+		dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
+		print 'pa dem'
+		print dem_pa.min()
+		print dem_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_tree_global[0])/1000)
 	  yoff = int((gt_tree_global[3]-gt_pa[3])/1000)
@@ -346,13 +346,13 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  tree_pa = np.where(tree_pa0 == 255.0, (float('NaN')),(tree_pa0))
 	  mask2tree = np.isnan(tree_pa)
 	  if mask2tree.all() == True:
-       dropcols[8] = -8
-      else:
-	   tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
-	   print 'pa tree'
-	   print tree_pa.min()
-	   print tree_pa.max()
-	  
+		dropcols[8] = -8
+	  else:
+		tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
+		print 'pa tree'
+		print tree_pa.min()
+		print tree_pa.max()
+	
 	  xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
 	  yoff = int((gt_epr_global[3]-gt_pa[3])/1000)
 	  epr_pa_bb0 = epr_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
@@ -361,12 +361,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  epr_pa = np.where(epr_pa0 == 65535.0, (float('NaN')),(epr_pa0))
 	  mask2epr = np.isnan(epr_pa)
 	  if mask2epr.all() == True:
-       dropcols[3] = -3
-      else:
-	   epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
-	   print 'pa epr'
-	   print epr_pa.min()
-	   print epr_pa.max()
+		dropcols[3] = -3
+	  else:
+		epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
+		print 'pa epr'
+		print epr_pa.min()
+		print epr_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
 	  yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
@@ -376,12 +376,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  pre_pa = np.where(pre_pa0 == 65535.0, (float('NaN')),(pre_pa0))
 	  mask2pre = np.isnan(pre_pa)
 	  if mask2pre.all() == True:
-       dropcols[2] = -2
-      else:
-	   pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
-	   print 'pa pre'
-	   print pre_pa.min()
-	   print pre_pa.max()
+		dropcols[2] = -2
+	  else:
+		pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
+		print 'pa pre'
+		print pre_pa.min()
+		print pre_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
 	  yoff = int((gt_bio_global[3]-gt_pa[3])/1000)
@@ -391,12 +391,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  bio_pa = np.where(bio_pa0 == 65535.0, (float('NaN')),(bio_pa0))
 	  mask2bio = np.isnan(bio_pa)
 	  if mask2bio.all() == True:
-       dropcols[1] = -1
-      else:
-	   bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
- 	   print 'pa bio'
-	   print bio_pa.min()
-	   print bio_pa.max()
+		dropcols[1] = -1
+	  else:
+		bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
+		print 'pa bio'
+		print bio_pa.min()
+		print bio_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
 	  yoff = int((gt_slope_global[3]-gt_pa[3])/1000)
@@ -406,12 +406,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  slope_pa = np.where(slope_pa0 == 65535.0, (float('NaN')),(slope_pa0))
 	  mask2slope = np.isnan(slope_pa)
 	  if mask2slope.all() == True:
-       dropcols[7] = -7
-      else:
-	   slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
-	   print 'pa slope'
-	   print slope_pa.min()
-	   print slope_pa.max()
+		dropcols[7] = -7
+	  else:
+		slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
+		print 'pa slope'
+		print slope_pa.min()
+		print slope_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
 	  yoff = int((gt_ndwi_global[3]-gt_pa[3])/1000)
@@ -421,12 +421,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  ndwi_pa = np.where(ndwi_pa0 == 255.0, (float('NaN')),(ndwi_pa0))
 	  mask2ndwi = np.isnan(ndwi_pa)
 	  if mask2ndwi.all() == True:
-       dropcols[6] = -6
-      else:
-	   ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
-	   print 'pa ndwi'
-	   print ndwi_pa.min()
-	   print ndwi_pa.max()
+		dropcols[6] = -6
+	  else:
+		ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
+		print 'pa ndwi'
+		print ndwi_pa.min()
+		print ndwi_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_ndvi_global[0])/1000)
 	  yoff = int((gt_ndvi_global[3]-gt_pa[3])/1000)
@@ -436,12 +436,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  ndvi_pa = np.where(ndvi_pa0 == 255.0, (float('NaN')),(ndvi_pa0))
 	  mask2ndvi = np.isnan(ndvi_pa)
 	  if mask2ndvi.all() == True:
-       dropcols[5] = -5
-      else:
-	   ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
-	   print 'pa ndvi'
-	   print ndvi_pa.min()
-	   print ndvi_pa.max()
+		dropcols[5] = -5
+	  else:
+		ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
+		print 'pa ndvi'
+		print ndvi_pa.min()
+		print ndvi_pa.max()
 	 
 	  xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
 	  yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
@@ -451,12 +451,12 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  herb_pa = np.where(herb_pa0 == 255.0, (float('NaN')),(herb_pa0))
 	  mask2herb = np.isnan(herb_pa)
 	  if mask2herb.all() == True:
-       dropcols[4] = -4
-      else:
-	   herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
-	   print 'pa herb'
-	   print herb_pa.min()
-	   print herb_pa.max()
+		dropcols[4] = -4
+	  else:
+		herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
+		print 'pa herb'
+		print herb_pa.min()
+		print herb_pa.max()
 	 
 	  cols = dropcols[dropcols>=0]
 	  #tot = tree_pa.max() + herb_pa.min()
