@@ -334,6 +334,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[0] = -1
 	  else:
 		dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
+		dem_pa = np.random.random_sample(len(dem_pa),)/1000 + dem_pa
 		print 'pa dem'
 		print dem_pa.min()
 		print dem_pa.max()
@@ -349,6 +350,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[8] = -8
 	  else:
 		tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
+		tree_pa = np.random.random_sample(len(tree_pa),)/1000 + tree_pa
 		print 'pa tree'
 		print tree_pa.min()
 		print tree_pa.max()
@@ -364,6 +366,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[3] = -3
 	  else:
 		epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
+		epr_pa = np.random.random_sample(len(epr_pa),)/1000 + epr_pa
 		print 'pa epr'
 		print epr_pa.min()
 		print epr_pa.max()
@@ -379,6 +382,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[2] = -2
 	  else:
 		pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
+		pre_pa = np.random.random_sample(len(pre_pa),)/1000 + pre_pa
 		print 'pa pre'
 		print pre_pa.min()
 		print pre_pa.max()
@@ -394,6 +398,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[1] = -1
 	  else:
 		bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
+		bio_pa = np.random.random_sample(len(bio_pa),)/1000 + bio_pa
 		print 'pa bio'
 		print bio_pa.min()
 		print bio_pa.max()
@@ -409,6 +414,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[7] = -7
 	  else:
 		slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
+		slope_pa = np.random.random_sample(len(slope_pa),)/1000 + slope_pa
 		print 'pa slope'
 		print slope_pa.min()
 		print slope_pa.max()
@@ -424,6 +430,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[6] = -6
 	  else:
 		ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
+		ndwi_pa = np.random.random_sample(len(ndwi_pa),)/1000 + ndwi_pa
 		print 'pa ndwi'
 		print ndwi_pa.min()
 		print ndwi_pa.max()
@@ -439,6 +446,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[5] = -5
 	  else:
 		ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
+		ndvi_pa = np.random.random_sample(len(ndvi_pa),)/1000 + ndvi_pa
 		print 'pa ndvi'
 		print ndvi_pa.min()
 		print ndvi_pa.max()
@@ -454,6 +462,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		dropcols[4] = -4
 	  else:
 		herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
+		herb_pa = np.random.random_sample(len(herb_pa),)/1000 + herb_pa
 		print 'pa herb'
 		print herb_pa.min()
 		print herb_pa.max()
@@ -462,9 +471,6 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  #tot = tree_pa.max() + herb_pa.min()
 	  #print tot
 	  #if  tot == 100: tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
-	  
-	  tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
-	  herb_pa = np.random.random_sample(len(herb_pa),) + herb_pa
 	  
 	  ind_pa0 = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvi_pa,ndwi_pa,slope_pa,tree_pa))
 	  
