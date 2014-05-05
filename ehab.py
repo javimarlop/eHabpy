@@ -172,10 +172,10 @@ eco_list = np.unique(eco_list0)
 m = len(eco_list)
 #print pa_list[1]
 for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
- eco = eco_list[pm]
- print eco
- ecofile='ecoregs/eco_'+str(eco)+'.tif'
- ecoparksf = 'pas/'+str(eco)+'.csv'
+ ecor = eco_list[pm]
+ print ecor
+ ecofile='ecoregs/eco_'+str(ecor)+'.tif'
+ ecoparksf = 'pas/'+str(ecor)+'.csv'
  src_ds_eco = gdal.Open(ecofile)
  eco = src_ds_eco.GetRasterBand(1)
  eco_mask0 = eco.ReadAsArray(0,0,eco.XSize,eco.YSize).astype(np.int32)
@@ -520,7 +520,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	#before the loop! file_writer.writerow(['wdpa_id', 'ap', 'wn', 'time1', 'time2']) 
 	  print "results exported"
  wb = open('results/ecoregs_done.csv','a')
- var = str(eco)
+ var = str(ecor)
  wb.write(var)
  wb.write('\n')
  wb.close() 
