@@ -311,7 +311,8 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
   
 	  num_bands=src_ds_eco.RasterCount
 	  driver = gdal.GetDriverByName("GTiff")
-	  dst_ds = driver.Create( outfile,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Float32)
+	  dst_options = ['COMPRESS=LZW']
+	  dst_ds = driver.Create( outfile,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Float32,dst_options)
 	  dst_ds.SetGeoTransform( src_ds_eco.GetGeoTransform())
 	  dst_ds.SetProjection( src_ds_eco.GetProjectionRef())
 	 
@@ -518,6 +519,11 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 
 	#before the loop! file_writer.writerow(['wdpa_id', 'ap', 'wn', 'time1', 'time2']) 
 	  print "results exported"
+ wb = open('results/ecoregs_done.csv','a')
+ var = str(eco)
+ wb.write(var)
+ wb.write('\n')
+ wb.close() 
  
 t1 = clock()
 print("Time spent: %f min" % ((t1-t0)/60,))
