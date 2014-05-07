@@ -1,3 +1,4 @@
+# Code by Javier Martinez-Lopez
 from __future__ import division
 from time import clock
 t0 = clock() 
