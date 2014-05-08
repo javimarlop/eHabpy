@@ -44,7 +44,7 @@ for px in tqdm(range(0,n)):
  #pa3 = pa+'v3'
  pa4 = 'pa_'+pa
  pa5 = 'pa_'+pa+'.tif'
- 
+ # try to crop PAs shapefile with coastal line or input vars
  grass. message ("setting up the working region")
  grass.run_command('g.region',vect=pa0,res=1000)
  grass.run_command('v.to.rast',input=pa0,out=pa0,use='cat',labelcol='WDPA_ID')

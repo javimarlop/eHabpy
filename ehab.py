@@ -303,8 +303,10 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
  #for pa in pa_list:
    pa = pa_list[px]
    print pa
-   outfile = 'results/'+str(pa)+'_eco.tif'
+   outfile = 'results/'+str(ecor)+'_'+str(pa)+'.tif'
+   #print outfile
    pa4 = 'pas/pa_'+str(pa)+'.tif'
+   #print pa4
   
    dropcols = np.arange(9,dtype=int)
   
@@ -314,6 +316,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
    if done == False:
   
 	   pafile=pa4
+	   #print pafile
 	   src_ds_pa = gdal.Open(pafile)
 	   par = src_ds_pa.GetRasterBand(1)
 	   pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
@@ -512,16 +515,52 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		   print "pmh ok" # quitar valores muy bajos!
 
 		   dst_ds.GetRasterBand(1).WriteArray(pmhh)
+		   
+		   dst_ds = None
+ 
+		   # read back the tif file and clip park values
+		   #hrif = outfile
+		   src_ds_sim = gdal.Open(outfile)
+		   sim = src_ds_sim.GetRasterBand(1)
+		   gt_sim = src_ds_sim.GetGeoTransform()
+
+		   xoff = int((gt_pa[0]-gt_sim[0])/1000)
+		   yoff = int((gt_sim[3]-gt_pa[3])/1000)
+
+		   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+		   hri_pa_bb = hri_pa_bb0.flatten()
+		   hri_pa0 = hri_pa_bb[ind]
+
+		   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
+		   print 'mean similarity in the park is '+str(hr1averpa)
+		   hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!
+		   hr1insumaver = sum(np.where(hri_pa0 >= hr1averpa, 1,0))
+		   print hr1insum
 
 		# calculate single HRI 0.5 value
 		   pmh2 = pmhh.flatten()
+		   #print len(pmh2)
+		   #pmh2in = pmh2[ind]
+		   #print len(pmh2in)
 		   hr1 = np.where(pmh2 >= 0.5, 1,0)
-		   hr2 = sum(hr1) #- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
+		   hr1aver = np.where(pmh2 >= hr1averpa, 1,0)
+		   hr1sum = sum(hr1)
+		   hr1sumaver = sum(hr1aver)
+		   print hr1sum
+		   
+		   #hr1in = hr1[ind]#np.where(pmh2in >= 0.5, 1,0)
+		   #hr1insum = sum(hr1in)
+		   #hr2 = sum(hr1) #- hr1insum#- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
+		   hr2 = hr1sum - hr1insum
+		   hr2aver = hr1sumaver - hr1insumaver
+		   #print sum(hr1)
+		   #print hr1insum
 		   print hr2
 		   hr3 = float(hr2/ind_pa.shape[0])
+		   hr3aver = float(hr2aver/ind_pa.shape[0])
 		   print hr3
 		   wb = open('results/hri_results.csv','a')
-		   var = str(pa)+' '+str(hr3)
+		   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)
 		   wb.write(var)
 		   wb.write('\n')
 		   wb.close()
