@@ -170,6 +170,10 @@ print 'tree'
 
 print "Global variables imported"
 
+wb = open('results/ecoregs_done.csv','a')
+wb.write('\n')
+wb.close()
+
 # LOOP ECOREGIONS
 eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
 eco_list = np.unique(eco_list0)
