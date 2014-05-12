@@ -4,6 +4,7 @@ from time import clock
 t0 = clock() 
 import mkl
 import numpy as np
+import scipy.ndimage as nd
 import scipy
 from scipy.linalg import cholesky, solve_triangular
 from sklearn.externals.joblib import Parallel, delayed
@@ -16,6 +17,8 @@ from tqdm import *
 mkl.set_num_threads(1)
 #except ImportError:
 #pass
+
+s = nd.generate_binary_structure(2,2)
 
 #adfGeoTransform[0] /* top left x */
 #adfGeoTransform[1] /* w-e pixel resolution */
@@ -515,8 +518,18 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		   print "pmh ok" # quitar valores muy bajos!
 
 		   dst_ds.GetRasterBand(1).WriteArray(pmhh)
-		   
 		   dst_ds = None
+		   
+		   #pmh2 = pmhh.flatten()
+		   hr11 = np.where(pmhh >= 0.5, 1,0)
+		   hr1 = hr11.flatten()
+		   hr1sum = sum(hr1)
+		   print hr1sum
+		   hr1insumaver = hr1insum = 0
+		   hr1sumaver = hr1sum
+		   hr1averpa = hr3aver = num_featuresaver = None
+		   labeled_array, num_features = nd.label(hr11, structure=s)
+		   
  
 		   # read back the tif file and clip park values
 		   #hrif = outfile
@@ -526,41 +539,43 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 
 		   xoff = int((gt_pa[0]-gt_sim[0])/1000)
 		   yoff = int((gt_sim[3]-gt_pa[3])/1000)
+		   
+		   if xoff>0 and yoff>0:
 
-		   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-		   hri_pa_bb = hri_pa_bb0.flatten()
-		   hri_pa0 = hri_pa_bb[ind]
-
-		   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
-		   print 'mean similarity in the park is '+str(hr1averpa)
-		   hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!
-		   hr1insumaver = sum(np.where(hri_pa0 >= hr1averpa, 1,0))
-		   print hr1insum
-
+			   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+			   hri_pa_bb = hri_pa_bb0.flatten()
+			   hri_pa0 = hri_pa_bb[ind]
+			   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
+			   print 'mean similarity in the park is '+str(hr1averpa)
+			   hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
+			   hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
+			   hr1insumaver = sum(hr1inaver)
+			   print hr1insum
+			   hr1averr = np.where(pmhh >= hr1averpa, 1,0)
+			   hr1aver = hr1averr.flatten()
+			   labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s)
+			   hr1sumaver = sum(hr1aver)
+			   hr2aver = hr1sumaver - hr1insumaver
+			   hr3aver = float(hr2aver/ind_pa.shape[0])
+		   
 		# calculate single HRI 0.5 value
-		   pmh2 = pmhh.flatten()
+		   
 		   #print len(pmh2)
 		   #pmh2in = pmh2[ind]
 		   #print len(pmh2in)
-		   hr1 = np.where(pmh2 >= 0.5, 1,0)
-		   hr1aver = np.where(pmh2 >= hr1averpa, 1,0)
-		   hr1sum = sum(hr1)
-		   hr1sumaver = sum(hr1aver)
-		   print hr1sum
-		   
+
 		   #hr1in = hr1[ind]#np.where(pmh2in >= 0.5, 1,0)
 		   #hr1insum = sum(hr1in)
 		   #hr2 = sum(hr1) #- hr1insum#- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
 		   hr2 = hr1sum - hr1insum
-		   hr2aver = hr1sumaver - hr1insumaver
 		   #print sum(hr1)
 		   #print hr1insum
 		   print hr2
 		   hr3 = float(hr2/ind_pa.shape[0])
-		   hr3aver = float(hr2aver/ind_pa.shape[0])
+		   
 		   print hr3
 		   wb = open('results/hri_results.csv','a')
-		   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)
+		   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_features)+' '+str(num_featuresaver)
 		   wb.write(var)
 		   wb.write('\n')
 		   wb.close()

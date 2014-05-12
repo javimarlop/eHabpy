@@ -54,8 +54,12 @@ for px in tqdm(range(0,n)):
  grass.run_command('r.mapcalc',expression=opt4,overwrite=True)
  grass.run_command('r.mask', vector=pa0, where=opt1)
  opt2 = pa4+'='+pa2
+ opt22 = pa4+'='+pa4
  grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
  grass.run_command('g.remove', rast='MASK')
+ grass.run_command('r.mask', rast='pre') # new to crop parks to wherw we have indicators information
+ grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
+ grass.run_command('g.remove', rast='MASK') # new
  grass.run_command('r.null',map=pa4,null=0)
  eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
  print eco_list
