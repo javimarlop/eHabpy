@@ -561,6 +561,10 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   yoff = int((gt_sim[3]-gt_pa[3])/1000)
 			   print yoff
 			   
+			   xextentpa = xoff+par.XSize
+			   yextentpa = yoff+par.YSize
+			   xless = sim.Xsize-xextentpa
+			   yless = sim.Ysize-yextentpa
 			   # if gt_sim[0]<0 and gt_sim[3]>0: # NW
 			    # xoff = int(abs(gt_sim[0]-gt_pa[0])/1000)
 			    # print xoff
@@ -568,12 +572,15 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			    # print yoff
 			     # if xoff<0 or yoff<0:
 				  # out = True
-			   
+			   xsize = par.XSize
+			   ysize = par.YSize
 			   if xoff>0 and yoff>0:
-
-				   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+				   if xless < 0: xsize = xsize + xless
+				   if yless < 0: ysize = ysize + yless
+				   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
 				   hri_pa_bb = hri_pa_bb0.flatten()
-				   hri_pa0 = hri_pa_bb[ind]
+				   indd = hri_pa_bb > 0
+				   hri_pa0 = hri_pa_bb[indd]
 				   print hri_pa0.max()
 				   print hri_pa0.min()
 				   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
