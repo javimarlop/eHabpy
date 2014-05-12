@@ -543,9 +543,31 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   src_ds_sim = gdal.Open(outfile)
 			   sim = src_ds_sim.GetRasterBand(1)
 			   gt_sim = src_ds_sim.GetGeoTransform()
-
+			   
+			   print gt_pa[0]
+			   print gt_sim[0]
+			   
+			   print gt_sim[3]
+			   print gt_pa[3]
+			   
+			   print gt_pa[1]
+			   print gt_pa[5]
+			   
+			   print gt_sim[1]
+			   print gt_sim[5]
+			   
 			   xoff = int((gt_pa[0]-gt_sim[0])/1000)
+			   print xoff
 			   yoff = int((gt_sim[3]-gt_pa[3])/1000)
+			   print yoff
+			   
+			   # if gt_sim[0]<0 and gt_sim[3]>0: # NW
+			    # xoff = int(abs(gt_sim[0]-gt_pa[0])/1000)
+			    # print xoff
+			    # yoff = int((gt_pa[3]-gt_sim[3])/1000)
+			    # print yoff
+			     # if xoff<0 or yoff<0:
+				  # out = True
 			   
 			   if xoff>0 and yoff>0:
 
