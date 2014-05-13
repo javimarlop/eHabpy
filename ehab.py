@@ -336,8 +336,8 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		   
 		   xoff = int((gt_pa[0]-gt_dem_global[0])/1000)
 		   yoff = int((gt_dem_global[3]-gt_pa[3])/1000)
-		   print xoff
-		   print yoff
+		   #print xoff
+		   #print yoff
 		   
 		   if xoff>0 and yoff>0:
 
@@ -544,22 +544,22 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   sim = src_ds_sim.GetRasterBand(1)
 			   gt_sim = src_ds_sim.GetGeoTransform()
 			   
-			   print gt_pa[0]
-			   print gt_sim[0]
+			   #print gt_pa[0]
+			   #print gt_sim[0]
 			   
-			   print gt_sim[3]
-			   print gt_pa[3]
+			   #print gt_sim[3]
+			   #print gt_pa[3]
 			   
-			   print gt_pa[1]
-			   print gt_pa[5]
+			   #print gt_pa[1]
+			   #print gt_pa[5]
 			   
-			   print gt_sim[1]
-			   print gt_sim[5]
+			   #print gt_sim[1]
+			   #print gt_sim[5]
 			   
 			   xoff = int((gt_pa[0]-gt_sim[0])/1000)
-			   print xoff
+			   #print xoff
 			   yoff = int((gt_sim[3]-gt_pa[3])/1000)
-			   print yoff
+			   #print yoff
 			   
 			   xextentpa = xoff + par.XSize
 			   yextentpa = yoff + par.YSize
