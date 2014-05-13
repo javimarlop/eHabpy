@@ -561,10 +561,10 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   yoff = int((gt_sim[3]-gt_pa[3])/1000)
 			   print yoff
 			   
-			   xextentpa = xoff+par.XSize
-			   yextentpa = yoff+par.YSize
-			   xless = sim.Xsize-xextentpa
-			   yless = sim.Ysize-yextentpa
+			   xextentpa = xoff + par.XSize
+			   yextentpa = yoff + par.YSize
+			   xless = sim.XSize - xextentpa
+			   yless = sim.YSize - yextentpa
 			   # if gt_sim[0]<0 and gt_sim[3]>0: # NW
 			    # xoff = int(abs(gt_sim[0]-gt_pa[0])/1000)
 			    # print xoff
