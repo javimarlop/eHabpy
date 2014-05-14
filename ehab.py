@@ -339,7 +339,8 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		   sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
 		   print sum_pa_mask_inv
 		   print len(pa_mask)
-		   ratiogeom = sum_pa_mask_inv/sum_pa_mask
+		   ratiogeom = 10000
+		   if sum_pa_mask > 0: ratiogeom = sum_pa_mask_inv/sum_pa_mask
 		   print ratiogeom
 		   gt_pa = src_ds_pa.GetGeoTransform()
 		   
