@@ -331,7 +331,16 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 		   par = src_ds_pa.GetRasterBand(1)
 		   pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
 		   pa_mask = pa_mask0.flatten()
-		   ind = pa_mask > 0
+		   #print pa_mask.max()
+		   #print pa_mask.min()
+		   ind = pa_mask == int(pa)#> 0
+		   sum_pa_mask = sum(pa_mask[ind])/int(pa)
+		   print sum_pa_mask
+		   sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
+		   print sum_pa_mask_inv
+		   print len(pa_mask)
+		   ratiogeom = sum_pa_mask_inv/sum_pa_mask
+		   print ratiogeom
 		   gt_pa = src_ds_pa.GetGeoTransform()
 		   
 		   xoff = int((gt_pa[0]-gt_dem_global[0])/1000)
@@ -534,7 +543,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   print hr1sum
 			   hr1insumaver = hr1insum = 0
 			   hr1sumaver = hr1sum
-			   hr1averpa = hr3aver = num_featuresaver = None
+			   hr1averpa = hr3aver = num_featuresaver = hr1medianpa = None
 			   labeled_array, num_features = nd.label(hr11, structure=s)
 			   
 	 
@@ -574,7 +583,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				  # out = True
 			   xsize = par.XSize
 			   ysize = par.YSize
-			   if xoff>0 and yoff>0:
+			   if xoff>0 and yoff>0 and ratiogeom < 1000:
 				   if xless < 0: xsize = xsize + xless
 				   if yless < 0: ysize = ysize + yless
 				   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
@@ -584,6 +593,8 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				   print hri_pa0.max()
 				   print hri_pa0.min()
 				   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
+				   hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
+				   #hr1p25pa = np.percentile(hri_pa0[~np.isnan(hri_pa0)],25)
 				   print 'mean similarity in the park is '+str(hr1averpa)
 				   hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
 				   hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
@@ -613,7 +624,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   
 			   print hr3
 			   wb = open('results/hri_results.csv','a')
-			   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)#+' '+str(num_features)+' '+str(num_featuresaver) # exclude PA!
+			   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(hr1medianpa)#+' '+str(hr1p25pa)#+' '+str(num_features)+' '+str(num_featuresaver) # exclude PA!
 			   wb.write(var)
 			   wb.write('\n')
 			   wb.close()
