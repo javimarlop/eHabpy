@@ -583,7 +583,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				  # out = True
 			   xsize = par.XSize
 			   ysize = par.YSize
-			   if xoff>0 and yoff>0 and ratiogeom < 1000:
+			   if xoff>0 and yoff>0 and ratiogeom < 100:
 				   if xless < 0: xsize = xsize + xless
 				   if yless < 0: ysize = ysize + yless
 				   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
