@@ -492,7 +492,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   ndvimax_pa_bb0 = ndvimax_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
 			   ndvimax_pa_bb = ndvimax_pa_bb0.flatten()
 			   ndvimax_pa0 = ndvimax_pa_bb[ind]
-			   ndvimax_pa = np.where(ndvimax_pa0 == 255.0, (float('NaN')),(ndvimax_pa0))
+			   ndvimax_pa = np.where(ndvimax_pa0 == 65535.0, (float('NaN')),(ndvimax_pa0))
 			   mask2ndvimax = np.isnan(ndvimax_pa)
 			   if mask2ndvimax.all() == True:
 				 dropcols[5] = -5
@@ -508,7 +508,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   ndvimin_pa_bb0 = ndvimin_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
 			   ndvimin_pa_bb = ndvimin_pa_bb0.flatten()
 			   ndvimin_pa0 = ndvimin_pa_bb[ind]
-			   ndvimin_pa = np.where(ndvimin_pa0 == 255.0, (float('NaN')),(ndvimin_pa0))
+			   ndvimin_pa = np.where(ndvimin_pa0 == 65535.0, (float('NaN')),(ndvimin_pa0))
 			   mask2ndvimin = np.isnan(ndvimin_pa)
 			   if mask2ndvimin.all() == True:
 				 dropcols[5] = -5
