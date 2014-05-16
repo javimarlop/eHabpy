@@ -517,7 +517,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				 ndvimin_pa = np.random.random_sample(len(ndvimin_pa),)/1000 + ndvimin_pa
 				 print 'pa ndvimin'
 				 print ndvimin_pa.min()
-				 print ndvimin_pa.min()
+				 print ndvimin_pa.max()
 			 
 			   xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
 			   yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
