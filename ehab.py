@@ -97,7 +97,8 @@ indir = 'inVars'
 
 herbf = 'herb.tif'
 treef = 'tree.tif'
-ndvif = 'ndvi.tif'
+ndvimaxf = 'ndvimax.tif'
+ndviminf = 'ndvimin.tif'
 ndwif = 'ndwi.tif'
 slopef = 'slope.tif'
 demf = 'dem.tif'
@@ -140,12 +141,19 @@ gt_herb_global = src_ds_herb_global.GetGeoTransform()
 
 print 'herb'
 
-ndvif_globalfile=indir+'/'+ndvif
-src_ds_ndvi_global = gdal.Open(ndvif_globalfile)
-ndvi_global = src_ds_ndvi_global.GetRasterBand(1)
-gt_ndvi_global = src_ds_ndvi_global.GetGeoTransform()
+ndvimaxf_globalfile=indir+'/'+ndvimaxf
+src_ds_ndvimax_global = gdal.Open(ndvimaxf_globalfile)
+ndvimax_global = src_ds_ndvimax_global.GetRasterBand(1)
+gt_ndvimax_global = src_ds_ndvimax_global.GetGeoTransform()
 
-print 'ndvi'
+print 'ndvimax'
+
+ndviminf_globalfile=indir+'/'+ndviminf
+src_ds_ndvimin_global = gdal.Open(ndviminf_globalfile)
+ndvimin_global = src_ds_ndvimin_global.GetRasterBand(1)
+gt_ndvimin_global = src_ds_ndvimin_global.GetGeoTransform()
+
+print 'ndvimin'
 
 ndwif_globalfile=indir+'/'+ndwif
 src_ds_ndwi_global = gdal.Open(ndwif_globalfile)
@@ -170,9 +178,11 @@ print 'tree'
 
 print "Global variables imported"
 
-wb = open('results/ecoregs_done.csv','a')
-wb.write('\n')
-wb.close()
+csvname = 'results/ecoregs_done.csv'
+if os.path.isfile(csvname) == False
+ wb = open(csvname,'a')
+ wb.write('ecoregion wdpaid hri50 averpasim hriaver medianpasim nrpatches nrpatchesaver')
+ wb.close()
 
 # LOOP ECOREGIONS
 eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
@@ -231,16 +241,27 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 
 	  print 'eco slope'
 
-	  xoff = int((gt_eco[0]-gt_ndvi_global[0])/1000)
-	  yoff = int((gt_ndvi_global[3]-gt_eco[3])/1000)
-	  ndvi_eco_bb0 = ndvi_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
-	  ndvi_eco_bb = ndvi_eco_bb0.flatten()
-	  ndvi_eco0 = np.where(eco_mask == 1, (ndvi_eco_bb),(0))
-	  ndvi_eco = np.where(ndvi_eco0 == 255.0, (float('NaN')),(ndvi_eco0))
-	  maskndvi = np.isnan(ndvi_eco)
-	  ndvi_eco[maskndvi] = np.interp(np.flatnonzero(maskndvi), np.flatnonzero(~maskndvi), ndvi_eco[~maskndvi])
+	  xoff = int((gt_eco[0]-gt_ndvimax_global[0])/1000)
+	  yoff = int((gt_ndvimax_global[3]-gt_eco[3])/1000)
+	  ndvimax_eco_bb0 = ndvimax_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
+	  ndvimax_eco_bb = ndvimax_eco_bb0.flatten()
+	  ndvimax_eco0 = np.where(eco_mask == 1, (ndvimax_eco_bb),(0))
+	  ndvimax_eco = np.where(ndvimax_eco0 == 65535.0, (float('NaN')),(ndvimax_eco0))
+	  maskndvimax = np.isnan(ndvimax_eco)
+	  ndvimax_eco[maskndvimax] = np.interp(np.flatnonzero(maskndvimax), np.flatnonzero(~maskndvimax), ndvimax_eco[~maskndvimax])
 
-	  print 'eco ndvi'
+	  print 'eco ndvimax'
+
+	  xoff = int((gt_eco[0]-gt_ndvimin_global[0])/1000)
+	  yoff = int((gt_ndvimin_global[3]-gt_eco[3])/1000)
+	  ndvimin_eco_bb0 = ndvimin_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
+	  ndvimin_eco_bb = ndvimin_eco_bb0.flatten()
+	  ndvimin_eco0 = np.where(eco_mask == 1, (ndvimin_eco_bb),(0))
+	  ndvimin_eco = np.where(ndvimin_eco0 == 65535.0, (float('NaN')),(ndvimin_eco0))
+	  maskndvimin = np.isnan(ndvimin_eco)
+	  ndvimin_eco[maskndvimin] = np.interp(np.flatnonzero(maskndvimin), np.flatnonzero(~maskndvimin), ndvimin_eco[~maskndvimin])
+
+	  print 'eco ndvimin'
 
 	  xoff = int((gt_eco[0]-gt_ndwi_global[0])/1000)
 	  yoff = int((gt_ndwi_global[3]-gt_eco[3])/1000)
@@ -297,7 +318,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 
 	  print 'eco herb'
 
-	  ind_eco0 = np.column_stack((dem_eco,bio_eco,pre_eco,epr_eco,herb_eco,ndvi_eco,ndwi_eco,slope_eco,tree_eco))
+	  ind_eco0 = np.column_stack((dem_eco,bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 
 	  #print ind_eco.shape
 
@@ -468,21 +489,37 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				 print ndwi_pa.min()
 				 print ndwi_pa.max()
 			 
-			   xoff = int((gt_pa[0]-gt_ndvi_global[0])/1000)
-			   yoff = int((gt_ndvi_global[3]-gt_pa[3])/1000)
-			   ndvi_pa_bb0 = ndvi_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-			   ndvi_pa_bb = ndvi_pa_bb0.flatten()
-			   ndvi_pa0 = ndvi_pa_bb[ind]
-			   ndvi_pa = np.where(ndvi_pa0 == 255.0, (float('NaN')),(ndvi_pa0))
-			   mask2ndvi = np.isnan(ndvi_pa)
-			   if mask2ndvi.all() == True:
+			   xoff = int((gt_pa[0]-gt_ndvimax_global[0])/1000)
+			   yoff = int((gt_ndvimax_global[3]-gt_pa[3])/1000)
+			   ndvimax_pa_bb0 = ndvimax_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+			   ndvimax_pa_bb = ndvimax_pa_bb0.flatten()
+			   ndvimax_pa0 = ndvimax_pa_bb[ind]
+			   ndvimax_pa = np.where(ndvimax_pa0 == 65535.0, (float('NaN')),(ndvimax_pa0))
+			   mask2ndvimax = np.isnan(ndvimax_pa)
+			   if mask2ndvimax.all() == True:
 				 dropcols[5] = -5
 			   else:
-				 ndvi_pa[mask2ndvi] = np.interp(np.flatnonzero(mask2ndvi), np.flatnonzero(~mask2ndvi), ndvi_pa[~mask2ndvi])
-				 ndvi_pa = np.random.random_sample(len(ndvi_pa),)/1000 + ndvi_pa
-				 print 'pa ndvi'
-				 print ndvi_pa.min()
-				 print ndvi_pa.max()
+				 ndvimax_pa[mask2ndvimax] = np.interp(np.flatnonzero(mask2ndvimax), np.flatnonzero(~mask2ndvimax), ndvimax_pa[~mask2ndvimax])
+				 ndvimax_pa = np.random.random_sample(len(ndvimax_pa),)/1000 + ndvimax_pa
+				 print 'pa ndvimax'
+				 print ndvimax_pa.min()
+				 print ndvimax_pa.max()
+
+			   xoff = int((gt_pa[0]-gt_ndvimin_global[0])/1000)
+			   yoff = int((gt_ndvimin_global[3]-gt_pa[3])/1000)
+			   ndvimin_pa_bb0 = ndvimin_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+			   ndvimin_pa_bb = ndvimin_pa_bb0.flatten()
+			   ndvimin_pa0 = ndvimin_pa_bb[ind]
+			   ndvimin_pa = np.where(ndvimin_pa0 == 65535.0, (float('NaN')),(ndvimin_pa0))
+			   mask2ndvimin = np.isnan(ndvimin_pa)
+			   if mask2ndvimin.all() == True:
+				 dropcols[5] = -5
+			   else:
+				 ndvimin_pa[mask2ndvimin] = np.interp(np.flatnonzero(mask2ndvimin), np.flatnonzero(~mask2ndvimin), ndvimin_pa[~mask2ndvimin])
+				 ndvimin_pa = np.random.random_sample(len(ndvimin_pa),)/1000 + ndvimin_pa
+				 print 'pa ndvimin'
+				 print ndvimin_pa.min()
+				 print ndvimin_pa.max()
 			 
 			   xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
 			   yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
@@ -505,7 +542,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   #print tot
 			   #if  tot == 100: tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
 			  
-			   ind_pa0 = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvi_pa,ndwi_pa,slope_pa,tree_pa))
+			   ind_pa0 = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvimax_pa,ndvimin_pa,ndwi_pa,slope_pa,tree_pa))
 			  
 			   ind_pa = ind_pa0[:,cols]
 			   ind_eco = ind_eco0[:,cols]
@@ -530,7 +567,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   print "mh ok"
 
 			   from scipy.stats import chisqprob
-			   pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
+			   pmh = chisqprob(mh,10).reshape((eco.YSize,eco.XSize))
 			   pmhh = np.where(pmh <= 1e-10,None, pmh)
 			   print "pmh ok" # quitar valores muy bajos!
 
@@ -584,7 +621,7 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 				  # out = True
 			   xsize = par.XSize
 			   ysize = par.YSize
-			   if xoff>0 and yoff>0 and ratiogeom < 100:
+			   if xoff>0 and yoff>0 and ratiogeom < 100: # also check if results are not empty?
 				   if xless < 0: xsize = xsize + xless
 				   if yless < 0: ysize = ysize + yless
 				   hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
@@ -624,8 +661,8 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 			   hr3 = float(hr2/ind_pa.shape[0])
 			   
 			   print hr3
-			   wb = open('results/hri_results.csv','a')
-			   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(hr1medianpa)#+' '+str(hr1p25pa)#+' '+str(num_features)+' '+str(num_featuresaver) # exclude PA!
+			   wb = open(csvname,'a')
+			   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(hr1medianpa)+' '+str(num_features)+' '+str(num_featuresaver) # exclude PA! #+' '+str(hr1p25pa)#
 			   wb.write(var)
 			   wb.write('\n')
 			   wb.close()

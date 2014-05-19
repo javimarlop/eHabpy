@@ -20,8 +20,8 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
-#source = 'wdpa_snapshot_new_mollweide@javier'
-source='parks_80601'
+source = 'wdpa_snapshot_new_mollweide@javier'
+#source='parks_80601'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
 pa_list = np.unique(pa_list0)
@@ -43,20 +43,21 @@ for px in tqdm(range(0,n)):
  pa2 = pa+'v2'
  pa3 = pa+'v3'
  pa4 = 'pa_'+pa
+ pa5 = pa4+'.txt'
   
  grass. message ("setting up the working region")
  grass.run_command('g.region',vect=pa0,res=1000)
  grass. message ("cropping the segments")
- grass.run_command('r.mask', vector=source, where=opt1)
  grass. message ("segmenting the park")
  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize='25', memory='10000', iterations='20',overwrite=True)
- #opt2 = pa3+'='+pa2
- #grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
+ grass.run_command('r.mask', vector=source, where=opt1)
+ opt2 = pa3+'='+pa2
+ grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
  grass.run_command('g.remove', rast='MASK')
  grass. message ("Number of cells per segment")
- grass.run_command('r.stats',input=pa2,flags='nc')
+ grass.run_command('r.stats',input=pa3,out=pa5) # flags='nc'
  grass. message ("converting to vector")
- grass.run_command('r.to.vect', input=pa2,out=pa4,type ='area',flags='v',overwrite=True)
+ grass.run_command('r.to.vect', input=pa3,out=pa4,type ='area',flags='v',overwrite=True)
  grass. message ("adding labels to segments")
  grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid VARCHAR')
  grass.run_command('v.db.addcolumn', map=pa4,col='wdpa_id VARCHAR')
