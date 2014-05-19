@@ -21,15 +21,16 @@ gsetup.init(gisbase,
 print grass.gisenv()
 
 source = 'wdpa_snapshot_new_mollweide@javier'
-#source='parks_80601'
-grass. message ("Extracting list of PAs")
-pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
-pa_list = np.unique(pa_list0)
+##source='parks_80601'
+#grass. message ("Extracting list of PAs")
+#pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
+#pa_list = np.unique(pa_list0)
+pa_list = '257','101922','2017','11','68175','643','555542456'
 
 grass. message("omitting previous masks")
 grass.run_command('g.remove', rast='MASK')
 
-n = len(pa_list)-2
+n = len(pa_list)-1#2
 #print pa_list[1]
 for px in tqdm(range(0,n)):
 
@@ -47,12 +48,19 @@ for px in tqdm(range(0,n)):
   
  grass. message ("setting up the working region")
  grass.run_command('g.region',vect=pa0,res=1000)
- grass. message ("cropping the segments")
+ #grass.run_command('r.mask', vector=source, where=opt1)
+ grass.run_command('r.mapcalc',expression='const = if(pre>=0,1,null())',overwrite=True)
+ a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
+ #grass.run_command('g.remove', rast='MASK')
+ print a
+ minarea = np.sqrt(int(a[1]))#/1000
+ print minarea
  grass. message ("segmenting the park")
- grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize='25', memory='10000', iterations='20',overwrite=True)
+ grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize=minarea, memory='10000', iterations='20',overwrite=True)
+ grass. message ("cropping the segments")
  grass.run_command('r.mask', vector=source, where=opt1)
  opt2 = pa3+'='+pa2
- grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
+ grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
  grass.run_command('g.remove', rast='MASK')
  grass. message ("Number of cells per segment")
  grass.run_command('r.stats',input=pa3,out=pa5) # flags='nc'
@@ -64,7 +72,7 @@ for px in tqdm(range(0,n)):
  grass.run_command('v.db.update', map=pa4,col='wdpaid',value=pa)
  grass.run_command('v.db.update', map=pa4,col='wdpa_id',qcol='wdpaid || cat')
  grass. message ("Exporting shapefile")
- if px == 1:
+ if px == 0:
   grass.run_command('v.out.ogr',input=pa4,ola='parks_segmented',dsn='.') 
  else:
   grass.run_command('v.out.ogr',flags='a',input=pa4,ola='parks_segmented',dsn='.') 
