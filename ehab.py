@@ -178,8 +178,17 @@ print 'tree'
 
 print "Global variables imported"
 
-csvname = 'results/ecoregs_done.csv'
-if os.path.isfile(csvname) == False
+#eco_list_done = 'None'
+
+csvname1 = 'results/ecoregs_done.csv'
+if os.path.isfile(csvname1) == False:
+ wb = open(csvname1,'a')
+ wb.write('None')
+ wb.write('\n')
+ wb.close()
+
+csvname = 'results/hri_results.csv'
+if os.path.isfile(csvname) == False:
  wb = open(csvname,'a')
  wb.write('ecoregion wdpaid hri50 averpasim hriaver medianpasim nrpatches nrpatchesaver')
  wb.close()
@@ -187,11 +196,13 @@ if os.path.isfile(csvname) == False
 # LOOP ECOREGIONS
 eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
 eco_list = np.unique(eco_list0)
+print eco_list
 eco_list_done = np.genfromtxt('results/ecoregs_done.csv',dtype='int')
+print eco_list_done
 
 m = len(eco_list)
 #print pa_list[1]
-for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
+for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
  ecor = eco_list[pm]
  print ecor
  if ecor not in eco_list_done:
@@ -676,5 +687,5 @@ for pm in tqdm(range(3,m)): # 3,m # 0 without the negative ecoregs!
 	  wb.close() 
 
 t1 = clock()
-print("Time spent: %f min" % ((t1-t0)/60,))
+#print("Time spent: %f min" % ((t1-t0)/60,))
 print "END"
