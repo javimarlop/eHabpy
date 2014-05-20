@@ -4,6 +4,7 @@ import sys
 import csv
 import numpy as np
 from tqdm import *
+from datetime import datetime
 
 #gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
 gisbase = os.environ['GISBASE'] = "/home/majavie/grass7_source/g71/grass7_trunk/dist.x86_64-unknown-linux-gnu"
@@ -107,3 +108,6 @@ for px in tqdm(range(0,n)):
   wb.write('\n')
   wb.close() 
 # try to paralellize it?
+
+print str(datetime.now())
+print 'END'

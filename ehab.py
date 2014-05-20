@@ -1,8 +1,9 @@
 # Code by Javier Martinez-Lopez
 from __future__ import division
-from time import clock
-t0 = clock() 
+#from time import clock
+#t0 = clock() 
 import mkl
+from datetime import datetime
 import numpy as np
 import scipy.ndimage as nd
 import os.path
@@ -687,6 +688,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  wb.write('\n')
 	  wb.close() 
 
-t1 = clock()
+#t1 = clock()
+print str(datetime.now())
 #print("Time spent: %f min" % ((t1-t0)/60,))
 print "END"
