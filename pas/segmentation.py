@@ -38,7 +38,7 @@ if os.path.isfile(csvname1) == False:
  wb.close()
 
 pa_list_done = np.genfromtxt(csvname1,dtype='string')
-print pa_list_done
+#print pa_list_done
 
 grass. message("omitting previous masks")
 grass.run_command('g.remove', rast='MASK')
@@ -67,6 +67,7 @@ for px in tqdm(range(0,n)):
   grass.run_command('r.mapcalc',expression='const = if(gcmask>=0,1,null())',overwrite=True)
   grass.run_command('r.mapcalc',expression=same,overwrite=True)
   a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
+  if len(a)==0: a = [1, 625]
   #grass.run_command('g.remove', rast='MASK')
   print a
   minarea = np.sqrt(int(a[1]))#/1000
