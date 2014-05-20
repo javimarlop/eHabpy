@@ -191,6 +191,7 @@ csvname = 'results/hri_results.csv'
 if os.path.isfile(csvname) == False:
  wb = open(csvname,'a')
  wb.write('ecoregion wdpaid hri50 averpasim hriaver medianpasim nrpatches nrpatchesaver')
+ wb.write('\n')
  wb.close()
 
 # LOOP ECOREGIONS
