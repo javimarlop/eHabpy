@@ -73,7 +73,7 @@ for px in tqdm(range(0,n)):
   minarea = np.sqrt(int(a[1]))#/1000
   print minarea
   grass. message ("segmenting the park")
-  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize=minarea, memory='10000', iterations='20',overwrite=True)
+  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize=minarea, memory='100000', iterations='20',overwrite=True)
   grass. message ("cropping the segments")
   grass.run_command('r.mask', vector=source, where=opt1)
   opt2 = pa3+'='+pa2
