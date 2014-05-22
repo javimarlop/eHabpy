@@ -356,8 +356,8 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  
 	   #import os.path
 	   done = os.path.isfile(outfile)
-	  
-	   if done == False:
+	   avail2 = os.path.isfile(pa4)
+	   if done == False and avail2 == True:
 	  
 		   pafile=pa4
 		   #print pafile
