@@ -23,11 +23,10 @@ gsetup.init(gisbase,
 print grass.gisenv()
 
 source = 'wdpa_snapshot_new_mollweide@javier'
-##source='parks_80601'
-grass. message ("Extracting list of PAs")
-pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
-pa_list = np.unique(pa_list0)
-# pa_list = '257','101922','2017','11','68175','643','555542456'
+#grass. message ("Extracting list of PAs")
+#pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
+#pa_list = np.unique(pa_list0)
+pa_list = '257','101922','2017','11','68175','643','555542456' # testing set
 
 
 csvname1 = 'pas_segm_done.csv'
