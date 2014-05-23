@@ -102,17 +102,17 @@ ndvimaxf = 'ndvimax.tif'
 ndviminf = 'ndvimin.tif'
 ndwif = 'ndwi.tif'
 slopef = 'slope.tif'
-#demf = 'dem.tif'
+demf = 'dem.tif'
 biof = 'bio.tif'
 eprf = 'epr.tif'
-pref = 'pre4root.tif'
+pref = 'pre.tif'
 
-#demf_globalfile=indir+'/'+demf
-#src_ds_dem_global = gdal.Open(demf_globalfile)
-#dem_global = src_ds_dem_global.GetRasterBand(1)
-#gt_dem_global = src_ds_dem_global.GetGeoTransform()
+demf_globalfile=indir+'/'+demf
+src_ds_dem_global = gdal.Open(demf_globalfile)
+dem_global = src_ds_dem_global.GetRasterBand(1)
+gt_dem_global = src_ds_dem_global.GetGeoTransform()
 
-#print 'dem'
+print 'dem'
 
 biof_globalfile=indir+'/'+biof
 src_ds_bio_global = gdal.Open(biof_globalfile)
@@ -221,16 +221,16 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  
 	  #if gt_eco[0]>gt_dem_global[0] and gt_eco[3]>gt_dem_global[3]:
 
-#	  xoff = int((gt_eco[0]-gt_dem_global[0])/1000)
-#	  yoff = int((gt_dem_global[3]-gt_eco[3])/1000)
-#	  dem_eco_bb0 = dem_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
-#	  dem_eco_bb = dem_eco_bb0.flatten()
-#	  dem_eco0 = np.where(eco_mask == 1, (dem_eco_bb),(0))
-#	  dem_eco = np.where(dem_eco0 == 65535.0, (float('NaN')),(dem_eco0))
-#	  maskdem = np.isnan(dem_eco)
-#	  dem_eco[maskdem] = np.interp(np.flatnonzero(maskdem), np.flatnonzero(~maskdem), dem_eco[~maskdem])
+	  xoff = int((gt_eco[0]-gt_dem_global[0])/1000)
+	  yoff = int((gt_dem_global[3]-gt_eco[3])/1000)
+	  dem_eco_bb0 = dem_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
+	  dem_eco_bb = dem_eco_bb0.flatten()
+	  dem_eco0 = np.where(eco_mask == 1, (dem_eco_bb),(0))
+	  dem_eco = np.where(dem_eco0 == 65535.0, (float('NaN')),(dem_eco0))
+	  maskdem = np.isnan(dem_eco)
+	  dem_eco[maskdem] = np.interp(np.flatnonzero(maskdem), np.flatnonzero(~maskdem), dem_eco[~maskdem])
 
-#	  print 'eco dem'
+	  print 'eco dem'
 
 	  xoff = int((gt_eco[0]-gt_epr_global[0])/1000)
 	  yoff = int((gt_epr_global[3]-gt_eco[3])/1000)
@@ -292,7 +292,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  pre_eco_bb0 = pre_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
 	  pre_eco_bb = pre_eco_bb0.flatten()
 	  pre_eco0 = np.where(eco_mask == 1, (pre_eco_bb),(0))
-	  pre_eco = np.where(pre_eco0 == 'nan', (float('NaN')),(pre_eco0))
+	  pre_eco = np.where(pre_eco0 == 65535.0, (float('NaN')),(pre_eco0))
 	  maskpre = np.isnan(pre_eco)
 	  pre_eco[maskpre] = np.interp(np.flatnonzero(maskpre), np.flatnonzero(~maskpre), pre_eco[~maskpre])
 
@@ -331,7 +331,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 
 	  print 'eco herb'
 
-	  ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
+	  ind_eco0 = np.column_stack((dem_eco,bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 
 	  #print ind_eco.shape
 
@@ -356,8 +356,8 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  
 	   #import os.path
 	   done = os.path.isfile(outfile)
-	   avail2 = os.path.isfile(pa4)
-	   if done == False and avail2 == True:
+	  
+	   if done == False:
 	  
 		   pafile=pa4
 		   #print pafile
@@ -378,8 +378,8 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 		   print ratiogeom
 		   gt_pa = src_ds_pa.GetGeoTransform()
 		   
-		   xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
-		   yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
+		   xoff = int((gt_pa[0]-gt_dem_global[0])/1000)
+		   yoff = int((gt_dem_global[3]-gt_pa[3])/1000)
 		   #print xoff
 		   #print yoff
 		   
@@ -392,19 +392,19 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 			   dst_ds.SetGeoTransform( src_ds_eco.GetGeoTransform())
 			   dst_ds.SetProjection( src_ds_eco.GetProjectionRef())
 		   
-#			   dem_pa_bb0 = dem_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
-#			   dem_pa_bb = dem_pa_bb0.flatten()
-#			   dem_pa0 = dem_pa_bb[ind]
-#			   dem_pa = np.where(dem_pa0 == 65535.0, (float('NaN')),(dem_pa0))
-#			   mask2dem = np.isnan(dem_pa)
-#			   if mask2dem.all() == True:
-#				 dropcols[0] = -1
-#			   else:
-#				 dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
-#				 dem_pa = np.random.random_sample(len(dem_pa),)/1000 + dem_pa
-#				 print 'pa dem'
-#				 print dem_pa.min()
-#				 print dem_pa.max()
+			   dem_pa_bb0 = dem_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
+			   dem_pa_bb = dem_pa_bb0.flatten()
+			   dem_pa0 = dem_pa_bb[ind]
+			   dem_pa = np.where(dem_pa0 == 65535.0, (float('NaN')),(dem_pa0))
+			   mask2dem = np.isnan(dem_pa)
+			   if mask2dem.all() == True:
+				 dropcols[0] = -1
+			   else:
+				 dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
+				 dem_pa = np.random.random_sample(len(dem_pa),)/1000 + dem_pa
+				 print 'pa dem'
+				 print dem_pa.min()
+				 print dem_pa.max()
 			 
 			   xoff = int((gt_pa[0]-gt_tree_global[0])/1000)
 			   yoff = int((gt_tree_global[3]-gt_pa[3])/1000)
@@ -443,7 +443,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 			   pre_pa_bb0 = pre_global.ReadAsArray(xoff,yoff,par.XSize,par.YSize).astype(np.float32)
 			   pre_pa_bb = pre_pa_bb0.flatten()
 			   pre_pa0 = pre_pa_bb[ind]
-			   pre_pa = np.where(pre_pa0 == 'nan', (float('NaN')),(pre_pa0))
+			   pre_pa = np.where(pre_pa0 == 65535.0, (float('NaN')),(pre_pa0))
 			   mask2pre = np.isnan(pre_pa)
 			   if mask2pre.all() == True:
 				 dropcols[2] = -2
@@ -555,7 +555,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 			   #print tot
 			   #if  tot == 100: tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
 			  
-			   ind_pa0 = np.column_stack((bio_pa,pre_pa,epr_pa,herb_pa,ndvimax_pa,ndvimin_pa,ndwi_pa,slope_pa,tree_pa))
+			   ind_pa0 = np.column_stack((dem_pa,bio_pa,pre_pa,epr_pa,herb_pa,ndvimax_pa,ndvimin_pa,ndwi_pa,slope_pa,tree_pa))
 			  
 			   ind_pa = ind_pa0[:,cols]
 			   ind_eco = ind_eco0[:,cols]
@@ -580,7 +580,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 			   print "mh ok"
 
 			   from scipy.stats import chisqprob
-			   pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
+			   pmh = chisqprob(mh,10).reshape((eco.YSize,eco.XSize))
 			   pmhh = np.where(pmh <= 1e-10,None, pmh)
 			   print "pmh ok" # quitar valores muy bajos!
 
@@ -641,8 +641,8 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 				   hri_pa_bb = hri_pa_bb0.flatten()
 				   indd = hri_pa_bb > 0
 				   hri_pa0 = hri_pa_bb[indd]
-				   #print hri_pa0.max()
-				   #print hri_pa0.min()
+				   print hri_pa0.max()
+				   print hri_pa0.min()
 				   hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
 				   hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
 				   #hr1p25pa = np.percentile(hri_pa0[~np.isnan(hri_pa0)],25)
