@@ -90,13 +90,13 @@ def mahalanobis_distances_scipy(m, S, X, parallel=True):
 		 return _mahalanobis_distances_scipy(m, SI, X)
 ###
 
-def process_pa(pa) #ecor
- pa = pa_list[px]
+def process_pa(pa): #ecor
+ #pa = pa_list[px]
  print pa
  outfile = 'results/'+str(ecor)+'_'+str(pa)+'.tif'
- #print outfile
+ ##print outfile
  pa4 = 'pas/pa_'+str(pa)+'.tif'
- #print pa4
+ ##print pa4
 	  
  dropcols = np.arange(9,dtype=int)
 	  
@@ -106,28 +106,28 @@ def process_pa(pa) #ecor
  if done == False and avail2 == True:
 	  
 	 pafile=pa4
-	 #print pafile
+	 ##print pafile
 	 src_ds_pa = gdal.Open(pafile)
 	 par = src_ds_pa.GetRasterBand(1)
 	 pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
 	 pa_mask = pa_mask0.flatten()
-	 #print pa_mask.max()
-	 #print pa_mask.min()
+	 ##print pa_mask.max()
+	 ##print pa_mask.min()
 	 ind = pa_mask == int(pa)#> 0
 	 sum_pa_mask = sum(pa_mask[ind])/int(pa)
-	 print sum_pa_mask
+	 #print sum_pa_mask
 	 sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
-	 print sum_pa_mask_inv
-	 print len(pa_mask)
+	 #print sum_pa_mask_inv
+	 #print len(pa_mask)
 	 ratiogeom = 10000
 	 if sum_pa_mask > 0: ratiogeom = sum_pa_mask_inv/sum_pa_mask
-	 print ratiogeom
+	 #print ratiogeom
 	 gt_pa = src_ds_pa.GetGeoTransform()
 	 
 	 xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
 	 yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
-	 #print xoff
-	 #print yoff
+	 ##print xoff
+	 ##print yoff
 	 
 	 if xoff>0 and yoff>0:
 
@@ -148,9 +148,9 @@ def process_pa(pa) #ecor
 #		 else:
 #				 dem_pa[mask2dem] = np.interp(np.flatnonzero(mask2dem), np.flatnonzero(~mask2dem), dem_pa[~mask2dem])
 #				 dem_pa = np.random.random_sample(len(dem_pa),)/1000 + dem_pa
-#				 print 'pa dem'
-#				 print dem_pa.min()
-#				 print dem_pa.max()
+#				 #print 'pa dem'
+#				 #print dem_pa.min()
+#				 #print dem_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_tree_global[0])/1000)
 		 yoff = int((gt_tree_global[3]-gt_pa[3])/1000)
@@ -164,9 +164,9 @@ def process_pa(pa) #ecor
 		 else:
 				 tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
 				 tree_pa = np.random.random_sample(len(tree_pa),)/1000 + tree_pa
-				 print 'pa tree'
-				 print tree_pa.min()
-				 print tree_pa.max()
+				 #print 'pa tree'
+				 #print tree_pa.min()
+				 #print tree_pa.max()
 			
 		 xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
 		 yoff = int((gt_epr_global[3]-gt_pa[3])/1000)
@@ -180,9 +180,9 @@ def process_pa(pa) #ecor
 		 else:
 				 epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
 				 epr_pa = np.random.random_sample(len(epr_pa),)/1000 + epr_pa
-				 print 'pa epr'
-				 print epr_pa.min()
-				 print epr_pa.max()
+				 #print 'pa epr'
+				 #print epr_pa.min()
+				 #print epr_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
 		 yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
@@ -196,9 +196,9 @@ def process_pa(pa) #ecor
 		 else:
 				 pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
 				 pre_pa = np.random.random_sample(len(pre_pa),)/1000 + pre_pa
-				 print 'pa pre'
-				 print pre_pa.min()
-				 print pre_pa.max()
+				 #print 'pa pre'
+				 #print pre_pa.min()
+				 #print pre_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
 		 yoff = int((gt_bio_global[3]-gt_pa[3])/1000)
@@ -212,9 +212,9 @@ def process_pa(pa) #ecor
 		 else:
 				 bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
 				 bio_pa = np.random.random_sample(len(bio_pa),)/1000 + bio_pa
-				 print 'pa bio'
-				 print bio_pa.min()
-				 print bio_pa.max()
+				 #print 'pa bio'
+				 #print bio_pa.min()
+				 #print bio_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
 		 yoff = int((gt_slope_global[3]-gt_pa[3])/1000)
@@ -228,9 +228,9 @@ def process_pa(pa) #ecor
 		 else:
 				 slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
 				 slope_pa = np.random.random_sample(len(slope_pa),)/1000 + slope_pa
-				 print 'pa slope'
-				 print slope_pa.min()
-				 print slope_pa.max()
+				 #print 'pa slope'
+				 #print slope_pa.min()
+				 #print slope_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
 		 yoff = int((gt_ndwi_global[3]-gt_pa[3])/1000)
@@ -244,9 +244,9 @@ def process_pa(pa) #ecor
 		 else:
 				 ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
 				 ndwi_pa = np.random.random_sample(len(ndwi_pa),)/1000 + ndwi_pa
-				 print 'pa ndwi'
-				 print ndwi_pa.min()
-				 print ndwi_pa.max()
+				 #print 'pa ndwi'
+				 #print ndwi_pa.min()
+				 #print ndwi_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_ndvimax_global[0])/1000)
 		 yoff = int((gt_ndvimax_global[3]-gt_pa[3])/1000)
@@ -260,9 +260,9 @@ def process_pa(pa) #ecor
 		 else:
 				 ndvimax_pa[mask2ndvimax] = np.interp(np.flatnonzero(mask2ndvimax), np.flatnonzero(~mask2ndvimax), ndvimax_pa[~mask2ndvimax])
 				 ndvimax_pa = np.random.random_sample(len(ndvimax_pa),)/1000 + ndvimax_pa
-				 print 'pa ndvimax'
-				 print ndvimax_pa.min()
-				 print ndvimax_pa.max()
+				 #print 'pa ndvimax'
+				 #print ndvimax_pa.min()
+				 #print ndvimax_pa.max()
 
 		 xoff = int((gt_pa[0]-gt_ndvimin_global[0])/1000)
 		 yoff = int((gt_ndvimin_global[3]-gt_pa[3])/1000)
@@ -276,9 +276,9 @@ def process_pa(pa) #ecor
 		 else:
 				 ndvimin_pa[mask2ndvimin] = np.interp(np.flatnonzero(mask2ndvimin), np.flatnonzero(~mask2ndvimin), ndvimin_pa[~mask2ndvimin])
 				 ndvimin_pa = np.random.random_sample(len(ndvimin_pa),)/1000 + ndvimin_pa
-				 print 'pa ndvimin'
-				 print ndvimin_pa.min()
-				 print ndvimin_pa.max()
+				 #print 'pa ndvimin'
+				 #print ndvimin_pa.min()
+				 #print ndvimin_pa.max()
 			 
 		 xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
 		 yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
@@ -292,13 +292,13 @@ def process_pa(pa) #ecor
 		 else:
 				 herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
 				 herb_pa = np.random.random_sample(len(herb_pa),)/1000 + herb_pa
-				 print 'pa herb'
-				 print herb_pa.min()
-				 print herb_pa.max()
+				 #print 'pa herb'
+				 #print herb_pa.min()
+				 #print herb_pa.max()
 			 
 		 cols = dropcols[dropcols>=0]
 		 #tot = tree_pa.max() + herb_pa.min()
-		 #print tot
+		 ##print tot
 		 #if  tot == 100: tree_pa = np.random.random_sample(len(tree_pa),) + tree_pa
 			  
 		 ind_pa0 = np.column_stack((bio_pa,pre_pa,epr_pa,herb_pa,ndvimax_pa,ndvimin_pa,ndwi_pa,slope_pa,tree_pa))
@@ -306,29 +306,29 @@ def process_pa(pa) #ecor
 		 ind_pa = ind_pa0[:,cols]
 		 ind_eco = ind_eco0[:,cols]
 
-		 print ind_pa.shape
+		 #print ind_pa.shape
 			 
-		 print "PA masked"
+		 #print "PA masked"
 
 		 Ymean = np.mean(ind_pa,axis=0)
-			  #print Ymean
-		 print "Ymean ok"
+			  ##print Ymean
+		 #print "Ymean ok"
 		 Ycov = np.cov(ind_pa,rowvar=False)
-			  #print 'Ycov'
-			  #print Ycov
-		 print "Ycov ok"
+			  ##print 'Ycov'
+			  ##print Ycov
+		 #print "Ycov ok"
 
 		 mh2 = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
 			  #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
 		 #mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
 		 mh = mh2*mh2
 			# mh = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
-		 print "mh ok"
+		 #print "mh ok"
 
 		 from scipy.stats import chisqprob
 		 pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
 		 pmhh = np.where(pmh <= 1e-10,None, pmh)
-		 print "pmh ok" # quitar valores muy bajos!
+		 #print "pmh ok" # quitar valores muy bajos!
 
 		 dst_ds.GetRasterBand(1).WriteArray(pmhh)
 		 dst_ds = None
@@ -337,7 +337,7 @@ def process_pa(pa) #ecor
 		 hr11 = np.where(pmhh >= 0.5, 1,0)
 		 hr1 = hr11.flatten()
 		 hr1sum = sum(hr1)
-		 print hr1sum
+		 #print hr1sum
 		 hr1insumaver = hr1insum = 0
 		 hr1sumaver = hr1sum
 		 hr1averpa = hr3aver = num_featuresaver = hr1medianpa = None
@@ -350,22 +350,22 @@ def process_pa(pa) #ecor
 		 sim = src_ds_sim.GetRasterBand(1)
 		 gt_sim = src_ds_sim.GetGeoTransform()
 		 
-		 #print gt_pa[0]
-		 #print gt_sim[0]
+		 ##print gt_pa[0]
+		 ##print gt_sim[0]
 		 
-		 #print gt_sim[3]
-		 #print gt_pa[3]
+		 ##print gt_sim[3]
+		 ##print gt_pa[3]
 		 
-		 #print gt_pa[1]
-		 #print gt_pa[5]
+		 ##print gt_pa[1]
+		 ##print gt_pa[5]
 		 
-		 #print gt_sim[1]
-		 #print gt_sim[5]
+		 ##print gt_sim[1]
+		 ##print gt_sim[5]
 		 
 		 xoff = int((gt_pa[0]-gt_sim[0])/1000)
-		 #print xoff
+		 ##print xoff
 		 yoff = int((gt_sim[3]-gt_pa[3])/1000)
-		 #print yoff
+		 ##print yoff
 		 
 		 xextentpa = xoff + par.XSize
 		 yextentpa = yoff + par.YSize
@@ -381,40 +381,40 @@ def process_pa(pa) #ecor
 			 hri_pa_bb = hri_pa_bb0.flatten()
 			 indd = hri_pa_bb > 0
 			 hri_pa0 = hri_pa_bb[indd]
-			 #print hri_pa0.max()
-			 #print hri_pa0.min()
+			 ##print hri_pa0.max()
+			 ##print hri_pa0.min()
 			 hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
 			 hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
 			 #hr1p25pa = np.percentile(hri_pa0[~np.isnan(hri_pa0)],25)
-			 print 'mean similarity in the park is '+str(hr1averpa)
+			 #print 'mean similarity in the park is '+str(hr1averpa)
 			 hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!		 
 			 hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
 			 hr1insumaver = sum(hr1inaver)
-			 print hr1insum
+			 #print hr1insum
 			 hr1averr = np.where(pmhh >= hr1averpa, 1,0)
 			 hr1aver = hr1averr.flatten()
 			 labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s)
 			 hr1sumaver = sum(hr1aver)
 			 hr2aver = hr1sumaver - hr1insumaver
 			 hr3aver = float(hr2aver/ind_pa.shape[0])
-                                   aggregation = float(hr2aver/num_featuresaver)
+                         aggregation = float(hr2aver/num_featuresaver)
 		 
 			# calculate single HRI 0.5 value
 		 
-		 #print len(pmh2)
+		 ##print len(pmh2)
 		 #pmh2in = pmh2[ind]
-		 #print len(pmh2in)
+		 ##print len(pmh2in)
 
 		 #hr1in = hr1[ind]#np.where(pmh2in >= 0.5, 1,0)
 		 #hr1insum = sum(hr1in)
 		 #hr2 = sum(hr1) #- hr1insum#- ind_pa.shape[0] # PROBLEM WITH PA_in pixels
 		 hr2 = hr1sum - hr1insum
-		 #print sum(hr1)
-		 #print hr1insum
-		 print hr2
+		 ##print sum(hr1)
+		 ##print hr1insum
+		 #print hr2
 		 hr3 = float(hr2/ind_pa.shape[0])
 		 
-		 print hr3
+		 #print hr3
 		 wb = open(csvname,'a')
 		 var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(hr1medianpa)+' '+str(num_features)+' '+str(num_featuresaver)+' '+str(aggregation) # exclude PA! #+' '+str(hr1p25pa)#
 		 wb.write(var)
@@ -422,14 +422,15 @@ def process_pa(pa) #ecor
 		 wb.close()
 
 			#before the loop! file_writer.writerow(['wdpa_id', 'ap', 'wn', 'time1', 'time2']) 
-		 print "results exported"
-	  wb = open('results/ecoregs_done.csv','a')
-	  var = str(ecor)
-	  wb.write(var)
-	  wb.write('\n')
-	  wb.close() 
+		 #print "results exported"
+	  	 wb = open('results/ecoregs_done.csv','a')
+	  	 var = str(ecor)
+	  	 wb.write(var)
+	  	 wb.write('\n')
+	  	 wb.close() 
 
 ###
+print 'cpu count: '+str(cpu_count())
 print "scripts loaded"
 
 #from osgeo import ogr,gdal
@@ -452,72 +453,72 @@ pref = 'pre.tif'
 #dem_global = src_ds_dem_global.GetRasterBand(1)
 #gt_dem_global = src_ds_dem_global.GetGeoTransform()
 
-#print 'dem'
+##print 'dem'
 
 biof_globalfile=indir+'/'+biof
 src_ds_bio_global = gdal.Open(biof_globalfile)
 bio_global = src_ds_bio_global.GetRasterBand(1)
 gt_bio_global = src_ds_bio_global.GetGeoTransform()
 
-print 'bio'
+#print 'bio'
 
 pref_globalfile=indir+'/'+pref
 src_ds_pre_global = gdal.Open(pref_globalfile)
 pre_global = src_ds_pre_global.GetRasterBand(1)
 gt_pre_global = src_ds_pre_global.GetGeoTransform()
 
-print 'pre'
+#print 'pre'
 
 eprf_globalfile=indir+'/'+eprf
 src_ds_epr_global = gdal.Open(eprf_globalfile)
 epr_global = src_ds_epr_global.GetRasterBand(1)
 gt_epr_global = src_ds_epr_global.GetGeoTransform()
 
-print 'epr'
+#print 'epr'
 
 herbf_globalfile=indir+'/'+herbf
 src_ds_herb_global = gdal.Open(herbf_globalfile)
 herb_global = src_ds_herb_global.GetRasterBand(1)
 gt_herb_global = src_ds_herb_global.GetGeoTransform()
 
-print 'herb'
+#print 'herb'
 
 ndvimaxf_globalfile=indir+'/'+ndvimaxf
 src_ds_ndvimax_global = gdal.Open(ndvimaxf_globalfile)
 ndvimax_global = src_ds_ndvimax_global.GetRasterBand(1)
 gt_ndvimax_global = src_ds_ndvimax_global.GetGeoTransform()
 
-print 'ndvimax'
+#print 'ndvimax'
 
 ndviminf_globalfile=indir+'/'+ndviminf
 src_ds_ndvimin_global = gdal.Open(ndviminf_globalfile)
 ndvimin_global = src_ds_ndvimin_global.GetRasterBand(1)
 gt_ndvimin_global = src_ds_ndvimin_global.GetGeoTransform()
 
-print 'ndvimin'
+#print 'ndvimin'
 
 ndwif_globalfile=indir+'/'+ndwif
 src_ds_ndwi_global = gdal.Open(ndwif_globalfile)
 ndwi_global = src_ds_ndwi_global.GetRasterBand(1)
 gt_ndwi_global = src_ds_ndwi_global.GetGeoTransform()
 
-print 'ndwi'
+#print 'ndwi'
 
 slopef_globalfile=indir+'/'+slopef
 src_ds_slope_global = gdal.Open(slopef_globalfile)
 slope_global = src_ds_slope_global.GetRasterBand(1)
 gt_slope_global = src_ds_slope_global.GetGeoTransform()
 
-print 'slope'
+#print 'slope'
 
 treef_globalfile=indir+'/'+treef
 src_ds_tree_global = gdal.Open(treef_globalfile)
 tree_global = src_ds_tree_global.GetRasterBand(1)
 gt_tree_global = src_ds_tree_global.GetGeoTransform()
 
-print 'tree'
+#print 'tree'
 
-print "Global variables imported"
+#print "Global variables imported"
 
 #eco_list_done = 'None'
 
@@ -538,12 +539,13 @@ if os.path.isfile(csvname) == False:
 # LOOP ECOREGIONS
 eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
 eco_list = np.unique(eco_list0)
-print eco_list
-eco_list_done = np.genfromtxt('results/ecoregs_done.csv',dtype='int')
-print eco_list_done
+#print eco_list
+eco_list_done0 = np.genfromtxt('results/ecoregs_done.csv',dtype='int')
+eco_list_done = np.unique(eco_list_done0)
+#print eco_list_done
 
 m = len(eco_list)
-#print pa_list[1]
+##print pa_list[1]
 for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
  ecor = eco_list[pm]
  print ecor
@@ -557,7 +559,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  eco_mask0 = eco.ReadAsArray(0,0,eco.XSize,eco.YSize).astype(np.int32)
 	  eco_mask = eco_mask0.flatten()
 	  gt_eco = src_ds_eco.GetGeoTransform()
-	  print 'eco mask'
+	  #print 'eco mask'
 	  
 	  #if gt_eco[0]>gt_dem_global[0] and gt_eco[3]>gt_dem_global[3]:
 
@@ -570,7 +572,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 #	  maskdem = np.isnan(dem_eco)
 #	  dem_eco[maskdem] = np.interp(np.flatnonzero(maskdem), np.flatnonzero(~maskdem), dem_eco[~maskdem])
 
-#	  print 'eco dem'
+#	  #print 'eco dem'
 
 	  xoff = int((gt_eco[0]-gt_epr_global[0])/1000)
 	  yoff = int((gt_epr_global[3]-gt_eco[3])/1000)
@@ -581,7 +583,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskepr = np.isnan(epr_eco)
 	  epr_eco[maskepr] = np.interp(np.flatnonzero(maskepr), np.flatnonzero(~maskepr), epr_eco[~maskepr])
 
-	  print 'eco epr'
+	  #print 'eco epr'
 
 	  xoff = int((gt_eco[0]-gt_slope_global[0])/1000)
 	  yoff = int((gt_slope_global[3]-gt_eco[3])/1000)
@@ -592,7 +594,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskslope = np.isnan(slope_eco)
 	  slope_eco[maskslope] = np.interp(np.flatnonzero(maskslope), np.flatnonzero(~maskslope), slope_eco[~maskslope])
 
-	  print 'eco slope'
+	  #print 'eco slope'
 
 	  xoff = int((gt_eco[0]-gt_ndvimax_global[0])/1000)
 	  yoff = int((gt_ndvimax_global[3]-gt_eco[3])/1000)
@@ -603,7 +605,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskndvimax = np.isnan(ndvimax_eco)
 	  ndvimax_eco[maskndvimax] = np.interp(np.flatnonzero(maskndvimax), np.flatnonzero(~maskndvimax), ndvimax_eco[~maskndvimax])
 
-	  print 'eco ndvimax'
+	  #print 'eco ndvimax'
 
 	  xoff = int((gt_eco[0]-gt_ndvimin_global[0])/1000)
 	  yoff = int((gt_ndvimin_global[3]-gt_eco[3])/1000)
@@ -614,7 +616,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskndvimin = np.isnan(ndvimin_eco)
 	  ndvimin_eco[maskndvimin] = np.interp(np.flatnonzero(maskndvimin), np.flatnonzero(~maskndvimin), ndvimin_eco[~maskndvimin])
 
-	  print 'eco ndvimin'
+	  #print 'eco ndvimin'
 
 	  xoff = int((gt_eco[0]-gt_ndwi_global[0])/1000)
 	  yoff = int((gt_ndwi_global[3]-gt_eco[3])/1000)
@@ -625,7 +627,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskndwi = np.isnan(ndwi_eco)
 	  ndwi_eco[maskndwi] = np.interp(np.flatnonzero(maskndwi), np.flatnonzero(~maskndwi), ndwi_eco[~maskndwi])
 
-	  print 'eco ndwi'
+	  #print 'eco ndwi'
 
 	  xoff = int((gt_eco[0]-gt_pre_global[0])/1000)
 	  yoff = int((gt_pre_global[3]-gt_eco[3])/1000)
@@ -636,7 +638,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskpre = np.isnan(pre_eco)
 	  pre_eco[maskpre] = np.interp(np.flatnonzero(maskpre), np.flatnonzero(~maskpre), pre_eco[~maskpre])
 
-	  print 'eco pre'
+	  #print 'eco pre'
 
 	  xoff = int((gt_eco[0]-gt_bio_global[0])/1000)
 	  yoff = int((gt_bio_global[3]-gt_eco[3])/1000)
@@ -647,7 +649,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskbio = np.isnan(bio_eco)
 	  bio_eco[maskbio] = np.interp(np.flatnonzero(maskbio), np.flatnonzero(~maskbio), bio_eco[~maskbio])
 
-	  print 'eco bio'
+	  #print 'eco bio'
 
 	  xoff = int((gt_eco[0]-gt_tree_global[0])/1000)
 	  yoff = int((gt_tree_global[3]-gt_eco[3])/1000)
@@ -658,7 +660,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  masktree = np.isnan(tree_eco)
 	  tree_eco[masktree] = np.interp(np.flatnonzero(masktree), np.flatnonzero(~masktree), tree_eco[~masktree])
 
-	  print 'eco tree'
+	  #print 'eco tree'
 
 	  xoff = int((gt_eco[0]-gt_herb_global[0])/1000)
 	  yoff = int((gt_herb_global[3]-gt_eco[3])/1000)
@@ -669,16 +671,17 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 	  maskherb = np.isnan(herb_eco)
 	  herb_eco[maskherb] = np.interp(np.flatnonzero(maskherb), np.flatnonzero(~maskherb), herb_eco[~maskherb])
 
-	  print 'eco herb'
+	  #print 'eco herb'
 
 	  ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 
-	  #print ind_eco.shape
+	  ##print ind_eco.shape
 
-	  print 'ecovars stacked'
+	  #print 'ecovars stacked'
 
 	  pa_list0 = np.genfromtxt(ecoparksf,dtype='int') # crear este archivo en subpas!
 	  pa_list = np.unique(pa_list0)
+          print pa_list
 
 	  pool = Pool()
 	  pool.map(process_pa,pa_list)
@@ -689,5 +692,5 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 
 #t1 = clock()
 print str(datetime.now())
-#print("Time spent: %f min" % ((t1-t0)/60,))
+##print("Time spent: %f min" % ((t1-t0)/60,))
 print "END"

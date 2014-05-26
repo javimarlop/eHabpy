@@ -676,7 +676,7 @@ for pm in tqdm(range(0,m)): # 3,m # 0 without the negative ecoregs!
 			   
 			   print hr3
 			   wb = open(csvname,'a')
-			   var = str(ecor)+' '+str(pa)+' '+str(hr3)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(hr1medianpa)+' '+str(num_features)+' '+str(num_featuresaver)+' '+str(aggregation) # exclude PA! #+' '+str(hr1p25pa)#
+			   var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+str(num_featuresaver)+' '+str(aggregation) # exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
 			   wb.write(var)
 			   wb.write('\n')
 			   wb.close()
