@@ -191,7 +191,7 @@ if os.path.isfile(csvname1) == False:
 csvname = 'results/hri_results.csv'
 if os.path.isfile(csvname) == False:
  wb = open(csvname,'a')
- wb.write('ecoregion wdpaid hri50 averpasim hriaver medianpasim nrpatches nrpatchesaver aggregation')
+ wb.write('ecoregion wdpaid averpasim hriaver nrpatchesaver aggregation')
  wb.write('\n')
  wb.close()
 
