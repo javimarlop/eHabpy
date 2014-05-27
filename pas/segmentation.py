@@ -56,7 +56,8 @@ for px in tqdm(range(0,n)):
   grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True)
   pa2 = pa+'v2'
   pa3 = pa+'v3'
-  pa4 = 'pa_'+pa
+  pa4 = 'paa_'+pa
+  pa44 = 'pa_'+pa
   pa5 = pa4+'.txt'
   same = pa2+'= const'
   
@@ -84,15 +85,16 @@ for px in tqdm(range(0,n)):
   grass.run_command('r.to.vect', input=pa3,out=pa4,type ='area',flags='v',overwrite=True)
   grass. message ("adding labels to segments")
   grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid VARCHAR')
-  grass.run_command('v.db.addcolumn', map=pa4,col='wdpa_id VARCHAR')
   grass.run_command('v.db.update', map=pa4,col='wdpaid',value=pa)
-  grass.run_command('v.db.update', map=pa4,col='wdpa_id',qcol='wdpaid || cat')
-  #grass. message ("Checking shapefile")
+  grass. message ("Checking shapefile")
+  grass.run_command('v.clean', map=pa4,out=pa44,tool='rmarea',thres=minarea,overwrite=True)
+  grass.run_command('v.db.addcolumn', map=pa4,col='wdpa_id VARCHAR')
+  grass.run_command('v.db.update', map=pa44,col='wdpa_id',qcol='wdpaid || cat')
   grass. message ("Exporting shapefile")
   if px == 0:
-   grass.run_command('v.out.ogr',input=pa4,ola='parks_segmented',dsn='.') 
+   grass.run_command('v.out.ogr',input=pa44,ola='parks_segmented',dsn='.') 
   else:
-   grass.run_command('v.out.ogr',flags='a',input=pa4,ola='parks_segmented',dsn='.') 
+   grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented',dsn='.') 
   grass. message ("Deleting tmp layers") 
   grass.run_command('g.mremove',rast='*v3',flags='f') 
   grass.run_command('g.mremove',rast='*v2',flags='f') 
@@ -100,6 +102,7 @@ for px in tqdm(range(0,n)):
   grass.run_command('g.mremove',rast='pa_*',flags='f') 
   grass.run_command('g.mremove',vect='v0_*',flags='f') 
   grass.run_command('g.mremove',vect='pa_*',flags='f') 
+  grass.run_command('g.mremove',vect='paa_*',flags='f') 
   grass. message ("Done")
   print "Done PA:"+pa
   wb = open(csvname1,'a')
