@@ -87,8 +87,8 @@ for px in tqdm(range(0,n)):
   grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid VARCHAR')
   grass.run_command('v.db.update', map=pa4,col='wdpaid',value=pa)
   grass. message ("Checking shapefile")
-  grass.run_command('v.clean', map=pa4,out=pa44,tool='rmarea',thres=minarea,overwrite=True)
-  grass.run_command('v.db.addcolumn', map=pa4,col='wdpa_id VARCHAR')
+  grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minarea,overwrite=True)
+  grass.run_command('v.db.addcolumn', map=pa44,col='wdpa_id VARCHAR')
   grass.run_command('v.db.update', map=pa44,col='wdpa_id',qcol='wdpaid || cat')
   grass. message ("Exporting shapefile")
   if px == 0:
