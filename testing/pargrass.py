@@ -30,7 +30,7 @@ def function(elem):
  #l.release()
  #print mymapset
  grass.run_command('g.mapset',mapset=mymapset,flags='c')
- print grass.gisenv()
+ gge = grass.gisenv()
  spn0= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)
  spn= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/SEARCH_PATH'
  #cmm3 = 'mkdir '+spn0
@@ -44,13 +44,22 @@ def function(elem):
  wb.write(str(mymapset))
  wb.write('\n')
  wb.close()
+ pa0 = 's'+str(elem)
  comm2 = 'cat = '+str(elem)
- varx = grass.read_command ('v.db.select', map='segm',column='newarea2',where=comm2). splitlines ()
- wb = open('results.csv','a')
- var = str(elem)+' '+str(varx)
+ grass.run_command('g.region',rast='elevation')
+ #grass.run_command('v.extract', input='segm', out=pa0, where = comm2,overwrite=True)
+ grass.run_command('r.mask', vector='segm', where=comm2)
+ opt2 = pa0+' = elevation'
+ grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
+ grass.run_command('g.region',zoom=pa0)
+ varx = grass.read_command ('g.region',flags='g'). splitlines ()
+ #varx = grass.read_command ('v.db.select', map='segm',column='newarea2',where=comm2). splitlines ()
+ wb = open('results.txt','a')
+ var = str(elem)+' '+str(gge)+' '+str(varx)
  wb.write(var)
  wb.write('\n')
  wb.close()
+ grass.run_command('g.remove', rast='MASK')
  #comm = 'rm /home/javier/Desktop/grassdb/nc_spm_08_reduced/'+str(mymapset)+'/.gislock'
  ##os.system(comm)
  #rndnr=None
