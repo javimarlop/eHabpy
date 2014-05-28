@@ -22,12 +22,20 @@ gsetup.init(GISBASE,
 print grass.gisenv()
 
 def function(elem):
- rndnr = int(np.random.random_sample(1,)*1000)
- mymapset = 'm'+str(rndnr)
- print mymapset
+ print elem
+ #l = Lock()
+ #l.acquire()
+ #rndnr = int(np.random.random_sample(1,)*1000)
+ mymapset = 'm'+str(elem)
+ #l.release()
+ #print mymapset
  grass.run_command('g.mapset',mapset=mymapset,flags='c')
  print grass.gisenv()
+ spn0= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)
  spn= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/SEARCH_PATH'
+ #cmm3 = 'mkdir '+spn0
+ #print cmm3
+ #os.system(cmm3)
  wb = open(spn,'a')
  wb.write('PERMANENT')
  wb.write('\n') 
@@ -43,10 +51,13 @@ def function(elem):
  wb.write(var)
  wb.write('\n')
  wb.close()
- comm = 'rm /home/javier/Desktop/grassdb/nc_spm_08_reduced/'+str(mymapset)+'/.gislock'
- #os.system(comm)
+ #comm = 'rm /home/javier/Desktop/grassdb/nc_spm_08_reduced/'+str(mymapset)+'/.gislock'
+ ##os.system(comm)
+ #rndnr=None
+ mymapset=None
 
 elems = '1','2','3','4'
+#elems = '1'#,'2','3'
 
 pool = Pool()
 pool.map(function,elems)
