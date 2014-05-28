@@ -16,7 +16,7 @@ import os
 import sys
 from osgeo import ogr,gdal
 from tqdm import *
-mkl.set_num_threads(1)
+mkl.set_num_threads(1) # change to a bigger number?
 #except ImportError:
 #pass
 
