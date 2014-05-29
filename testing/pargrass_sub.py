@@ -4,7 +4,6 @@ import subprocess
 import os
 import sys
 import csv
-import time
 import numpy as np
 from datetime import datetime
 
@@ -24,16 +23,14 @@ gsetup.init(GISBASE,
 print grass.gisenv()
 
 def function(elem):
- #print elem
+ print elem
  mymapset = 'm'+str(elem)
- grass.run_command('g.mapset',mapset=mymapset,loc=MYLOC,flags='c')
- spn0= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'WIND'
- print elem+' '+spn0
- checkit = os.path.isfile(spn0)
- while checkit == False:
-  time.sleep(0.1)
- else:
+ komm = grass.run_command('g.mapset',mapset=mymapset,flags='c')
+ p = subprocess.check_call(komm,shell=T,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+ #out, err = p.communicate()
+ if p.returncode == 0:
   gge = grass.gisenv()
+  spn0= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)
   spn= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/SEARCH_PATH'
   wb = open(spn,'a')
   wb.write('PERMANENT')
