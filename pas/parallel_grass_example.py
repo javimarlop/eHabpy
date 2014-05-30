@@ -1,13 +1,7 @@
 # Code by Javier Martinez-Lopez
 from multiprocessing import cpu_count,Pool,Lock
-import subprocess
 import os
 import sys
-import csv
-import time
-import numpy as np
-from datetime import datetime
-from copy import deepcopy
 
 GISBASE = os.environ['GISBASE'] = "/usr/local/grass-7.1.svn"
 GRASSDBASE = os.path.join("/home/javier/Desktop/grassdb")
@@ -34,7 +28,7 @@ def function(elem):
 elems = '100','200','300','400'
 
 pool = Pool()
-pool.map(function,deepcopy(elems))
+pool.map(function,elems)
 pool.close()
 pool.join()
 
