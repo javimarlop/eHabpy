@@ -416,7 +416,7 @@ def process_pa(pa): #ecor
 		 
 		 #print hr3
 		 wb = open(csvname,'a')
-		 var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+str(num_featuresaver)+' '+str(aggregation)
+		 var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation)
 		 wb.write(var)
 		 wb.write('\n')
 		 wb.close()

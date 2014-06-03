@@ -3,8 +3,8 @@ from multiprocessing import cpu_count,Pool,Lock
 import os
 import sys
 
-GISBASE = os.environ['GISBASE'] = "/usr/local/grass-7.1.svn"
-GRASSDBASE = os.path.join("/home/javier/Desktop/grassdb")
+GISBASE = os.environ['GISBASE'] = "/home/majavie/grass7_source/g71/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+GRASSDBASE = os.path.join("/home/majavie/grassdb")
 MYLOC = "nc_spm_08_reduced"
 mapset = "user1"
 
@@ -26,6 +26,7 @@ def function(elem):
  os.environ.pop('GRASS_REGION')
 
 elems = '100','200','300','400'
+#elems = 100,200,300,400
 
 pool = Pool()
 pool.map(function,elems)
