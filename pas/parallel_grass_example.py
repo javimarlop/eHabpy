@@ -26,8 +26,8 @@ def function(elem):
  grass.run_command('r.univar',map='elevation',flags='g',out=outf,overwrite=True)
  os.environ.pop('GRASS_REGION')
 
-#elems = '100','200','300','400'
-elems =np.arange(1,1000,10)
+elems = '100','200','300','400'
+#elems =np.arange(1,1000,10)
 
 pool = Pool()
 pool.map(function,elems)
