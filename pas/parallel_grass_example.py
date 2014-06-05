@@ -1,5 +1,6 @@
-# Code by Javier Martinez-Lopez
+# Code by Javier Martinez-Lopez (utf-8)
 from multiprocessing import cpu_count,Pool,Lock
+import numpy as np
 import os
 import sys
 
@@ -26,13 +27,12 @@ def function(elem):
  os.environ.pop('GRASS_REGION')
 
 #elems = '100','200','300','400'
-elems = '100'
+elems =np.arange(1,1000,10)
 
-function(elems)
-#pool = Pool()
-#pool.map(function,elems)
-#pool.close()
-#pool.join()
+pool = Pool()
+pool.map(function,elems)
+pool.close()
+pool.join()
 
 
 print 'END'
