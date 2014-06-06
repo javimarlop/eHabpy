@@ -19,11 +19,11 @@ gsetup.init(GISBASE,
 
 print grass.gisenv()
 
-def function(elems):
- elem = str(elems)
+def function(elemns):
+ elem = str(elemns)
  outf='res_'+str(elem)+'.txt'
  os.environ['GRASS_REGION'] = grass.region_env(res=elem)
- varx = grass.read_command ('g.region',flags='g'). splitlines ()
+ #varx = grass.read_command ('g.region',flags='g'). splitlines ()
  grass.run_command('r.univar',map='elevation',flags='g',out=outf,overwrite=True)
  os.environ.pop('GRASS_REGION')
 
