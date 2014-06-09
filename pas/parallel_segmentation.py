@@ -56,13 +56,8 @@ def segmentation(pa):
 
   gsetup.init(GISBASE, GRASSDBASE, MYLOC, mymapset)
   pa0 = 'v0_'+pa
-# opt1 = 'NAME=\''+pa+'\''
   opt1 = col+'='+pa
-  #pa0 = 'v0_'+pa
-  #opt1 = 'wdpa_id = '+pa
-  #print px
-  #print "Extracting PA:"+pa
-  grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True)
+  grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True) # check inital region from which to copy from!
   pa2 = pa+'v2'
   pa3 = pa+'v3'
   pa4 = 'paa_'+pa
@@ -72,15 +67,13 @@ def segmentation(pa):
   
   #grass. message ("setting up the working region")
   grass.run_command('g.region',vect=pa0,res=1000)
-  #grass.run_command('r.mask', vector=source, where=opt1)
   grass.run_command('r.mapcalc',expression='const = if(gcmask>=0,1,null())',overwrite=True)
   grass.run_command('r.mapcalc',expression=same,overwrite=True)
   a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
   if len(a)==0: a = [1, 625]
-  #grass.run_command('g.remove', rast='MASK')
-  print a
+  #print a
   minarea = np.sqrt(int(a[1]))#/1000
-  print minarea
+  #print minarea
   #grass. message ("segmenting the park")
   grass.run_command('i.segment', group='segm', output=pa2, threshold='0.7', method='region_growing', similarity='euclidean', minsize=minarea, memory='100000', iterations='20',overwrite=True)
   #grass. message ("cropping the segments")
