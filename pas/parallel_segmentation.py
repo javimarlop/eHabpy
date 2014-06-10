@@ -21,8 +21,9 @@ gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
 source = 'wdpa_snapshot_new_mollweide@javier'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list = np.unique(pa_list0)
-#pa_list = pa_list2[0:5] # testing 5 first!
+pa_list2 = np.unique(pa_list0)
+n = len(pa_list2)
+pa_list = pa_list2[0:n-2] # testing 5 first!
 print pa_list
 
 csvname1 = 'pas_segm_done.csv'
