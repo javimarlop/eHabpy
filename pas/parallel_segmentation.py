@@ -21,8 +21,8 @@ gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
 source = 'wdpa_snapshot_new_mollweide@javier'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list2 = np.unique(pa_list0)
-pa_list = pa_list2[0:5] # testing 5 first!
+pa_list = np.unique(pa_list0)
+#pa_list = pa_list2[0:5] # testing 5 first!
 print pa_list
 
 csvname1 = 'pas_segm_done.csv'
@@ -39,12 +39,19 @@ def segmentation(pa):
   mymapset = 'm'+str(pa)
   spn00= str(GRASSDBASE)+'/'+str(MYLOC)+'/PERMANENT/DEFAULT_WIND'
   spn0x= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)
+  spn0xgr= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/group/segm'
+  spn0xgr2= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mapset)+'/group/segm/REF'
+  spn0xgr22= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/group/segm/REF'
   spn01= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/WIND'
   spn= str(GRASSDBASE)+'/'+str(MYLOC)+'/'+str(mymapset)+'/SEARCH_PATH'
-  comm0 = 'mkdir '+spn0x
+  #comm0 = 'mkdir '+spn0x
+  comm0gr = 'mkdir -p '+spn0xgr
   comm = 'cp '+spn00+' '+spn01
-  os.system(comm0)
+  commgr = 'cp '+spn0xgr2+' '+spn0xgr22
+  #os.system(comm0)
+  os.system(comm0gr)
   os.system(comm)
+  os.system(commgr)
   wb = open(spn,'a')
   wb.write('PERMANENT')
   wb.write('\n') 
