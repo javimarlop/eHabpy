@@ -23,7 +23,8 @@ grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
 n = len(pa_list2)
-pa_list = pa_list2[0:15]#[0:n-2] # testing 5 first!
+pa_list = pa_list2[0:10]#[0:n-2] # testing 5 first!
+#pa_list = '257','101922','2017','11','68175','643','555542456'
 print pa_list
 
 csvname1 = 'pas_segm_done_pca.csv'
@@ -87,9 +88,12 @@ def segmentation(pa):
   #print minarea
   grass.run_command('i.pca', flags='n', input='pre,dem,epr,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44, overwrite=True)
   pca1 = pa44+'.1'
+  #pca2 = pa44+'.2'
+  #pca3 = pa44+'.3'
+  #pcas = pca1+','+pca2+','+pca3
   grass.run_command('i.group',gr='segm',input=pca1)
   #grass. message ("segmenting the park")
-  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.9', method='region_growing', similarity='euclidean', memory='10000', minsize=minarea, iterations='20',overwrite=True) # 
+  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.2', method='region_growing', similarity='euclidean', memory='100000', minsize=minarea, iterations='20',overwrite=True) # 
   #grass. message ("cropping the segments")
   grass.run_command('r.mask', vector=source, where=opt1)
   opt2 = pa3+'='+pa2

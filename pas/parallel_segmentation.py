@@ -90,7 +90,7 @@ def segmentation(pa):
   grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
   grass.run_command('g.remove', rast='MASK')
   #grass. message ("Number of cells per segment")
-  grass.run_command('r.stats',input=pa3,out=pa5,overwrite=True) # flags='nc'
+  ####grass.run_command('r.stats',input=pa3,out=pa5,overwrite=True) # flags='nc' # corregir!
   #grass. message ("converting to vector")
   grass.run_command('r.to.vect', input=pa3,out=pa4,type ='area',flags='v',overwrite=True)
   #grass. message ("adding labels to segments")
