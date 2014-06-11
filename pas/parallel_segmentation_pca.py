@@ -23,7 +23,7 @@ grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
 n = len(pa_list2)
-pa_list = pa_list2[0:10]#[0:n-2] # testing 5 first!
+pa_list = pa_list2[0:n-2] # testing 5 first!
 #pa_list = '257','101922','2017','11','68175','643','555542456'
 print pa_list
 
@@ -86,14 +86,14 @@ def segmentation(pa):
   #print a
   minarea = np.sqrt(int(a[1]))#/1000
   #print minarea
-  grass.run_command('i.pca', flags='n', input='pre,dem,epr,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44, overwrite=True)
+  grass.run_command('i.pca', flags='n', input='pre,epr,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44, overwrite=True) # dem
   pca1 = pa44+'.1'
-  #pca2 = pa44+'.2'
-  #pca3 = pa44+'.3'
-  #pcas = pca1+','+pca2+','+pca3
-  grass.run_command('i.group',gr='segm',input=pca1)
+  pca2 = pa44+'.2'
+  pca3 = pa44+'.3'
+  pcas = pca1+','+pca2+','+pca3
+  grass.run_command('i.group',gr='segm',input=pcas)
   #grass. message ("segmenting the park")
-  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.2', method='region_growing', similarity='euclidean', memory='100000', minsize=minarea, iterations='20',overwrite=True) # 
+  grass.run_command('i.segment', group='segm', output=pa2, threshold='0.8', method='region_growing', similarity='euclidean', memory='100000', minsize=minarea, iterations='20',overwrite=True) # 
   #grass. message ("cropping the segments")
   grass.run_command('r.mask', vector=source, where=opt1)
   opt2 = pa3+'='+pa2
@@ -112,9 +112,9 @@ def segmentation(pa):
   grass.run_command('v.db.update', map=pa44,col='wdpa_id',qcol='wdpaid || cat')
   #grass. message ("Exporting shapefile")
   if os.path.isfile('parks_segmented.shp') == False:
-   grass.run_command('v.out.ogr',input=pa44,ola='parks_segmented_pca',dsn='.') 
+   grass.run_command('v.out.ogr',input=pa44,ola='parks_segmented_pca',type='area',dsn='.') 
   else:
-   grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented_pca',dsn='.') 
+   grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented_pca',type='area',dsn='.') 
   comm1 = 'rm -rf '+spn0x
   os.system(comm1)
   wb = open(csvname1,'a')
