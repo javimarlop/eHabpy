@@ -111,7 +111,7 @@ def segmentation(pa):
   grass.run_command('v.db.addcolumn', map=pa44,col='wdpa_id VARCHAR')
   grass.run_command('v.db.update', map=pa44,col='wdpa_id',qcol='wdpaid || cat')
   #grass. message ("Exporting shapefile")
-  if os.path.isfile('parks_segmented.shp') == False:
+  if os.path.isfile('parks_segmented_pca.shp') == False:
    grass.run_command('v.out.ogr',input=pa44,ola='parks_segmented_pca',type='area',dsn='.') 
   else:
    grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented_pca',type='area',dsn='.') 
@@ -123,7 +123,7 @@ def segmentation(pa):
   wb.write('\n')
   wb.close() 
 
-pool = Pool()
+pool = Pool(1)
 pool.map(segmentation,pa_list)
 pool.close()
 pool.join()
