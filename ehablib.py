@@ -267,8 +267,8 @@ def ehabitat(ecor,nwpath):
     pa_mask = pa_mask0.flatten()
     ind = pa_mask == int(pa)#> 0
     go = 1
-    if ind.all() == False: go = 0
     sum_pa_mask = sum(pa_mask[ind])/int(pa)
+    if sum_pa_mask == 0: go = 0
     print sum_pa_mask
     sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
     print sum_pa_mask_inv
@@ -433,12 +433,12 @@ def ehabitat(ecor,nwpath):
      print "Ycov ok"
      #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
      #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
-     #mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
-     mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
+     mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
+     #mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
      mh = mh2*mh2
      print "mh ok"
      pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
-     pmhh = np.where(pmh <= 1e-10,None, pmh)
+     pmhh = np.where(pmh <= 0.01,None, pmh)
      print "pmh ok" # quitar valores muy bajos!
      dst_ds.GetRasterBand(1).WriteArray(pmhh)
      dst_ds = None
