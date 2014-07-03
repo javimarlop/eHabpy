@@ -427,61 +427,62 @@ def ehabitat(ecor,nwpath):
      ind_eco = ind_eco0[:,cols]
      print ind_pa.shape
      print "PA masked"
-     Ymean = np.mean(ind_pa,axis=0)
-     print "Ymean ok"
-     Ycov = np.cov(ind_pa,rowvar=False)
-     print "Ycov ok"
-     #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
-     #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
-     mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
-     #mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
-     mh = mh2*mh2
-     print "mh ok"
-     pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
-     pmhh = np.where(pmh <= 0.01,None, pmh)
-     print "pmh ok" # quitar valores muy bajos!
-     dst_ds.GetRasterBand(1).WriteArray(pmhh)
-     dst_ds = None
-     hr11 = np.where(pmhh >= 0.5, 1,0)
-     hr1 = hr11.flatten()
-     hr1sum = sum(hr1)
-     print hr1sum
-     hr1insumaver = hr1insum = 0
-     hr1sumaver = hr1sum
-     hr1averpa = hr3aver = num_featuresaver = hr1medianpa = None
-     labeled_array, num_features = nd.label(hr11, structure=s)
-     src_ds_sim = gdal.Open(outfile)
-     sim = src_ds_sim.GetRasterBand(1)
-     gt_sim = src_ds_sim.GetGeoTransform()
-     xoff = int((gt_pa[0]-gt_sim[0])/1000)
-     yoff = int((gt_sim[3]-gt_pa[3])/1000)
-     xextentpa = xoff + par.XSize
-     yextentpa = yoff + par.YSize
-     xless = sim.XSize - xextentpa
-     yless = sim.YSize - yextentpa
-     xsize = par.XSize
-     ysize = par.YSize
-     if xoff>0 and yoff>0 and ratiogeom < 100: # also check if results are not empty?
-      if xless < 0: xsize = xsize + xless
-      if yless < 0: ysize = ysize + yless
-      hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
-      hri_pa_bb = hri_pa_bb0.flatten()
-      indd = hri_pa_bb > 0
-      hri_pa0 = hri_pa_bb[indd]
-      hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
-      hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
-      print 'mean similarity in the park is '+str(hr1averpa)
-      hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
-      hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
-      hr1insumaver = sum(hr1inaver)
-      print hr1insum
-      hr1averr = np.where(pmhh >= hr1averpa, 1,0)
-      hr1aver = hr1averr.flatten()
-      labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s)
-      hr1sumaver = sum(hr1aver)
-      hr2aver = hr1sumaver - hr1insumaver
-      hr3aver = float(hr2aver/ind_pa.shape[0])
-      aggregation = float(hr2aver/num_featuresaver)
+     if ind_pa.shape[0]>1:
+      Ymean = np.mean(ind_pa,axis=0)
+      print "Ymean ok"
+      Ycov = np.cov(ind_pa,rowvar=False)
+      print "Ycov ok"
+      #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=False)
+      #mh = mahalanobis_distances(Ymean, Ycov, ind_eco, parallel=True)
+      mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=True)
+      #mh2 = mahalanobis_distances_scipy(Ymean, Ycov, ind_eco, parallel=False)
+      mh = mh2*mh2
+      print "mh ok"
+      pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
+      pmhh = np.where(pmh <= 0.01,None, pmh)
+      print "pmh ok" # quitar valores muy bajos!
+      dst_ds.GetRasterBand(1).WriteArray(pmhh)
+      dst_ds = None
+      hr11 = np.where(pmhh >= 0.5, 1,0)
+      hr1 = hr11.flatten()
+      hr1sum = sum(hr1)
+      print hr1sum
+      hr1insumaver = hr1insum = 0
+      hr1sumaver = hr1sum
+      hr1averpa = hr3aver = num_featuresaver = hr1medianpa = None
+      labeled_array, num_features = nd.label(hr11, structure=s)
+      src_ds_sim = gdal.Open(outfile)
+      sim = src_ds_sim.GetRasterBand(1)
+      gt_sim = src_ds_sim.GetGeoTransform()
+      xoff = int((gt_pa[0]-gt_sim[0])/1000)
+      yoff = int((gt_sim[3]-gt_pa[3])/1000)
+      xextentpa = xoff + par.XSize
+      yextentpa = yoff + par.YSize
+      xless = sim.XSize - xextentpa
+      yless = sim.YSize - yextentpa
+      xsize = par.XSize
+      ysize = par.YSize
+      if xoff>0 and yoff>0 and ratiogeom < 100: # also check if results are not empty?
+       if xless < 0: xsize = xsize + xless
+       if yless < 0: ysize = ysize + yless
+       hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
+       hri_pa_bb = hri_pa_bb0.flatten()
+       indd = hri_pa_bb > 0
+       hri_pa0 = hri_pa_bb[indd]
+       hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
+       hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
+       print 'mean similarity in the park is '+str(hr1averpa)
+       hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
+       hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
+       hr1insumaver = sum(hr1inaver)
+       print hr1insum
+       hr1averr = np.where(pmhh >= hr1averpa, 1,0)
+       hr1aver = hr1averr.flatten()
+       labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s)
+       hr1sumaver = sum(hr1aver)
+       hr2aver = hr1sumaver - hr1insumaver
+       hr3aver = float(hr2aver/ind_pa.shape[0])
+       aggregation = float(hr2aver/num_featuresaver)
      hr2 = hr1sum - hr1insum
      print hr2
      hr3 = float(hr2/ind_pa.shape[0])
