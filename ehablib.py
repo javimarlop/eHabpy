@@ -439,7 +439,7 @@ def ehabitat(ecor,nwpath):
       mh = mh2*mh2
       print "mh ok"
       pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
-      pmhh = np.where(pmh <= 0.01,None, pmh)
+      pmhh = np.where(pmh <= 0.001,None, pmh)
       print "pmh ok" # quitar valores muy bajos!
       dst_ds.GetRasterBand(1).WriteArray(pmhh)
       dst_ds = None
