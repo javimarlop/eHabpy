@@ -266,6 +266,8 @@ def ehabitat(ecor,nwpath):
     pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
     pa_mask = pa_mask0.flatten()
     ind = pa_mask == int(pa)#> 0
+    go = 1
+    if ind.all() == False: go = 0
     sum_pa_mask = sum(pa_mask[ind])/int(pa)
     print sum_pa_mask
     sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
@@ -273,11 +275,11 @@ def ehabitat(ecor,nwpath):
     print len(pa_mask)
     ratiogeom = 10000
     if sum_pa_mask > 0: ratiogeom = sum_pa_mask_inv/sum_pa_mask
-    print ratiogeom
+    #print ratiogeom
     gt_pa = src_ds_pa.GetGeoTransform()
     xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
     yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
-    if xoff>0 and yoff>0:
+    if xoff>0 and yoff>0 and go == 1:
      num_bands=src_ds_eco.RasterCount
      driver = gdal.GetDriverByName("GTiff")
      dst_options = ['COMPRESS=LZW']
