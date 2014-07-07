@@ -426,8 +426,9 @@ def ehabitat(ecor,nwpath):
      ind_pa = ind_pa0[:,cols]
      ind_eco = ind_eco0[:,cols]
      print ind_pa.shape
+     hr1sum = hr1insum = hr1averpa = hr3aver = num_featuresaver = hr1medianpa = hr1insumaver = aggregation = None
      print "PA masked"
-     if ind_pa.shape[0]>1:
+     if ind_pa.shape[0]>1 and ind_pa.shape[1]>1:
       Ymean = np.mean(ind_pa,axis=0)
       print "Ymean ok"
       Ycov = np.cov(ind_pa,rowvar=False)
@@ -449,7 +450,6 @@ def ehabitat(ecor,nwpath):
       print hr1sum
       hr1insumaver = hr1insum = 0
       hr1sumaver = hr1sum
-      hr1averpa = hr3aver = num_featuresaver = hr1medianpa = None
       labeled_array, num_features = nd.label(hr11, structure=s)
       src_ds_sim = gdal.Open(outfile)
       sim = src_ds_sim.GetRasterBand(1)
@@ -483,10 +483,10 @@ def ehabitat(ecor,nwpath):
        hr2aver = hr1sumaver - hr1insumaver
        hr3aver = float(hr2aver/ind_pa.shape[0])
        aggregation = float(hr2aver/num_featuresaver)
-     hr2 = hr1sum - hr1insum
-     print hr2
-     hr3 = float(hr2/ind_pa.shape[0])
-     print hr3
+      hr2 = hr1sum - hr1insum
+      print hr2
+      hr3 = float(hr2/ind_pa.shape[0])
+      print hr3
      wb = open(csvname,'a')
      var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation) # exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
      wb.write(var)
