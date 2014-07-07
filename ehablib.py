@@ -428,7 +428,7 @@ def ehabitat(ecor,nwpath):
      print ind_pa.shape
      hr1sum = hr1insum = hr1averpa = hr3aver = num_featuresaver = hr1medianpa = hr1insumaver = aggregation = None
      print "PA masked"
-     if ind_pa.shape[0]>1 and ind_pa.shape[1]>1:
+     if ind_pa.shape[0]>2 and ind_pa.shape[1]>1:
       Ymean = np.mean(ind_pa,axis=0)
       print "Ymean ok"
       Ycov = np.cov(ind_pa,rowvar=False)
