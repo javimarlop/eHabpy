@@ -579,7 +579,7 @@ def ehabitat(ecor,nwpath):
       #hr3 = float(hr2/ind_pa.shape[0])
       #print hr3
      wb = open(csvname,'a')
-     var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation)+' '+str(round(treepamin,2))+' '+str(round(treepamax,2))+' '+str(round(eprpamin,2))+' '+str(round(eprpamax,2))+' '+str(round(prepamin,2))+' '+str(round(prepamax,2))+' '+str(round(biopamin,2))+' '+str(round(biopamax,2))+' '+str(round(slopepamin,2))+' '+str(round(slopepamax,2))+' '+str(round(ndwipamin,2))+' '+str(round(ndwipamax,2))+' '+str(round(ndvimaxpamin,2))+' '+str(round(ndvimaxpamax,2))+' '+str(round(ndviminpamin,2))+' '+str(round(ndviminpamax,2))+' '+str(round(hpamin,2))+' '+str(round(hpamax,2))# exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
+     var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)# exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
      wb.write(var)
      wb.write('\n')
      wb.close()
