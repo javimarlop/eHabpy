@@ -294,7 +294,7 @@ def ehabitat(ecor,nwpath):
      tree_pa = np.where(tree_pa0 == 255.0, (float('NaN')),(tree_pa0))
      mask2tree = np.isnan(tree_pa)
      if mask2tree.all() == True:
-      dropcols[9] = -9
+      dropcols[8] = -8
      else:
       tree_pa[mask2tree] = np.interp(np.flatnonzero(mask2tree), np.flatnonzero(~mask2tree), tree_pa[~mask2tree])
       tree_pa = np.random.random_sample(len(tree_pa),)/1000 + tree_pa
@@ -305,7 +305,7 @@ def ehabitat(ecor,nwpath):
       print treepamin
       print treepamax
       treediff = abs(treepamin-treepamax)
-      if treediff < 0.001: dropcols[9] = -9
+      if treediff < 0.001: dropcols[8] = -8
 
      xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
      yoff = int((gt_epr_global[3]-gt_pa[3])/1000)
@@ -315,7 +315,7 @@ def ehabitat(ecor,nwpath):
      epr_pa = np.where(epr_pa0 == 65535.0, (float('NaN')),(epr_pa0))
      mask2epr = np.isnan(epr_pa)
      if mask2epr.all() == True:
-      dropcols[3] = -3
+      dropcols[2] = -2
      else:
       epr_pa[mask2epr] = np.interp(np.flatnonzero(mask2epr), np.flatnonzero(~mask2epr), epr_pa[~mask2epr])
       epr_pa = np.random.random_sample(len(epr_pa),)/1000 + epr_pa
@@ -326,7 +326,7 @@ def ehabitat(ecor,nwpath):
       print eprpamin
       print eprpamax
       eprdiff = abs(eprpamin-eprpamax)
-      if eprdiff < 0.001: dropcols[3] = -3
+      if eprdiff < 0.001: dropcols[2] = -2
 
      xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
      yoff = int((gt_pre_global[3]-gt_pa[3])/1000)
@@ -336,7 +336,7 @@ def ehabitat(ecor,nwpath):
      pre_pa = np.where(pre_pa0 == 65535.0, (float('NaN')),(pre_pa0))
      mask2pre = np.isnan(pre_pa)
      if mask2pre.all() == True:
-      dropcols[2] = -2
+      dropcols[1] = -1
      else:
       pre_pa[mask2pre] = np.interp(np.flatnonzero(mask2pre), np.flatnonzero(~mask2pre), pre_pa[~mask2pre])
       pre_pa = np.random.random_sample(len(pre_pa),)/1000 + pre_pa
@@ -347,7 +347,7 @@ def ehabitat(ecor,nwpath):
       print prepamin
       print prepamax
       prediff = abs(prepamin-prepamax)
-      if prediff < 0.001: dropcols[2] = -2
+      if prediff < 0.001: dropcols[1] = -1
 
      xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
      yoff = int((gt_bio_global[3]-gt_pa[3])/1000)
@@ -357,7 +357,7 @@ def ehabitat(ecor,nwpath):
      bio_pa = np.where(bio_pa0 == 65535.0, (float('NaN')),(bio_pa0))
      mask2bio = np.isnan(bio_pa)
      if mask2bio.all() == True:
-      dropcols[1] = -1
+      dropcols[0] = -0
      else:
       bio_pa[mask2bio] = np.interp(np.flatnonzero(mask2bio), np.flatnonzero(~mask2bio), bio_pa[~mask2bio])
       bio_pa = np.random.random_sample(len(bio_pa),)/1000 + bio_pa
@@ -368,7 +368,7 @@ def ehabitat(ecor,nwpath):
       print biopamin
       print biopamax
       biodiff = abs(biopamin-biopamax)
-      if biodiff < 0.001: dropcols[1] = -1
+      if biodiff < 0.001: dropcols[0] = -0
 
      xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
      yoff = int((gt_slope_global[3]-gt_pa[3])/1000)
@@ -378,7 +378,7 @@ def ehabitat(ecor,nwpath):
      slope_pa = np.where(slope_pa0 == 65535.0, (float('NaN')),(slope_pa0))
      mask2slope = np.isnan(slope_pa)
      if mask2slope.all() == True:
-      dropcols[8] = -8
+      dropcols[7] = -7
      else:
       slope_pa[mask2slope] = np.interp(np.flatnonzero(mask2slope), np.flatnonzero(~mask2slope), slope_pa[~mask2slope])
       slope_pa = np.random.random_sample(len(slope_pa),)/1000 + slope_pa
@@ -389,7 +389,7 @@ def ehabitat(ecor,nwpath):
       print slopepamin
       print slopepamax
       slopediff = abs(slopepamin-slopepamax)
-      if slopediff < 0.001: dropcols[8] = -8
+      if slopediff < 0.001: dropcols[7] = -7
 
      xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
      yoff = int((gt_ndwi_global[3]-gt_pa[3])/1000)
@@ -399,7 +399,7 @@ def ehabitat(ecor,nwpath):
      ndwi_pa = np.where(ndwi_pa0 == 255.0, (float('NaN')),(ndwi_pa0))
      mask2ndwi = np.isnan(ndwi_pa)
      if mask2ndwi.all() == True:
-      dropcols[7] = -7
+      dropcols[6] = -6
      else:
       ndwi_pa[mask2ndwi] = np.interp(np.flatnonzero(mask2ndwi), np.flatnonzero(~mask2ndwi), ndwi_pa[~mask2ndwi])
       ndwi_pa = np.random.random_sample(len(ndwi_pa),)/1000 + ndwi_pa
@@ -410,7 +410,7 @@ def ehabitat(ecor,nwpath):
       print ndwipamin
       print ndwipamax
       ndwidiff = abs(ndwipamin-ndwipamax)
-      if ndwidiff < 0.001: dropcols[7] = -7
+      if ndwidiff < 0.001: dropcols[6] = -6
 
      xoff = int((gt_pa[0]-gt_ndvimax_global[0])/1000)
      yoff = int((gt_ndvimax_global[3]-gt_pa[3])/1000)
@@ -420,7 +420,7 @@ def ehabitat(ecor,nwpath):
      ndvimax_pa = np.where(ndvimax_pa0 == 65535.0, (float('NaN')),(ndvimax_pa0))
      mask2ndvimax = np.isnan(ndvimax_pa)
      if mask2ndvimax.all() == True:
-      dropcols[5] = -5
+      dropcols[4] = -4
      else:
       ndvimax_pa[mask2ndvimax] = np.interp(np.flatnonzero(mask2ndvimax), np.flatnonzero(~mask2ndvimax), ndvimax_pa[~mask2ndvimax])
       ndvimax_pa = np.random.random_sample(len(ndvimax_pa),)/1000 + ndvimax_pa
@@ -431,7 +431,7 @@ def ehabitat(ecor,nwpath):
       print ndvimaxpamin
       print ndvimaxpamax
       ndvimaxdiff = abs(ndvimaxpamin-ndvimaxpamax)
-      if ndvimaxdiff < 0.001: dropcols[5] = -5
+      if ndvimaxdiff < 0.001: dropcols[4] = -4
 
      xoff = int((gt_pa[0]-gt_ndvimin_global[0])/1000)
      yoff = int((gt_ndvimin_global[3]-gt_pa[3])/1000)
@@ -441,7 +441,7 @@ def ehabitat(ecor,nwpath):
      ndvimin_pa = np.where(ndvimin_pa0 == 65535.0, (float('NaN')),(ndvimin_pa0))
      mask2ndvimin = np.isnan(ndvimin_pa)
      if mask2ndvimin.all() == True:
-      dropcols[6] = -6
+      dropcols[5] = -5
      else:
       ndvimin_pa[mask2ndvimin] = np.interp(np.flatnonzero(mask2ndvimin), np.flatnonzero(~mask2ndvimin), ndvimin_pa[~mask2ndvimin])
       ndvimin_pa = np.random.random_sample(len(ndvimin_pa),)/1000 + ndvimin_pa
@@ -452,7 +452,7 @@ def ehabitat(ecor,nwpath):
       print ndviminpamin
       print ndviminpamax
       ndvimindiff = abs(ndviminpamin-ndviminpamax)
-      if ndvimindiff < 0.001: dropcols[6] = -6
+      if ndvimindiff < 0.001: dropcols[5] = -5
 
      xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
      yoff = int((gt_herb_global[3]-gt_pa[3])/1000)
@@ -462,7 +462,7 @@ def ehabitat(ecor,nwpath):
      herb_pa = np.where(herb_pa0 == 255.0, (float('NaN')),(herb_pa0))
      mask2herb = np.isnan(herb_pa)
      if mask2herb.all() == True:
-      dropcols[4] = -4
+      dropcols[3] = -3
      else:
       herb_pa[mask2herb] = np.interp(np.flatnonzero(mask2herb), np.flatnonzero(~mask2herb), herb_pa[~mask2herb])
       herb_pa = np.random.random_sample(len(herb_pa),)/1000 + herb_pa
@@ -473,7 +473,7 @@ def ehabitat(ecor,nwpath):
       print hpamin
       print hpamax
       hdiff = abs(hpamin-hpamax)
-      if hdiff < 0.001: dropcols[4] = -4
+      if hdiff < 0.001: dropcols[3] = -3
 
      cols = dropcols[dropcols>=0]
      ind_pa0 = np.column_stack((bio_pa,pre_pa,epr_pa,herb_pa,ndvimax_pa,ndvimin_pa,ndwi_pa,slope_pa,tree_pa))
