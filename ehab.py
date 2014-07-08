@@ -358,11 +358,11 @@ def ehabitat(ecor,nwpath):
       epr_pa = np.random.random_sample(len(epr_pa),)/1000 + epr_pa
       print 'pa epr'
 
-      eprpamin = epr_pa.min()
-      eprpamax = epr_pa.max()
+      eprpamin = round(epr_pa.min(),2)
+      eprpamax = round(epr_pa.max(),2)
       print eprpamin
       print eprpamax
-      eprdiff = abs(eprpamin-eprpamax)
+      eprdiff = abs(epr_pa.min()-epr_pa.max())
       if eprdiff < 0.001: dropcols[2] = -2
 
      xoff = int((gt_pa[0]-gt_pre_global[0])/1000)
@@ -379,11 +379,11 @@ def ehabitat(ecor,nwpath):
       pre_pa = np.random.random_sample(len(pre_pa),)/1000 + pre_pa
       print 'pa pre'
 
-      prepamin = pre_pa.min()
-      prepamax = pre_pa.max()
+      prepamin = round(pre_pa.min(),2)
+      prepamax = round(pre_pa.max(),2)
       print prepamin
       print prepamax
-      prediff = abs(prepamin-prepamax)
+      prediff = abs(pre_pa.min()-pre_pa.max())
       if prediff < 0.001: dropcols[1] = -1
 
      xoff = int((gt_pa[0]-gt_bio_global[0])/1000)
@@ -400,11 +400,11 @@ def ehabitat(ecor,nwpath):
       bio_pa = np.random.random_sample(len(bio_pa),)/1000 + bio_pa
       print 'pa bio'
 
-      biopamin = bio_pa.min()
-      biopamax = bio_pa.max()
+      biopamin = round(bio_pa.min(),2)
+      biopamax = round(bio_pa.max(),2)
       print biopamin
       print biopamax
-      biodiff = abs(biopamin-biopamax)
+      biodiff = abs(bio_pa.min()-bio_pa.max())
       if biodiff < 0.001: dropcols[0] = -0
 
      xoff = int((gt_pa[0]-gt_slope_global[0])/1000)
@@ -421,11 +421,11 @@ def ehabitat(ecor,nwpath):
       slope_pa = np.random.random_sample(len(slope_pa),)/1000 + slope_pa
       print 'pa slope'
 
-      slopepamin = slope_pa.min()
-      slopepamax = slope_pa.max()
+      slopepamin = round(slope_pa.min(),2)
+      slopepamax = round(slope_pa.max(),2)
       print slopepamin
       print slopepamax
-      slopediff = abs(slopepamin-slopepamax)
+      slopediff = abs(slope_pa.min()-slope_pa.max())
       if slopediff < 0.001: dropcols[7] = -7
 
      xoff = int((gt_pa[0]-gt_ndwi_global[0])/1000)
@@ -442,11 +442,11 @@ def ehabitat(ecor,nwpath):
       ndwi_pa = np.random.random_sample(len(ndwi_pa),)/1000 + ndwi_pa
       print 'pa ndwi'
 
-      ndwipamin = ndwi_pa.min()
-      ndwipamax = ndwi_pa.max()
+      ndwipamin = round(ndwi_pa.min(),2)
+      ndwipamax = round(ndwi_pa.max(),2)
       print ndwipamin
       print ndwipamax
-      ndwidiff = abs(ndwipamin-ndwipamax)
+      ndwidiff = abs(ndwi_pa.min()-ndwi_pa.max())
       if ndwidiff < 0.001: dropcols[6] = -6
 
      xoff = int((gt_pa[0]-gt_ndvimax_global[0])/1000)
@@ -463,11 +463,11 @@ def ehabitat(ecor,nwpath):
       ndvimax_pa = np.random.random_sample(len(ndvimax_pa),)/1000 + ndvimax_pa
       print 'pa ndvimax'
 
-      ndvimaxpamin = ndvimax_pa.min()
-      ndvimaxpamax = ndvimax_pa.max()
+      ndvimaxpamin = round(ndvimax_pa.min(),2)
+      ndvimaxpamax = round(ndvimax_pa.max(),2)
       print ndvimaxpamin
       print ndvimaxpamax
-      ndvimaxdiff = abs(ndvimaxpamin-ndvimaxpamax)
+      ndvimaxdiff = abs(ndvimax_pa.min()-ndvimax_pa.max())
       if ndvimaxdiff < 0.001: dropcols[4] = -4
 
      xoff = int((gt_pa[0]-gt_ndvimin_global[0])/1000)
@@ -484,11 +484,11 @@ def ehabitat(ecor,nwpath):
       ndvimin_pa = np.random.random_sample(len(ndvimin_pa),)/1000 + ndvimin_pa
       print 'pa ndvimin'
 
-      ndviminpamin = ndvimin_pa.min()
-      ndviminpamax = ndvimin_pa.max()
+      ndviminpamin = round(ndvimin_pa.min(),2)
+      ndviminpamax = round(ndvimin_pa.max(),2)
       print ndviminpamin
       print ndviminpamax
-      ndvimindiff = abs(ndviminpamin-ndviminpamax)
+      ndvimindiff = abs(ndvimin_pa.min()-ndvimin_pa.max())
       if ndvimindiff < 0.001: dropcols[5] = -5
 
      xoff = int((gt_pa[0]-gt_herb_global[0])/1000)
@@ -505,11 +505,11 @@ def ehabitat(ecor,nwpath):
       herb_pa = np.random.random_sample(len(herb_pa),)/1000 + herb_pa
       print 'pa herb'
 
-      hpamin = herb_pa.min()
-      hpamax = herb_pa.max()
+      hpamin = round(herb_pa.min(),2)
+      hpamax = round(herb_pa.max(),2)
       print hpamin
       print hpamax
-      hdiff = abs(hpamin-hpamax)
+      hdiff = abs(herb_pa.min()-herb_pa.max())
       if hdiff < 0.001: dropcols[3] = -3
 
      cols = dropcols[dropcols>=0]
