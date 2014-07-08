@@ -170,7 +170,7 @@ def ehabitat(ecor,nwpath):
  if gmaps == 0:
   initglobalmaps()
  treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = None
- s = nd.generate_binary_structure(2,2)
+ s = nd.generate_binary_structure(2,2) # most restrictive pattern for the landscape patches
  csvname1 = 'results/ecoregs_done.csv' # LOCAL FOLDER
  if os.path.isfile(csvname1) == False:
   wb = open(csvname1,'a')
@@ -560,24 +560,24 @@ def ehabitat(ecor,nwpath):
        hri_pa_bb = hri_pa_bb0.flatten()
        indd = hri_pa_bb > 0
        hri_pa0 = hri_pa_bb[indd]
-       hr1averpa = np.mean(hri_pa0[~np.isnan(hri_pa0)])
-       hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
+       hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
+       #hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
        print 'mean similarity in the park is '+str(hr1averpa)
-       hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
+       #hr1insum = sum(np.where(hri_pa0 >= 0.5, 1,0)) # use hr1averpa as threshold instead!			   
        hr1inaver = np.where(hri_pa0 >= hr1averpa, 1,0)
        hr1insumaver = sum(hr1inaver)
-       print hr1insum
+       #print hr1insum
        hr1averr = np.where(pmhh >= hr1averpa, 1,0)
        hr1aver = hr1averr.flatten()
-       labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s)
+       labeled_arrayaver, num_featuresaver = nd.label(hr1averr, structure=s) 
        hr1sumaver = sum(hr1aver)
        hr2aver = hr1sumaver - hr1insumaver
-       hr3aver = float(hr2aver/ind_pa.shape[0])
-       aggregation = float(hr2aver/num_featuresaver)
-      hr2 = hr1sum - hr1insum
-      print hr2
-      hr3 = float(hr2/ind_pa.shape[0])
-      print hr3
+       hr3aver = round(float(hr2aver/ind_pa.shape[0]),2)
+       aggregation = round(float(hr2aver/num_featuresaver),2)
+      #hr2 = hr1sumaver - hr1insumaver
+      #print hr2
+      #hr3 = float(hr2/ind_pa.shape[0])
+      #print hr3
      wb = open(csvname,'a')
      var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation)+' '+str(round(treepamin,2))+' '+str(round(treepamax,2))+' '+str(round(eprpamin,2))+' '+str(round(eprpamax,2))+' '+str(round(prepamin,2))+' '+str(round(prepamax,2))+' '+str(round(biopamin,2))+' '+str(round(biopamax,2))+' '+str(round(slopepamin,2))+' '+str(round(slopepamax,2))+' '+str(round(ndwipamin,2))+' '+str(round(ndwipamax,2))+' '+str(round(ndvimaxpamin,2))+' '+str(round(ndvimaxpamax,2))+' '+str(round(ndviminpamin,2))+' '+str(round(ndviminpamax,2))+' '+str(round(hpamin,2))+' '+str(round(hpamax,2))# exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
      wb.write(var)
