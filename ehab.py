@@ -73,69 +73,103 @@ def mahalanobis_distances_scipy(m, S, X, parallel=True):
 		 return _mahalanobis_distances_scipy(m, SI, X)
 ###
 
+gmaps = 0
+nwpath = ''
+
+def initglobalmaps():
+ if nwpath=='':
+  indir = 'inVars' # ToDo: locally create folder "results" if it does not exist!
+ else:
+  indir = nwpath+'/inVars' # SHARED FOLDER PATH
+ herbf = 'herb.tif'
+ treef = 'tree.tif'
+ ndvimaxf = 'ndvimax.tif'
+ ndviminf = 'ndvimin.tif'
+ ndwif = 'ndwi.tif'
+ slopef = 'slope.tif'
+ biof = 'bio.tif'
+ eprf = 'epr.tif'
+ pref = 'pre.tif'
+ biof_globalfile=indir+'/'+biof
+ global src_ds_bio_global
+ src_ds_bio_global = gdal.Open(biof_globalfile)
+ global bio_global
+ bio_global = src_ds_bio_global.GetRasterBand(1)
+ global gt_bio_global
+ gt_bio_global = src_ds_bio_global.GetGeoTransform()
+ print 'bio'
+ pref_globalfile=indir+'/'+pref
+ global src_ds_pre_global
+ src_ds_pre_global = gdal.Open(pref_globalfile)
+ global pre_global
+ pre_global = src_ds_pre_global.GetRasterBand(1)
+ global gt_pre_global
+ gt_pre_global = src_ds_pre_global.GetGeoTransform()
+ print 'pre'
+ eprf_globalfile=indir+'/'+eprf
+ global src_ds_epr_global
+ src_ds_epr_global = gdal.Open(eprf_globalfile)
+ global epr_global
+ epr_global = src_ds_epr_global.GetRasterBand(1)
+ global gt_epr_global
+ gt_epr_global = src_ds_epr_global.GetGeoTransform()
+ print 'epr'
+ herbf_globalfile=indir+'/'+herbf
+ global src_ds_herb_global
+ src_ds_herb_global = gdal.Open(herbf_globalfile)
+ global herb_global
+ herb_global = src_ds_herb_global.GetRasterBand(1)
+ global gt_herb_global
+ gt_herb_global = src_ds_herb_global.GetGeoTransform()
+ print 'herb'
+ ndvimaxf_globalfile=indir+'/'+ndvimaxf
+ global src_ds_ndvimax_global
+ src_ds_ndvimax_global = gdal.Open(ndvimaxf_globalfile)
+ global ndvimax_global
+ ndvimax_global = src_ds_ndvimax_global.GetRasterBand(1)
+ global gt_ndvimax_global
+ gt_ndvimax_global = src_ds_ndvimax_global.GetGeoTransform()
+ print 'ndvimax'
+ ndviminf_globalfile=indir+'/'+ndviminf
+ global src_ds_ndvimin_global
+ src_ds_ndvimin_global = gdal.Open(ndviminf_globalfile)
+ global ndvimin_global
+ ndvimin_global = src_ds_ndvimin_global.GetRasterBand(1)
+ global gt_ndvimin_global
+ gt_ndvimin_global = src_ds_ndvimin_global.GetGeoTransform()
+ print 'ndvimin'
+ ndwif_globalfile=indir+'/'+ndwif
+ global src_ds_ndwi_global
+ src_ds_ndwi_global = gdal.Open(ndwif_globalfile)
+ global ndwi_global
+ ndwi_global = src_ds_ndwi_global.GetRasterBand(1)
+ global gt_ndwi_global
+ gt_ndwi_global = src_ds_ndwi_global.GetGeoTransform()
+ print 'ndwi'
+ slopef_globalfile=indir+'/'+slopef
+ global src_ds_slope_global
+ src_ds_slope_global = gdal.Open(slopef_globalfile)
+ global slope_global
+ slope_global = src_ds_slope_global.GetRasterBand(1)
+ global gt_slope_global
+ gt_slope_global = src_ds_slope_global.GetGeoTransform()
+ print 'slope' 
+ treef_globalfile=indir+'/'+treef
+ global src_ds_tree_global
+ src_ds_tree_global = gdal.Open(treef_globalfile)
+ global tree_global
+ tree_global = src_ds_tree_global.GetRasterBand(1)
+ global gt_tree_global
+ gt_tree_global = src_ds_tree_global.GetGeoTransform()
+ print 'tree'
+ print "Global variables imported"
+ global gmaps
+ gmaps = 1
+
 def ehabitat(ecor,nwpath):
- try:
-  biof
- except NameError:
-  if nwpath=='':
-   indir = 'inVars' # ToDo: locally create folder "results" if it does not exist!
-  else:
-   indir = nwpath+'/inVars' # SHARED FOLDER PATH
-  herbf = 'herb.tif'
-  treef = 'tree.tif'
-  ndvimaxf = 'ndvimax.tif'
-  ndviminf = 'ndvimin.tif'
-  ndwif = 'ndwi.tif'
-  slopef = 'slope.tif'
-  biof = 'bio.tif'
-  eprf = 'epr.tif'
-  pref = 'pre.tif'
-  biof_globalfile=indir+'/'+biof
-  src_ds_bio_global = gdal.Open(biof_globalfile)
-  bio_global = src_ds_bio_global.GetRasterBand(1)
-  gt_bio_global = src_ds_bio_global.GetGeoTransform()
-  print 'bio'
-  pref_globalfile=indir+'/'+pref
-  src_ds_pre_global = gdal.Open(pref_globalfile)
-  pre_global = src_ds_pre_global.GetRasterBand(1)
-  gt_pre_global = src_ds_pre_global.GetGeoTransform()
-  print 'pre'
-  eprf_globalfile=indir+'/'+eprf
-  src_ds_epr_global = gdal.Open(eprf_globalfile)
-  epr_global = src_ds_epr_global.GetRasterBand(1)
-  gt_epr_global = src_ds_epr_global.GetGeoTransform()
-  print 'epr'
-  herbf_globalfile=indir+'/'+herbf
-  src_ds_herb_global = gdal.Open(herbf_globalfile)
-  herb_global = src_ds_herb_global.GetRasterBand(1)
-  gt_herb_global = src_ds_herb_global.GetGeoTransform()
-  print 'herb'
-  ndvimaxf_globalfile=indir+'/'+ndvimaxf
-  src_ds_ndvimax_global = gdal.Open(ndvimaxf_globalfile)
-  ndvimax_global = src_ds_ndvimax_global.GetRasterBand(1)
-  gt_ndvimax_global = src_ds_ndvimax_global.GetGeoTransform()
-  print 'ndvimax'
-  ndviminf_globalfile=indir+'/'+ndviminf
-  src_ds_ndvimin_global = gdal.Open(ndviminf_globalfile)
-  ndvimin_global = src_ds_ndvimin_global.GetRasterBand(1)
-  gt_ndvimin_global = src_ds_ndvimin_global.GetGeoTransform()
-  print 'ndvimin'
-  ndwif_globalfile=indir+'/'+ndwif
-  src_ds_ndwi_global = gdal.Open(ndwif_globalfile)
-  ndwi_global = src_ds_ndwi_global.GetRasterBand(1)
-  gt_ndwi_global = src_ds_ndwi_global.GetGeoTransform()
-  print 'ndwi'
-  slopef_globalfile=indir+'/'+slopef
-  src_ds_slope_global = gdal.Open(slopef_globalfile)
-  slope_global = src_ds_slope_global.GetRasterBand(1)
-  gt_slope_global = src_ds_slope_global.GetGeoTransform()
-  print 'slope' 
-  treef_globalfile=indir+'/'+treef
-  src_ds_tree_global = gdal.Open(treef_globalfile)
-  tree_global = src_ds_tree_global.GetRasterBand(1)
-  gt_tree_global = src_ds_tree_global.GetGeoTransform()
-  print 'tree'
-  print "Global variables imported"
+ if gmaps == 0:
+  initglobalmaps()
+ treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = None
  s = nd.generate_binary_structure(2,2)
  csvname1 = 'results/ecoregs_done.csv' # LOCAL FOLDER
  if os.path.isfile(csvname1) == False:
@@ -303,11 +337,11 @@ def ehabitat(ecor,nwpath):
       tree_pa = np.random.random_sample(len(tree_pa),)/1000 + tree_pa
       print 'pa tree'
 
-      treepamin = tree_pa.min()
-      treepamax = tree_pa.max()
+      treepamin = round(tree_pa.min(),2)
+      treepamax = round(tree_pa.max(),2)
       print treepamin
       print treepamax
-      treediff = abs(treepamin-treepamax)
+      treediff = abs(tree_pa.min()-tree_pa.max())
       if treediff < 0.001: dropcols[8] = -8
 
      xoff = int((gt_pa[0]-gt_epr_global[0])/1000)
@@ -545,7 +579,7 @@ def ehabitat(ecor,nwpath):
       hr3 = float(hr2/ind_pa.shape[0])
       print hr3
      wb = open(csvname,'a')
-     var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation) + str(treepamin) + str(treepamax) + str(eprpamin) + str(eprpamax) + str(prepamin) + str(prepamax) + str(biopamin) + str(biopamax) + str(slopepamin) + str(slopepamax) + str(ndwipamin) + str(ndwipamax) + str(ndvimaxpamin) + str(ndvimaxpamax) + str(ndviminpamin) + str(ndviminpamax) + str(hpamin) + str(hpamax)# exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
+     var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(aggregation)+' '+str(round(treepamin,2))+' '+str(round(treepamax,2))+' '+str(round(eprpamin,2))+' '+str(round(eprpamax,2))+' '+str(round(prepamin,2))+' '+str(round(prepamax,2))+' '+str(round(biopamin,2))+' '+str(round(biopamax,2))+' '+str(round(slopepamin,2))+' '+str(round(slopepamax,2))+' '+str(round(ndwipamin,2))+' '+str(round(ndwipamax,2))+' '+str(round(ndvimaxpamin,2))+' '+str(round(ndvimaxpamax,2))+' '+str(round(ndviminpamin,2))+' '+str(round(ndviminpamax,2))+' '+str(round(hpamin,2))+' '+str(round(hpamax,2))# exclude PA! #+' '+str(hr1p25pa)# '+str(hr3)+' +' '+str(hr1medianpa)+' '+str(num_features)+' '
      wb.write(var)
      wb.write('\n')
      wb.close()
@@ -555,4 +589,19 @@ def ehabitat(ecor,nwpath):
   wb.write(var)
   wb.write('\n')
   wb.close() 
- print "END"
+ print "END ECOREG: " + str(ecor)
+
+def run_batch():
+ from datetime import datetime
+ import numpy as np
+ eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
+ eco_list = np.unique(eco_list0)
+ #print eco_list
+ m = len(eco_list)
+ for pm in range(0,m): # 3,m # 0 without the negative ecoregs!
+  ecor = eco_list[pm]
+  print ecor
+  ehabitat(ecor,'')
+ print str(datetime.now())
+ print "BATCH END"
+
