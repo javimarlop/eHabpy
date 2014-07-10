@@ -166,7 +166,9 @@ def initglobalmaps():
  global gmaps
  gmaps = 1
 
-def ehabitat(ecor,nwpath,nwpathout):
+def ehabitat(ecor,nw,nwpathout):
+ global nwpath
+ nwpath = nw
  if gmaps == 0:
   initglobalmaps()
  if nwpathout=='':
