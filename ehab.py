@@ -166,18 +166,22 @@ def initglobalmaps():
  global gmaps
  gmaps = 1
 
-def ehabitat(ecor,nwpath):
+def ehabitat(ecor,nwpath,nwpathout):
  if gmaps == 0:
   initglobalmaps()
+ if nwpathout=='':
+  outdir = 'results' # ToDo: locally create folder "results" if it does not exist!
+ else:
+  outdir = nwpathout+'/results' # SHARED FOLDER PATH
  treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = None
  s = nd.generate_binary_structure(2,2) # most restrictive pattern for the landscape patches
- csvname1 = 'results/ecoregs_done.csv' # LOCAL FOLDER
+ csvname1 = outdir+'/ecoregs_done.csv' # LOCAL FOLDER
  if os.path.isfile(csvname1) == False:
   wb = open(csvname1,'a')
   wb.write('None')
   wb.write('\n')
   wb.close()
- csvname = 'results/hri_results.csv' # LOCAL FOLDER
+ csvname = outdir+'/hri_results.csv' # LOCAL FOLDER
  if os.path.isfile(csvname) == False:
   wb = open(csvname,'a')
   wb.write('ecoregion wdpaid averpasim hriaver nrpatchesaver aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
@@ -288,7 +292,7 @@ def ehabitat(ecor,nwpath):
   for px in range(0,n): # 0,n
    pa = pa_list[px]
    print pa
-   outfile = 'results/'+str(ecor)+'_'+str(pa)+'.tif' # LOCAL FOLDER
+   outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif' # LOCAL FOLDER
    if nwpath=='':
     pa4 = 'pas/pa_'+str(pa)+'.tif'   
    else:
@@ -584,7 +588,7 @@ def ehabitat(ecor,nwpath):
      wb.write('\n')
      wb.close()
      print "results exported"
-  wb = open('results/ecoregs_done.csv','a') # LOCAL FOLDER
+  wb = open(outdir+'/ecoregs_done.csv','a') # LOCAL FOLDER
   var = str(ecor)
   wb.write(var)
   wb.write('\n')
