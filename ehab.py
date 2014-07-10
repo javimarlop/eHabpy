@@ -590,7 +590,7 @@ def ehabitat(ecor,nw,nwpathout):
      wb.write('\n')
      wb.close()
      print "results exported"
-  wb = open(outdir+'/ecoregs_done.csv','a') # LOCAL FOLDER
+  wb = open(csvname1,'a') # LOCAL FOLDER
   var = str(ecor)
   wb.write(var)
   wb.write('\n')
@@ -600,7 +600,10 @@ def ehabitat(ecor,nw,nwpathout):
 def run_batch():
  from datetime import datetime
  import numpy as np
- eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
+ if nwpath=='':
+  eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
+ else:
+  eco_list0 = np.genfromtxt(nwpath+'/pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
  eco_list = np.unique(eco_list0)
  #print eco_list
  m = len(eco_list)
