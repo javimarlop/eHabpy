@@ -2,7 +2,7 @@ import csv
 import glob
 import os
 import sys
-import ehablib as ehab
+import ehab as ehab
 import basemodel
 
 class Model(basemodel.BaseModel):
@@ -12,12 +12,10 @@ class Model(basemodel.BaseModel):
         # get parameters qualified by input and output file paths
         params = runparams['parameters']
 
-        ecor = '60165'
-        
         # Log the variable values
 #         self.logger.fine("random.seed: %s" % params["random.seed"])
 
-        ehab.ehabitat(ecor, params["shared_data_path"], output_dir)
+        ehab.ehabitat(params["ecoreg_id"], params["shared_dir"], params["output_dir"])
         
 #         # write some variables to output files
 #         with open(params["output.filename"], 'w') as f1:
