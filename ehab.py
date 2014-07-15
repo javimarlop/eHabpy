@@ -598,8 +598,9 @@ def ehabitat(ecor,nw,nwpathout):
  print "END ECOREG: " + str(ecor)
 
 def run_batch():
- from datetime import datetime
- import numpy as np
+# if __name__ == '__main__':
+ #from datetime import datetime
+ #import numpy as np
  if nwpath=='':
   eco_list0 = np.genfromtxt('pas/ecoregs.csv',dtype='int') # crear este archivo en subpas!
  else:
@@ -610,7 +611,7 @@ def run_batch():
  for pm in range(0,m): # 3,m # 0 without the negative ecoregs!
   ecor = eco_list[pm]
   print ecor
-  ehabitat(ecor,'')
+  ehabitat(ecor,'','')
  print str(datetime.now())
  print "BATCH END"
 
