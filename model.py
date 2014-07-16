@@ -15,7 +15,7 @@ class Model(basemodel.BaseModel):
         # Log the variable values
 #         self.logger.fine("random.seed: %s" % params["random.seed"])
 
-        ehab.ehabitat(params["ecoreg_id"], params["shared_dir"], params["output_dir"])
+        ehab.ehabitat(params["ecoreg_id"], params["shared_dir"], params["output_dir2"])
         
 #         # write some variables to output files
 #         with open(params["output.filename"], 'w') as f1:
