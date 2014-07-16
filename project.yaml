@@ -8,7 +8,7 @@ base_params:
     # path_to_library_code: $$library_path(r-library)$$/some_path
     # a_useful_input_file: $$input_path$$useful.txt
     # another_useful_input_file: $$input_path$$also_useful.txt
-    output_dir: $$output_path$$
+    output_dir: e:\ # $$output_path$$
     ecoreg_id: 10105
     # a_string_array: [abc,def,ghi]
     # another_array:
