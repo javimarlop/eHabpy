@@ -7,7 +7,7 @@ import os
 import sys
 import csv
 
-GISBASE = os.environ['GISBASE'] = "/home/majavie/grass7_source/g71/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/local1/majavie/hanksgrass7"
 MYLOC = "global_MW"
 mapset = 'rasterized_parks'
