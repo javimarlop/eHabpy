@@ -91,10 +91,9 @@ nwpath = ''
 
 def initglobalmaps():
 	if nwpath=='':
-		indir = 'inVars'	
-	else:
-		#indir = nwpath+'/inVars'	#	SHARED	FOLDER	PATH
-		indir = os.path.join(os.path.sep, nwpath, 'inVars')
+		nwpath = os.getcwd()
+	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
+	indir = os.path.join(os.path.sep, nwpath, 'inVars')
 	herbf = 'herb.tif'
 	treef = 'tree.tif'
 	ndvimaxf = 'ndvimax.tif'
@@ -220,27 +219,18 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	ef = 'eco_'+str(ecor)+'.tif'
-	if nwpath=='':
-		ecofile = os.path.join(os.path.sep, os.getcwd(), 'ecoregs', ef)
-		#ecofile='ecoregs/eco_'+str(ecor)+'.tif'
-	else:
-		#ecofile=nwpath+'/ecoregs/eco_'+str(ecor)+'.tif'
-		ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
+	ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
-		if nwpath=='':
-			ecoparksf = os.path.join(os.path.sep, os.getcwd(), 'pas', eco_csv)
-			#ecoparksf = 'pas/'+str(ecor)+'.csv'
-		else:
-			ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
-			#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
+		ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
+		#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
 		eco = src_ds_eco.GetRasterBand(1)
 		eco_mask0 = eco.ReadAsArray(0,0,eco.XSize,eco.YSize).astype(np.int32)
 		eco_mask = eco_mask0.flatten()
 		gt_eco = src_ds_eco.GetGeoTransform()
-		print 'eco	mask'
+		print 'eco mask'
 		xoff = int((gt_eco[0]-gt_epr_global[0])/1000)
 		yoff = int((gt_epr_global[3]-gt_eco[3])/1000)
 		epr_eco_bb0 = epr_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -249,7 +239,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		epr_eco = np.where(epr_eco0 == 65535.0,	(float('NaN')),(epr_eco0))
 		maskepr = np.isnan(epr_eco)
 		epr_eco[maskepr] = np.interp(np.flatnonzero(maskepr),	np.flatnonzero(~maskepr),	epr_eco[~maskepr])
-		print 'eco	epr'
+		print 'eco epr'
 		xoff = int((gt_eco[0]-gt_slope_global[0])/1000)
 		yoff = int((gt_slope_global[3]-gt_eco[3])/1000)
 		slope_eco_bb0 = slope_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -258,7 +248,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		slope_eco = np.where(slope_eco0 == 65535.0,	(float('NaN')),(slope_eco0))
 		maskslope = np.isnan(slope_eco)
 		slope_eco[maskslope] = np.interp(np.flatnonzero(maskslope),	np.flatnonzero(~maskslope),	slope_eco[~maskslope])
-		print 'eco	slope'
+		print 'eco slope'
 		xoff = int((gt_eco[0]-gt_ndvimax_global[0])/1000)
 		yoff = int((gt_ndvimax_global[3]-gt_eco[3])/1000)
 		ndvimax_eco_bb0 = ndvimax_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -267,7 +257,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		ndvimax_eco = np.where(ndvimax_eco0 == 65535.0,	(float('NaN')),(ndvimax_eco0))
 		maskndvimax = np.isnan(ndvimax_eco)
 		ndvimax_eco[maskndvimax] = np.interp(np.flatnonzero(maskndvimax),	np.flatnonzero(~maskndvimax),	ndvimax_eco[~maskndvimax])
-		print 'eco	ndvimax'
+		print 'eco ndvimax'
 		xoff = int((gt_eco[0]-gt_ndvimin_global[0])/1000)
 		yoff = int((gt_ndvimin_global[3]-gt_eco[3])/1000)
 		ndvimin_eco_bb0 = ndvimin_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -276,7 +266,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		ndvimin_eco = np.where(ndvimin_eco0 == 65535.0,	(float('NaN')),(ndvimin_eco0))
 		maskndvimin = np.isnan(ndvimin_eco)
 		ndvimin_eco[maskndvimin] = np.interp(np.flatnonzero(maskndvimin),	np.flatnonzero(~maskndvimin),	ndvimin_eco[~maskndvimin])
-		print 'eco	ndvimin'
+		print 'eco ndvimin'
 		xoff = int((gt_eco[0]-gt_ndwi_global[0])/1000)
 		yoff = int((gt_ndwi_global[3]-gt_eco[3])/1000)
 		ndwi_eco_bb0 = ndwi_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -285,7 +275,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		ndwi_eco = np.where(ndwi_eco0 == 255.0,	(float('NaN')),(ndwi_eco0))
 		maskndwi = np.isnan(ndwi_eco)
 		ndwi_eco[maskndwi] = np.interp(np.flatnonzero(maskndwi),	np.flatnonzero(~maskndwi),	ndwi_eco[~maskndwi])
-		print 'eco	ndwi'
+		print 'eco ndwi'
 		xoff = int((gt_eco[0]-gt_pre_global[0])/1000)
 		yoff = int((gt_pre_global[3]-gt_eco[3])/1000)
 		pre_eco_bb0 = pre_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -336,12 +326,8 @@ def	ehabitat(ecor,nw,nwpathout):
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
 			print pa_infile
-			if nwpath=='':
-				pa4 = os.path.join(os.path.sep, os.getcwd(), 'pas', pa_infile)
-				#pa4 = 'pas/pa_'+str(pa)+'.tif'			
-			else:
-				pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
-				#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
+			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
+			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 			print pa4
 			# TEMP for debugging
 			dropcols = np.arange(9,dtype=int)
@@ -646,11 +632,7 @@ def	run_batch():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	if nwpath=='':
-		eco_list0 = np.genfromtxt('pas' + os.path.sep + 'ecoregs.csv',dtype='int')	#	crear	este	archivo	en	subpas!
-		
-	else:
-		eco_list0 = np.genfromtxt(nwpath + os.path.sep + 'pas' + os.path.sep + 'ecoregs.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt(nwpath + os.path.sep + 'pas' + os.path.sep + 'ecoregs.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
