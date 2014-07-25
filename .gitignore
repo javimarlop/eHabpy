@@ -1,3 +1,11 @@
+*.tif
+*.csv
+*.dbf
+*.shp
+*.prj
+*.qpj
+*.shx
+*.xml
+*.txt
 *.pyc
 *.pydevproject
-*.project
