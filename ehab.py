@@ -90,8 +90,7 @@ gmaps = 0
 nwpath = ''
 
 def initglobalmaps():
-	if nwpath=='':
-		nwpath = os.getcwd()
+	
 	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
 	indir = os.path.join(os.path.sep, nwpath, 'inVars')
 	herbf = 'herb.tif'
@@ -189,8 +188,13 @@ def initglobalmaps():
 	gmaps = 1
 
 def	ehabitat(ecor,nw,nwpathout):
+
 	global	nwpath
-	nwpath = nw
+	if nw=='':
+		nwpath = os.getcwd()
+	else:
+		nwpath = nw
+		
 	if gmaps == 0:
 		initglobalmaps()
 	if nwpathout=='':
