@@ -315,6 +315,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 		print 'ecovars stacked'
 		
+		print ecoparksf
 		pa_list0 = np.genfromtxt(ecoparksf,dtype='int')	# crear este archivo en subpas!
 		pa_list = np.unique(pa_list0)
 		n = len(pa_list)
