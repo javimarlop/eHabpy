@@ -324,17 +324,16 @@ def	ehabitat(ecor,nw,nwpathout):
 		pa_list = np.unique(pa_list0)
 		n = len(pa_list)
 		for	px in range(0,n): #	0,n
-			print "1"
+
 			pa = pa_list[px]
-			print pa
+
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
-			print pa_infile
+
 			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
-			print pa4
-			# TEMP for debugging
+
 			dropcols = np.arange(9,dtype=int)
 			done = os.path.isfile(outfile)
 			avail2 = os.path.isfile(pa4)

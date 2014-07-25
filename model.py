@@ -3,6 +3,7 @@ import glob
 import os
 import sys
 import ehab as ehab
+import numpy as np
 import basemodel
 
 class Model(basemodel.BaseModel):
@@ -17,7 +18,12 @@ class Model(basemodel.BaseModel):
         od = params["output_dir"][:-1]
         # self.logger.fine("New output directory: %s" % od)
         
-        ehab.ehabitat(params["ecoreg_id"], params["shared_dir"], od)
+        eco_file = os.path.join(os.path.sep, params["shared_dir"], 'pas', 'ecoregs.csv')
+        eco_list0 = np.genfromtxt(eco_file,dtype='int') # crear este archivo en subpas!
+        eco_list = np.unique(eco_list0)
+        ecoreg_id = eco_list[params["ecoreg_index"]]
+
+        ehab.ehabitat(ecoreg_id, params["shared_dir"], od)
         
 #         # write some variables to output files
 #         with open(params["output.filename"], 'w') as f1:
