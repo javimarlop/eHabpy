@@ -3,7 +3,6 @@ runner_class: PythonRunner
  
 base_params:
     shared_dir: \\LONGORIA\export\test
-    output_dir2: e:\
 
     # path_to_library_code: $$library_path(r-library)$$/some_path
     # a_useful_input_file: $$input_path$$useful.txt
