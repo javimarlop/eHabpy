@@ -22,7 +22,7 @@ repetitions:
         generator_type: linear_step
         start: 4
         step_size: 1
-        count: 2
+        count: 10
  
  
 mapreduce:
