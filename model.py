@@ -13,9 +13,9 @@ class Model(basemodel.BaseModel):
         params = runparams['parameters']
 
         # Log the variable values
-        self.logger.fine("Output directory: %s" % params["output_dir"])
+        # self.logger.fine("Output directory: %s" % params["output_dir"])
         od = params["output_dir"][:-1]
-        self.logger.fine("New output directory: %s" % od)
+        # self.logger.fine("New output directory: %s" % od)
         
         ehab.ehabitat(params["ecoreg_id"], params["shared_dir"], od)
         
