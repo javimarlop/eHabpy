@@ -185,7 +185,7 @@ def initglobalmaps():
 	global	gt_tree_global
 	gt_tree_global = src_ds_tree_global.GetGeoTransform()
 	print 'tree'
-	print "Global variables	imported"
+	print "Global variables imported"
 	global	gmaps
 	gmaps = 1
 
@@ -216,7 +216,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion	wdpaid	averpasim	hriaver	nrpatchesaver	aggregation	treepamin	treepamax	eprpamin	eprpamax	prepamin	prepamax	biopamin	biopamax	slopepamin	slopepamax	ndwipamin	ndwipamax	ndvimaxpamin	ndvimaxpamax	ndviminpamin	ndviminpamax	hpamin	hpamax')
+		wb.write('ecoregion wdpaid averpasim hriaver nrpatchesaver aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
 		wb.write('\n')
 		wb.close()
 	if nwpath=='':
@@ -292,7 +292,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		pre_eco = np.where(pre_eco0 == 65535.0,	(float('NaN')),(pre_eco0))
 		maskpre = np.isnan(pre_eco)
 		pre_eco[maskpre] = np.interp(np.flatnonzero(maskpre),	np.flatnonzero(~maskpre),	pre_eco[~maskpre])
-		print 'eco	pre'
+		print 'eco pre'
 		xoff = int((gt_eco[0]-gt_bio_global[0])/1000)
 		yoff = int((gt_bio_global[3]-gt_eco[3])/1000)
 		bio_eco_bb0 = bio_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -301,7 +301,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		bio_eco = np.where(bio_eco0 == 65535.0,	(float('NaN')),(bio_eco0))
 		maskbio = np.isnan(bio_eco)
 		bio_eco[maskbio] = np.interp(np.flatnonzero(maskbio),	np.flatnonzero(~maskbio),	bio_eco[~maskbio])
-		print 'eco	bio'
+		print 'eco bio'
 		xoff = int((gt_eco[0]-gt_tree_global[0])/1000)
 		yoff = int((gt_tree_global[3]-gt_eco[3])/1000)
 		tree_eco_bb0 = tree_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -310,7 +310,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		tree_eco = np.where(tree_eco0 == 255.0,	(float('NaN')),(tree_eco0))
 		masktree = np.isnan(tree_eco)
 		tree_eco[masktree] = np.interp(np.flatnonzero(masktree),	np.flatnonzero(~masktree),	tree_eco[~masktree])
-		print 'eco	tree'
+		print 'eco tree'
 		xoff = int((gt_eco[0]-gt_herb_global[0])/1000)
 		yoff = int((gt_herb_global[3]-gt_eco[3])/1000)
 		herb_eco_bb0 = herb_global.ReadAsArray(xoff,yoff,eco.XSize,eco.YSize).astype(np.float32)
@@ -319,22 +319,25 @@ def	ehabitat(ecor,nw,nwpathout):
 		herb_eco = np.where(herb_eco0 == 255.0,	(float('NaN')),(herb_eco0))
 		maskherb = np.isnan(herb_eco)
 		herb_eco[maskherb] = np.interp(np.flatnonzero(maskherb),	np.flatnonzero(~maskherb),	herb_eco[~maskherb])
-		print 'eco	herb'
+		print 'eco herb'
 		ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
-		print 'ecovars	stacked'
+		print 'ecovars stacked'
 		pa_list0 = np.genfromtxt(ecoparksf,dtype='int')	#	crear	este	archivo	en	subpas!
 		pa_list = np.unique(pa_list0)
 		n = len(pa_list)
 		for	px	in	range(0,n): #	0,n
 			pa = pa_list[px]
 			print pa
-			outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL	FOLDER
+			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
+			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			if nwpath=='':
 				pa4 = os.path.join(os.path.sep, os.getcwd(), 'pas', 'pa_'+str(pa)+'.tif')
 				#pa4 = 'pas/pa_'+str(pa)+'.tif'			
 			else:
 				pa4 = os.path.join(os.path.sep, nwpath, 'pas', 'pa_'+str(pa)+'.tif')
 				#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
+			print ("PA4 is %s" % pa4)
+			# TEMP for debugging
 			dropcols = np.arange(9,dtype=int)
 			done = os.path.isfile(outfile)
 			avail2 = os.path.isfile(pa4)
@@ -631,7 +634,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.write(var)
 		wb.write('\n')
 		wb.close()	
-	print "END	ECOREG: " + str(ecor)
+	print "END ECOREG: " + str(ecor)
 
 def	run_batch():
 #	if __name__ == '__main__':
@@ -650,5 +653,5 @@ def	run_batch():
 		print ecor
 		ehabitat(ecor,'','')
 	print str(datetime.now())
-	print "BATCH	END"
+	print "BATCH END"
 
