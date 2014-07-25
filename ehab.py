@@ -219,19 +219,21 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.write('ecoregion wdpaid averpasim hriaver nrpatchesaver aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
 		wb.write('\n')
 		wb.close()
+	ef = 'eco_'+str(ecor)+'.tif'
 	if nwpath=='':
-		ecofile = os.path.join(os.path.sep, os.getcwd(), 'ecoregs', 'eco_'+str(ecor)+'.tif')
+		ecofile = os.path.join(os.path.sep, os.getcwd(), 'ecoregs', ef)
 		#ecofile='ecoregs/eco_'+str(ecor)+'.tif'
 	else:
 		#ecofile=nwpath+'/ecoregs/eco_'+str(ecor)+'.tif'
-		ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', 'eco_'+str(ecor)+'.tif')
+		ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
 	avail = os.path.isfile(ecofile)
 	if avail == True:
+		eco_csv = str(ecor)+'.csv'
 		if nwpath=='':
-			ecoparksf = os.path.join(os.path.sep, os.getcwd(), 'pas', str(ecor)+'.tif')
+			ecoparksf = os.path.join(os.path.sep, os.getcwd(), 'pas', eco_csv)
 			#ecoparksf = 'pas/'+str(ecor)+'.csv'
 		else:
-			ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', str(ecor)+'.tif')
+			ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
 			#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
 		eco = src_ds_eco.GetRasterBand(1)
@@ -322,6 +324,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		print 'eco herb'
 		ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 		print 'ecovars stacked'
+		
 		pa_list0 = np.genfromtxt(ecoparksf,dtype='int')	# crear este archivo en subpas!
 		pa_list = np.unique(pa_list0)
 		n = len(pa_list)
