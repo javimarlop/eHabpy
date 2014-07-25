@@ -322,19 +322,21 @@ def	ehabitat(ecor,nw,nwpathout):
 		print 'eco herb'
 		ind_eco0 = np.column_stack((bio_eco,pre_eco,epr_eco,herb_eco,ndvimax_eco,ndvimin_eco,ndwi_eco,slope_eco,tree_eco))
 		print 'ecovars stacked'
-		pa_list0 = np.genfromtxt(ecoparksf,dtype='int')	#	crear	este	archivo	en	subpas!
+		pa_list0 = np.genfromtxt(ecoparksf,dtype='int')	# crear este archivo en subpas!
 		pa_list = np.unique(pa_list0)
 		n = len(pa_list)
-		for	px	in	range(0,n): #	0,n
+		for	px in range(0,n): #	0,n
 			pa = pa_list[px]
 			print pa
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
+			pa_infile = 'pa_'+str(pa)+'.tif'
+			print pa_infile
 			if nwpath=='':
-				pa4 = os.path.join(os.path.sep, os.getcwd(), 'pas', 'pa_'+str(pa)+'.tif')
+				pa4 = os.path.join(os.path.sep, os.getcwd(), 'pas', pa_infile)
 				#pa4 = 'pas/pa_'+str(pa)+'.tif'			
 			else:
-				pa4 = os.path.join(os.path.sep, nwpath, 'pas', 'pa_'+str(pa)+'.tif')
+				pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
 				#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 			print ("PA4 is %s" % pa4)
 			# TEMP for debugging
