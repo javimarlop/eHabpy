@@ -328,6 +328,7 @@ def	ehabitat(ecor,nw,nwpathout):
 			pa = pa_list[px]
 
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
+			outfile2 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_lp.tif')
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
 
@@ -611,6 +612,11 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1averr = np.where(pmhh >= hr1averpa,	1,0)
 							hr1aver = hr1averr.flatten()
 							labeled_arrayaver,	num_featuresaver = nd.label(hr1averr,	structure=s)
+							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Byte,dst_options)
+							dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
+							dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
+							dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
+							dst_ds2 = None
 							#num_feats = num_features - num_featuresaver
 							hr1sumaver = sum(hr1aver)
 							hr2aver = hr1sumaver - hr1insumaver
