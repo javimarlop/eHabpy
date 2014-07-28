@@ -612,7 +612,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1averr = np.where(pmhh >= hr1averpa,	1,0)
 							hr1aver = hr1averr.flatten()
 							labeled_arrayaver,	num_featuresaver = nd.label(hr1averr,	structure=s)
-							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Byte,dst_options)
+							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
 							dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
 							dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
 							dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
