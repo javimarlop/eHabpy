@@ -562,7 +562,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					print ind_pa.shape
 					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
-					print ind_pa
+					#print ind_pa
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: # add conditional to look for non NaN values
 						Ymean = np.mean(ind_pa,axis=0)
 						print "Ymean ok"
@@ -604,7 +604,9 @@ def	ehabitat(ecor,nw,nwpathout):
 							hri_pa_bb = hri_pa_bb0.flatten()
 							indd = hri_pa_bb > 0
 							hri_pa0 = hri_pa_bb[indd]
+							print hri_pa0
 							hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
+							print hr1averpa
 							#hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
 							print 'mean similarity in the park is '+str(hr1averpa)
 							#hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
