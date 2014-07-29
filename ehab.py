@@ -219,7 +219,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hriaver nfeatsaver lpratioper lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
+		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
 		wb.write('\n')
 		wb.close()
 	ef = 'eco_'+str(ecor)+'.tif'
@@ -559,7 +559,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					ind_pa = ind_pa0[:,cols]
 					ind_eco = ind_eco0[:,cols]
 					print ind_pa.shape
-					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = num_featuresaver = lpratioper = hr1medianpa = hr1insumaver = pxpa = aggregation = None
+					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1:
 						Ymean = np.mean(ind_pa,axis=0)
@@ -625,7 +625,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1sumaver = sum(hr1aver)
 							hr2aver = hr1sumaver - hr1insumaver
 							pxpa = ind_pa.shape[0]
-							lpratioper=round(float(pszmax*100/pxpa),2)
+							lpratio=round(float(pszmax/pxpa),2)
 							hr3aver = round(float(hr2aver/pxpa),2)
 							aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
@@ -633,7 +633,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratioper)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()
