@@ -613,7 +613,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1aver = hr1averr.flatten()
 							labeled_arrayaver,	num_featuresaver = nd.label(hr1averr,	structure=s)
 							lbls = np.arange(1, num_featuresaver+1)
-							psizes = nd.labeled_comprehension(hr1averr, num_featuresaver, lbls, np.count_nonzero, int, 0)
+							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0)
 							pszmin = psizes.min()
 							pszmax = psizes.max()
 							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
