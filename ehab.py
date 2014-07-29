@@ -616,7 +616,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0)
 							#pszmin = psizes.min()
 							pszmax = psizes.max()
-							lpratioper=round(float(hr2aver/pszmax)*100,2)
+							lpratioper=round(float(hr2aver*100/pszmax),2)
 							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
 							dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
 							dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
