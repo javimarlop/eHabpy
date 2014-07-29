@@ -326,6 +326,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		for	px in range(0,n): #	0,n
 
 			pa = pa_list[px]
+			print pa
 
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
 			outfile2 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_lp.tif')
@@ -561,7 +562,8 @@ def	ehabitat(ecor,nw,nwpathout):
 					print ind_pa.shape
 					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
-					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1:
+					print ind_pa
+					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: # add conditional to look for non NaN values
 						Ymean = np.mean(ind_pa,axis=0)
 						print "Ymean ok"
 						Ycov = np.cov(ind_pa,rowvar=False)
@@ -600,7 +602,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
 							hri_pa_bb = hri_pa_bb0.flatten()
-							indd = hri_pa_bb	>	0
+							indd = hri_pa_bb > 0
 							hri_pa0 = hri_pa_bb[indd]
 							hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
 							#hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
