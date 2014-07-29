@@ -565,13 +565,16 @@ def	ehabitat(ecor,nw,nwpathout):
 					#print ind_pa
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: # add conditional to look for non NaN values
 						Ymean = np.mean(ind_pa,axis=0)
+						print 'Max. mean value is '+ str(Ymean.max())
 						print "Ymean ok"
 						Ycov = np.cov(ind_pa,rowvar=False)
+						print 'Max. cov value is '+ str(Ycov.max())
 						print "Ycov	ok"
 						#mh = mahalanobis_distances(Ymean,	Ycov,	ind_eco,	parallel=False)
 						#mh = mahalanobis_distances(Ymean,	Ycov,	ind_eco,	parallel=True)
 						mh2 = mahalanobis_distances_scipy(Ymean,	Ycov,	ind_eco,	parallel=True)
 						#mh2 = mahalanobis_distances_scipy(Ymean,	Ycov,	ind_eco,	parallel=False)
+						print 'Max. mh value is '+ str(mh2.max())
 						mh = mh2*mh2
 						print "mh ok"
 						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
