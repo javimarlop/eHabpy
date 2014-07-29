@@ -577,6 +577,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
 						pmhh = np.where(pmh	<=	0.001,None,	pmh)
 						print "pmh ok"	#	quitar	valores	muy	bajos!
+						print 'Max. similarity value is '+ str(pmhh.max())
 						dst_ds.GetRasterBand(1).WriteArray(pmhh)
 						dst_ds = None
 						hr11 = np.where(pmhh >= 0.5,	1,0)
