@@ -649,7 +649,7 @@ def	run_batch():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt(nwpath + os.path.sep + 'pas' + os.path.sep + 'ecoregs.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt(nwpath + 'pas' + os.path.sep + 'ecoregs.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
