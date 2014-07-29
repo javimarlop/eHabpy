@@ -8,21 +8,20 @@ base_params:
     # a_useful_input_file: $$input_path$$useful.txt
     # another_useful_input_file: $$input_path$$also_useful.txt
     output_dir: $$output_path$$
-    ecoreg_index: 4
+    ecoreg_index: $$run_id$$
     # a_string_array: [abc,def,ghi]
     # another_array:
      #    - 1
      #    - 2
        
 
-repetitions:
-    
-    generators:
-      - key: ecoreg_index
-        generator_type: linear_step
-        start: 4
-        step_size: 1
-        count: 10
+#repetitions:   
+#    generators:
+#      - key: ecoreg_index
+#        generator_type: linear_step
+#        start: 4
+#        step_size: 1
+#        count: 10
  
  
 mapreduce:
