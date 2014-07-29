@@ -625,7 +625,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1sumaver = sum(hr1aver)
 							hr2aver = hr1sumaver - hr1insumaver
 							pxpa = ind_pa.shape[0]
-							lpratioper=round(float(pxpa*100/pszmax),2)
+							lpratioper=round(float(pszmax*100/pxpa),2)
 							hr3aver = round(float(hr2aver/pxpa),2)
 							aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
