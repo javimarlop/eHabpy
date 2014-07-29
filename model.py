@@ -21,7 +21,7 @@ class Model(basemodel.BaseModel):
         eco_file = os.path.join(os.path.sep, params["shared_dir"], 'pas', 'ecoregs.csv')
         eco_list0 = np.genfromtxt(eco_file,dtype='int') # crear este archivo en subpas!
         eco_list = np.unique(eco_list0)
-        ecoreg_id = eco_list[params["ecoreg_index"]]
+        ecoreg_id = eco_list[params["ecoreg_index"]+4]
 
         ehab.ehabitat(ecoreg_id, params["shared_dir"], od)
         
