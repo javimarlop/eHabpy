@@ -17,7 +17,8 @@ class Model(basemodel.BaseModel):
         # self.logger.fine("Output directory: %s" % params["output_dir"])
         od = params["output_dir"][:-1]
         # self.logger.fine("New output directory: %s" % od)
-        ei = params["ecoreg_index"]-1
+        ei = params["ecoreg_index"]+2
+        # First 3 ecoregions have negative IDs and will be filtered
         
         eco_file = os.path.join(os.path.sep, params["shared_dir"], 'pas', 'ecoregs.csv')
         eco_list0 = np.genfromtxt(eco_file,dtype='int') # crear este archivo en subpas!
