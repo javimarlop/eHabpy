@@ -625,6 +625,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1averr = np.where(pmhh >= hr1averpa,	1,0)
 							hr1aver = hr1averr.flatten()
 							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
+							print 'Nr of similar patches found: '+str(num_featuresaver)
 							lbls = np.arange(1, num_featuresaver+1)
 							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, -1) #0
 							#pszmin = psizes.min()
