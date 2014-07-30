@@ -219,7 +219,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
+		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
 		wb.write('\n')
 		wb.close()
 	ef = 'eco_'+str(ecor)+'.tif'
@@ -563,7 +563,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
 					#print ind_pa
-					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: # add conditional to look for non NaN values
+					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: 
 						Ymean = np.mean(ind_pa,axis=0)
 						print 'Max. mean value is '+ str(Ymean.max())
 						print "Ymean ok"
@@ -591,7 +591,6 @@ def	ehabitat(ecor,nw,nwpathout):
 						print 'Number of pixels with similarity higher than 0 is '+str(hr1sum)
 						hr1insumaver = hr1insum = 0
 						hr1sumaver = hr1sum
-						labeled_array,	num_features = nd.label(hr11,	structure=s)
 						src_ds_sim = gdal.Open(outfile)
 						sim = src_ds_sim.GetRasterBand(1)
 						gt_sim = src_ds_sim.GetGeoTransform()
@@ -603,7 +602,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	check	if results	are	not	empty?
+						if xoff>0 and yoff>0 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
@@ -619,9 +618,10 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
 							hr1insumaver = sum(hr1inaver)
 							#print hr1insum
+							##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
 							hr1averr = np.where(pmhh >= hr1averpa,	1,0)
 							hr1aver = hr1averr.flatten()
-							labeled_arrayaver,	num_featuresaver = nd.label(hr1averr,	structure=s)
+							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
 							lbls = np.arange(1, num_featuresaver+1)
 							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, -1) #0
 							#pszmin = psizes.min()
@@ -643,7 +643,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()
