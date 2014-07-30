@@ -606,6 +606,21 @@ def	ehabitat(ecor,nw,nwpathout):
 						xsize = par.XSize
 						ysize = par.YSize
 						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
+
+							# reading the similarity ecoregion without the PA (tmp mask)
+
+							hri_pa_bb03 = sim.ReadAsArray(0,0,xsize,ysize).astype(np.float32)
+							hri_pa_bb3 = hri_pa_bb03.flatten()
+							
+							src_ds_sim2 = gdal.Open(outfile3)
+							sim2 = src_ds_sim2.GetRasterBand(1)
+							gt_sim2 = src_ds_sim2.GetGeoTransform()
+							hri_pa_bb02 = sim2.ReadAsArray(0,0,xsize,ysize).astype(np.int32)
+							hri_pa_bb2 = hri_pa_bb02.flatten()
+
+							hri_pa02 = np.where(hri_pa_bb2 == 1,hri_pa_bb3,0) # value 1 for the ecoregion without PA
+
+
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
@@ -622,7 +637,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							hr1insumaver = sum(hr1inaver)
 							#print hr1insum
 							##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
-							hr1averr = np.where(pmhh >= hr1averpa,	1,0)
+							hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
 							hr1aver = hr1averr.flatten()
 							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
 							print 'Nr of similar patches found: '+str(num_featuresaver)
