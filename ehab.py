@@ -652,13 +652,13 @@ def	ehabitat(ecor,nw,nwpathout):
 					wb.write('\n')
 					wb.close()
 					print "results exported"
+					os.system('rm '+str(outfile3))
 		wb = open(csvname1,'a')	#	LOCAL	FOLDER
 		var = str(ecor)
 		wb.write(var)
 		wb.write('\n')
 		wb.close()	
 	print "END ECOREG: " + str(ecor)
-	os.system('rm '+str(outfile3))
 
 def	run_batch():
 #	if __name__ == '__main__':
