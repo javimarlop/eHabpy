@@ -330,11 +330,14 @@ def	ehabitat(ecor,nw,nwpathout):
 
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
 			outfile2 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_lp.tif')
+			outfile3 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_mask.tif')
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
 
 			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
+
+			os.system('gdal_merge.py '+str(pa4)+' '+str(ecofile)+' -o '+str(outfile3))
 
 			dropcols = np.arange(9,dtype=int)
 			done = os.path.isfile(outfile)
@@ -582,7 +585,8 @@ def	ehabitat(ecor,nw,nwpathout):
 						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
 						pmhh = np.where(pmh	<=	0.001,None,	pmh)
 						print "pmh ok"	#	quitar	valores	muy	bajos!
-						print 'Max. similarity value is '+ str(pmhh.max())
+						pmhhmax = pmhh.max()
+						print 'Max. similarity value is '+ str(pmhhmax)
 						dst_ds.GetRasterBand(1).WriteArray(pmhh)
 						dst_ds = None
 						hr11 = np.where(pmhh>0,1,0) # 0.5
@@ -602,7 +606,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
+						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
@@ -654,6 +658,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()	
 	print "END ECOREG: " + str(ecor)
+	os.system('rm '+str(outfile3))
 
 def	run_batch():
 #	if __name__ == '__main__':
