@@ -337,12 +337,11 @@ def	ehabitat(ecor,nw,nwpathout):
 			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 
-			os.system('gdal_merge.py '+str(pa4)+' '+str(ecofile)+' -o '+str(outfile3))
-
 			dropcols = np.arange(9,dtype=int)
 			done = os.path.isfile(outfile)
 			avail2 = os.path.isfile(pa4)
 			if done == False and avail2 == True:
+				os.system('gdal_merge.py '+str(pa4)+' '+str(ecofile)+' -o '+str(outfile3))
 				pafile=pa4
 				src_ds_pa = gdal.Open(pafile)
 				par = src_ds_pa.GetRasterBand(1)
