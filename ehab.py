@@ -583,7 +583,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						print 'Max. similarity value is '+ str(pmhh.max())
 						dst_ds.GetRasterBand(1).WriteArray(pmhh)
 						dst_ds = None
-						hr11 = np.where(pmhh >= 0.5,	1,0)
+						hr11 = np.where(pmhh>0,1,0) # 0.5
 						hr1 = hr11.flatten()
 						hr1sum = sum(hr1)
 						print hr1sum
@@ -601,7 +601,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and ratiogeom < 100: #	also	check	if results	are	not	empty?
+						if xoff>0 and yoff>0 and hr1sum!=0 and ratiogeom < 100: #	also	check	if results	are	not	empty?
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
