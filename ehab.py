@@ -588,7 +588,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						hr11 = np.where(pmhh>0,1,0) # 0.5
 						hr1 = hr11.flatten()
 						hr1sum = sum(hr1)
-						print hr1sum
+						print 'Number of pixels with similarity higher than 0 is '+str(hr1sum)
 						hr1insumaver = hr1insum = 0
 						hr1sumaver = hr1sum
 						labeled_array,	num_features = nd.label(hr11,	structure=s)
@@ -603,16 +603,16 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and hr1sum!=0 and maxmh!=float('NaN')and ratiogeom < 100: #	also	check	if results	are	not	empty?
+						if xoff>0 and yoff>0 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	check	if results	are	not	empty?
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
 							hri_pa_bb = hri_pa_bb0.flatten()
 							indd = hri_pa_bb > 0
 							hri_pa0 = hri_pa_bb[indd]
-							print hri_pa0
+							print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
 							hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
-							print hr1averpa
+							#print hr1averpa
 							#hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
 							print 'mean similarity in the park is '+str(hr1averpa)
 							#hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
