@@ -616,9 +616,9 @@ def	ehabitat(ecor,nw,nwpathout):
 							sim2 = src_ds_sim2.GetRasterBand(1)
 							gt_sim2 = src_ds_sim2.GetGeoTransform()
 							hri_pa_bb02 = sim2.ReadAsArray(0,0,xsize,ysize).astype(np.int32)
-							hri_pa_bb2 = hri_pa_bb02.flatten()
-
-							hri_pa02 = np.where(hri_pa_bb2 == 1,hri_pa_bb3,0) # value 1 for the ecoregion without PA
+							#hri_pa_bb2 = hri_pa_bb02.flatten()
+							print 'Values from mask = '+str(np.unique(hri_pa_bb02))
+							hri_pa02 = np.where(hri_pa_bb02 == 1,hri_pa_bb03,0) # value 1 for the ecoregion without PA
 
 
 							if xless < 0: xsize = xsize + xless
@@ -639,6 +639,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
 							hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
 							hr1aver = hr1averr.flatten()
+							print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
 							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
 							print 'Nr of similar patches found: '+str(num_featuresaver)
 							lbls = np.arange(1, num_featuresaver+1)
