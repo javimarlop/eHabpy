@@ -560,7 +560,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					ind_pa = ind_pa0[:,cols]
 					ind_eco = ind_eco0[:,cols]
 					print ind_pa.shape
-					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
+					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
 					#print ind_pa
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: # add conditional to look for non NaN values
@@ -576,6 +576,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						#mh2 = mahalanobis_distances_scipy(Ymean,	Ycov,	ind_eco,	parallel=False)
 						maxmh=mh2.max()
 						print 'Max. mh value is '+ str(maxmh)
+						print 'Max. mh value is nan: '+ str(np.isnan(maxmh))
 						mh = mh2*mh2
 						print "mh ok"
 						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
