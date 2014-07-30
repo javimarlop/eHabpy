@@ -574,7 +574,8 @@ def	ehabitat(ecor,nw,nwpathout):
 						#mh = mahalanobis_distances(Ymean,	Ycov,	ind_eco,	parallel=True)
 						mh2 = mahalanobis_distances_scipy(Ymean,	Ycov,	ind_eco,	parallel=True)
 						#mh2 = mahalanobis_distances_scipy(Ymean,	Ycov,	ind_eco,	parallel=False)
-						print 'Max. mh value is '+ str(mh2.max())
+						maxmh=mh2.max()
+						print 'Max. mh value is '+ str(maxmh)
 						mh = mh2*mh2
 						print "mh ok"
 						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
@@ -601,7 +602,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and hr1sum!=0 and ratiogeom < 100: #	also	check	if results	are	not	empty?
+						if xoff>0 and yoff>0 and hr1sum!=0 and maxmh!=float('NaN')and ratiogeom < 100: #	also	check	if results	are	not	empty?
 							if xless < 0: xsize = xsize + xless
 							if yless < 0: ysize = ysize + yless
 							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
