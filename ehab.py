@@ -341,7 +341,6 @@ def	ehabitat(ecor,nw,nwpathout):
 			done = os.path.isfile(outfile)
 			avail2 = os.path.isfile(pa4)
 			if done == False and avail2 == True:
-				os.system('gdal_merge.py '+str(pa4)+' '+str(ecofile)+' -o '+str(outfile3))
 				pafile=pa4
 				src_ds_pa = gdal.Open(pafile)
 				par = src_ds_pa.GetRasterBand(1)
@@ -608,17 +607,19 @@ def	ehabitat(ecor,nw,nwpathout):
 						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
 
 							# reading the similarity ecoregion without the PA (tmp mask)
-
-							hri_pa_bb03 = sim.ReadAsArray(0,0,xsize,ysize).astype(np.float32)
+							os.system('gdal_merge.py '+str(ecofile)+' '+str(pa4)+' -o '+str(outfile3)+' -ot Int32')
+							hri_pa_bb03 = sim.ReadAsArray().astype(np.float32)
 							hri_pa_bb3 = hri_pa_bb03.flatten()
 							
 							src_ds_sim2 = gdal.Open(outfile3)
 							sim2 = src_ds_sim2.GetRasterBand(1)
 							gt_sim2 = src_ds_sim2.GetGeoTransform()
-							hri_pa_bb02 = sim2.ReadAsArray(0,0,xsize,ysize).astype(np.int32)
+							hri_pa_bb02 = sim2.ReadAsArray().astype(np.int32)
 							#hri_pa_bb2 = hri_pa_bb02.flatten()
-							print 'Values from mask = '+str(np.unique(hri_pa_bb02))
-							hri_pa02 = np.where(hri_pa_bb02 == 1,hri_pa_bb03,0) # value 1 for the ecoregion without PA
+							hri_pa_bb02_max = hri_pa_bb02.max()
+							print 'PA: '+str(pa)
+							print 'PA (= max) value from mask = '+str(hri_pa_bb02_max)
+							hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
 
 
 							if xless < 0: xsize = xsize + xless
