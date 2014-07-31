@@ -654,7 +654,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							dst_ds2 = None
 							#num_feats = num_features - num_featuresaver
 							hr1sumaver = sum(hr1aver)
-							hr2aver = hr1sumaver - hr1insumaver
+							hr2aver = hr1sumaver #- hr1insumaver
 							pxpa = ind_pa.shape[0]
 							lpratio=round(float(pszmax/pxpa),2)
 							hr3aver = round(float(hr2aver/pxpa),2)
