@@ -219,9 +219,10 @@ def	ehabitat(ecor,nw,nwpathout):
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
+		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
 		wb.write('\n')
 		wb.close()
+	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None
 	ef = 'eco_'+str(ecor)+'.tif'
 	ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
 	avail = os.path.isfile(ecofile)
@@ -383,6 +384,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						treepamin = round(tree_pa.min(),2)
 						treepamax = round(tree_pa.max(),2)
+						treepamean = round(np.mean(tree_pa),2)
 						print treepamin
 						print treepamax
 						treediff = abs(tree_pa.min()-tree_pa.max())
@@ -404,6 +406,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						eprpamin = round(epr_pa.min(),2)
 						eprpamax = round(epr_pa.max(),2)
+						eprpamean = round(np.mean(epr_pa),2)
 						print eprpamin
 						print eprpamax
 						eprdiff = abs(epr_pa.min()-epr_pa.max())
@@ -425,6 +428,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						prepamin = round(pre_pa.min(),2)
 						prepamax = round(pre_pa.max(),2)
+						prepamean = round(np.mean(pre_pa),2)
 						print prepamin
 						print prepamax
 						prediff = abs(pre_pa.min()-pre_pa.max())
@@ -446,6 +450,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						biopamin = round(bio_pa.min(),2)
 						biopamax = round(bio_pa.max(),2)
+						biopamean = round(np.mean(bio_pa),2)
 						print biopamin
 						print biopamax
 						biodiff = abs(bio_pa.min()-bio_pa.max())
@@ -467,6 +472,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						slopepamin = round(slope_pa.min(),2)
 						slopepamax = round(slope_pa.max(),2)
+						slopepamean = round(np.mean(slope_pa),2)
 						print slopepamin
 						print slopepamax
 						slopediff = abs(slope_pa.min()-slope_pa.max())
@@ -488,6 +494,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndwipamin = round(ndwi_pa.min(),2)
 						ndwipamax = round(ndwi_pa.max(),2)
+						ndwipamean = round(np.mean(ndwi_pa),2)
 						print ndwipamin
 						print ndwipamax
 						ndwidiff = abs(ndwi_pa.min()-ndwi_pa.max())
@@ -509,6 +516,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndvimaxpamin = round(ndvimax_pa.min(),2)
 						ndvimaxpamax = round(ndvimax_pa.max(),2)
+						ndvimaxpamean = round(np.mean(ndvimax_pa),2)
 						print ndvimaxpamin
 						print ndvimaxpamax
 						ndvimaxdiff = abs(ndvimax_pa.min()-ndvimax_pa.max())
@@ -530,6 +538,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndviminpamin = round(ndvimin_pa.min(),2)
 						ndviminpamax = round(ndvimin_pa.max(),2)
+						ndviminpamean = round(np.mean(ndvimin_pa),2)
 						print ndviminpamin
 						print ndviminpamax
 						ndvimindiff = abs(ndvimin_pa.min()-ndvimin_pa.max())
@@ -551,6 +560,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						hpamin = round(herb_pa.min(),2)
 						hpamax = round(herb_pa.max(),2)
+						hpamean = round(np.mean(herb_pa),2)
 						print hpamin
 						print hpamax
 						hdiff = abs(herb_pa.min()-herb_pa.max())
@@ -664,7 +674,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()
