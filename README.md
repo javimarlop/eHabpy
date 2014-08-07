@@ -12,5 +12,5 @@ eHabpy
 
 * gdal command line utilities must be installed and accessible in order to run some landscape metrics.
 
-* The Python library can be executed using [Tzar](https://tzar-framework.atlassian.net/wiki/display/TD/Tzar+documentation) distributed computing framework thanks to @doctorluz
+* The Python library can be executed using [Tzar](https://tzar-framework.atlassian.net/wiki/display/TD/Tzar+documentation) distributed computing framework thanks to [doctorluz](https://github.com/doctorluz).
 
