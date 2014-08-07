@@ -10,8 +10,8 @@ import csv
 GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/local1/majavie/hanksgrass7"
 MYLOC = "global_MW"
-mapset = 'rasterized_parks'
-col= 'wdpa_id'
+mapset = 'ehabitat'
+col= 'wdpaid'
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
 import grass.script as grass
@@ -19,7 +19,7 @@ import grass.script.setup as gsetup
 
 gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
 
-source = 'wdpa_snapshot_new_mollweide@javier'
+source = 'wdpa_aug14_100km2_moll'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
@@ -44,8 +44,8 @@ for px in tqdm(range(0,n2)):
 #for pa in pa_list:
  pa = pa_list[px]
  if pa not in pa_list_done:
-  if os.path.isfile('/local1/majavie/hanksgrass7/global_MW/rasterized_parks/group/segm/REF') == True:
-   os.system ('rm /local1/majavie/hanksgrass7/global_MW/rasterized_parks/group/segm/REF')
+  if os.path.isfile('/local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF') == True:
+   os.system ('rm /local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF')
   print pa
   pa44 = 'pa_'+str(pa)
   pa0 = 'v0_'+pa
@@ -71,7 +71,7 @@ for px in tqdm(range(0,n2)):
   pca3 = pa44+'.3'
   pcas = pca1+','+pca2+','+pca3
   grass.run_command('i.group',gr='segm',input=pcas)
-  os.system ('cat /local1/majavie/hanksgrass7/global_MW/rasterized_parks/group/segm/REF')
+  os.system ('cat /local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF')
   #grass. message ("segmenting the park")
   grass.run_command('i.segment', group='segm', output=pa2, threshold='0.8', method='region_growing', similarity='euclidean', memory='100000', minsize=minarea, iterations='20',overwrite=True) # 
   #grass. message ("cropping the segments")
@@ -104,7 +104,7 @@ for px in tqdm(range(0,n2)):
   grass.run_command('g.mremove',vect='pa_*',flags='f') 
   grass.run_command('g.mremove',vect='paa_*',flags='f') 
   grass.run_command('g.mremove',vect='paa_pca*',flags='f')
-  os.system ('rm /local1/majavie/hanksgrass7/global_MW/rasterized_parks/group/segm/REF')
+  os.system ('rm /local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF')
   grass. message ("Done")
   print "Done PA:"+pa 
   wb = open(csvname1,'a')
