@@ -21,7 +21,7 @@ print grass.gisenv()
 
 #source = 'parks_segmented'
 source = 'parks_segmented_pca'
-grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
+#grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
 pa_list = np.unique(pa_list0)
@@ -29,11 +29,11 @@ print pa_list
 # save it as a csv excluding last item!
 
 grass. message ("Deleting tmp layers") 
-grass.run_command('g.mremove',rast='*v3',flags='f') 
-grass.run_command('g.mremove',rast='*v2',flags='f') 
-grass.run_command('g.mremove',rast='v0_*',flags='f') 
-grass.run_command('g.mremove',vect='v0_*',flags='f') 
-grass.run_command('g.mremove',rast='vv*',flags='f')
+grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
+grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
+grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
+grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
+grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
 
 grass. message("omitting previous masks")
 grass.run_command('g.remove', rast='MASK')
@@ -77,11 +77,11 @@ for px in tqdm(range(0,n)):
  econame = str(eco)+'.csv'
  grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
  grass. message ("Deleting tmp layers") 
- grass.run_command('g.mremove',rast='*v3',flags='f') 
- grass.run_command('g.mremove',rast='*v2',flags='f') 
- grass.run_command('g.mremove',rast='v0_*',flags='f') 
- grass.run_command('g.mremove',vect='v0_*',flags='f') 
- grass.run_command('g.mremove',rast='vv*',flags='f')
+ grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
+ grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
+ grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
+ grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
+ grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
  wb = open(econame,'a')
  wb.write(pa)
  wb.write('\n')
