@@ -653,22 +653,23 @@ def	ehabitat(ecor,nw,nwpathout):
 							print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
 							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
 							print 'Nr of similar patches found: '+str(num_featuresaver)
-							lbls = np.arange(1, num_featuresaver+1)
-							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
-							#pszmin = psizes.min()
-							pszmax = psizes.max()#-hr1insumaver
-							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
-							dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
-							dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
-							dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
-							dst_ds2 = None
-							#num_feats = num_features - num_featuresaver
-							hr1sumaver = sum(hr1aver)
-							hr2aver = hr1sumaver #- hr1insumaver
-							pxpa = ind_pa.shape[0]
-							lpratio=round(float(pszmax/pxpa),2)
-							hr3aver = round(float(hr2aver/pxpa),2)
-							aggregation = round(float(hr2aver/num_featuresaver),2)
+							if num_featuresaver > 0:
+							 lbls = np.arange(1, num_featuresaver+1)
+							 psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
+							 #pszmin = psizes.min()
+							 pszmax = psizes.max()#-hr1insumaver
+							 dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
+							 dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
+							 dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
+							 dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
+							 dst_ds2 = None
+							 #num_feats = num_features - num_featuresaver
+							 hr1sumaver = sum(hr1aver)
+							 hr2aver = hr1sumaver #- hr1insumaver
+							 pxpa = ind_pa.shape[0]
+							 lpratio=round(float(pszmax/pxpa),2)
+							 hr3aver = round(float(hr2aver/pxpa),2)
+							 aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
 						#print hr2
 						#hr3 = float(hr2/ind_pa.shape[0])

@@ -40,7 +40,7 @@ grass.run_command('g.remove', rast='MASK')
 
 n = len(pa_list)-2 # there is also a WDPA_ID element!
 #print pa_list[1]
-for px in tqdm(range(0,n)):
+for px in tqdm(range(11938,n)): # 0
 
 #for pa in pa_list:
  pa = pa_list[px]
