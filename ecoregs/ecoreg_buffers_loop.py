@@ -30,12 +30,13 @@ grass.run_command('g.remove', rast='MASK')
 
 n = len(list)-2
 print list
-for px in tqdm(range(2,n)):
+for px in tqdm(range(0,n)): # 0,n
 
 #for pa in pa_list:
  eco = abs(int(list[px]))
+ eco2 = int(list[px])
  eco0 = 'v0_'+str(eco)
- opt1 = 'eco_id = '+str(eco)
+ opt1 = 'eco_id = '+str(eco2)
  print px
  print "Extracting ECO:"+str(eco)
  grass.run_command('v.extract', input=source, out=eco0, where = opt1,overwrite=True)
@@ -66,11 +67,11 @@ for px in tqdm(range(2,n)):
  grass.run_command('r.out.gdal',input=pa6,out=pa5,overwrite=True)
  grass.run_command('g.remove', rast='MASK')
  grass. message ("Deleting tmp layers") 
- grass.run_command('g.mremove',rast='*v3',flags='f') 
- grass.run_command('g.mremove',rast='*v2',flags='f') 
- grass.run_command('g.mremove',rast='v0_*',flags='f') 
- grass.run_command('g.mremove',vect='v0_*',flags='f') 
- grass.run_command('g.mremove',rast='vv*',flags='f')
+ grass.run_command('g.mremove',type='rast',pattern='*v3',flags='f') 
+ grass.run_command('g.mremove',type='rast',pattern='*v2',flags='f') 
+ grass.run_command('g.mremove',type='rast',pattern='v0_*',flags='f') 
+ grass.run_command('g.mremove',type='vect',pattern='v0_*',flags='f') 
+ grass.run_command('g.mremove',type='rast',pattern='vv*',flags='f')
  grass. message ("Done")
  print "Done ECO:"+str(eco)
 print "FINISHED"

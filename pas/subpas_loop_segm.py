@@ -70,11 +70,14 @@ for px in tqdm(range(11938,n)): # 0
  grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
  grass.run_command('g.remove', rast='MASK') # new
  grass.run_command('r.null',map=pa4,null=0)
+ grass.run_command('g.region',res=100)
  eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
  print eco_list
  eco = eco_list[0]
+ if eco == '*': eco = eco_list[1]
  print eco
  econame = str(eco)+'.csv'
+ grass.run_command('g.region',res=1000)
  grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
  grass. message ("Deleting tmp layers") 
  grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
