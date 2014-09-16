@@ -629,47 +629,48 @@ def	ehabitat(ecor,nw,nwpathout):
 							hri_pa_bb02_max = hri_pa_bb02.max()
 							print 'PA: '+str(pa)
 							print 'PA (= max) value from mask = '+str(hri_pa_bb02_max)
-							hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
+							if hri_pa_bb02.shape == hri_pa_bb03.shape:
+							 hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
 
 
-							if xless < 0: xsize = xsize + xless
-							if yless < 0: ysize = ysize + yless
-							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
-							hri_pa_bb = hri_pa_bb0.flatten()
-							indd = hri_pa_bb > 0
-							hri_pa0 = hri_pa_bb[indd]
-							print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
-							hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
-							#print hr1averpa
-							#hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
-							print 'mean similarity in the park is '+str(hr1averpa)
-							#hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
-							hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
-							hr1insumaver = sum(hr1inaver)
-							#print hr1insum
-							##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
-							hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
-							hr1aver = hr1averr.flatten()
-							print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
-							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
-							print 'Nr of similar patches found: '+str(num_featuresaver)
-							if num_featuresaver > 0:
-							 lbls = np.arange(1, num_featuresaver+1)
-							 psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
-							 #pszmin = psizes.min()
-							 pszmax = psizes.max()#-hr1insumaver
-							 dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
-							 dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
-							 dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
-							 dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
-							 dst_ds2 = None
-							 #num_feats = num_features - num_featuresaver
-							 hr1sumaver = sum(hr1aver)
-							 hr2aver = hr1sumaver #- hr1insumaver
-							 pxpa = ind_pa.shape[0]
-							 lpratio=round(float(pszmax/pxpa),2)
-							 hr3aver = round(float(hr2aver/pxpa),2)
-							 aggregation = round(float(hr2aver/num_featuresaver),2)
+							 if xless < 0: xsize = xsize + xless
+							 if yless < 0: ysize = ysize + yless
+							 hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
+							 hri_pa_bb = hri_pa_bb0.flatten()
+							 indd = hri_pa_bb > 0
+							 hri_pa0 = hri_pa_bb[indd]
+							 print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
+							 hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
+							 #print hr1averpa
+							 #hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
+							 print 'mean similarity in the park is '+str(hr1averpa)
+							 #hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
+							 hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
+							 hr1insumaver = sum(hr1inaver)
+							 #print hr1insum
+							 ##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
+							 hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
+							 hr1aver = hr1averr.flatten()
+							 print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
+							 labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
+							 print 'Nr of similar patches found: '+str(num_featuresaver)
+							 if num_featuresaver > 0:
+							  lbls = np.arange(1, num_featuresaver+1)
+							  psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
+							  #pszmin = psizes.min()
+							  pszmax = psizes.max()#-hr1insumaver
+							  dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
+							  dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
+							  dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
+							  dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
+							  dst_ds2 = None
+							  #num_feats = num_features - num_featuresaver
+							  hr1sumaver = sum(hr1aver)
+							  hr2aver = hr1sumaver #- hr1insumaver
+							  pxpa = ind_pa.shape[0]
+							  lpratio=round(float(pszmax/pxpa),2)
+							  hr3aver = round(float(hr2aver/pxpa),2)
+							  aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
 						#print hr2
 						#hr3 = float(hr2/ind_pa.shape[0])
