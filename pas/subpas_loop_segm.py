@@ -41,7 +41,7 @@ grass.run_command('g.remove', rast='MASK')
 
 n = len(pa_list)-2 # there is also a WDPA_ID element!
 #print pa_list[1]
-for px in tqdm(range(0,n)): # 0
+for px in tqdm(range(95,n)): # 0
 
 #for pa in pa_list:
  pa = pa_list[px]
@@ -75,7 +75,7 @@ for px in tqdm(range(0,n)): # 0
  eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
  print eco_list
  eco = eco_list[0]
- if eco == '*': eco = eco_list[1]
+ if len(eco_list)>1 and eco == '*': eco = eco_list[1]
  print eco
  econame = str(eco)+'.csv'
  grass.run_command('g.region',res=1000)
