@@ -21,6 +21,7 @@ print grass.gisenv()
 
 #source = 'parks_segmented'
 source = 'parks_segmented_pca'
+source2 = 'parks_segmented_pca_100km2'
 #grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='wdpa_id'). splitlines ()
@@ -40,7 +41,7 @@ grass.run_command('g.remove', rast='MASK')
 
 n = len(pa_list)-2 # there is also a WDPA_ID element!
 #print pa_list[1]
-for px in tqdm(range(11938,n)): # 0
+for px in tqdm(range(0,n)): # 0
 
 #for pa in pa_list:
  pa = pa_list[px]
@@ -70,7 +71,7 @@ for px in tqdm(range(11938,n)): # 0
  grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
  grass.run_command('g.remove', rast='MASK') # new
  grass.run_command('r.null',map=pa4,null=0)
- grass.run_command('g.region',res=100)
+ grass.run_command('g.region',res=10)
  eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
  print eco_list
  eco = eco_list[0]
