@@ -64,6 +64,7 @@ for px in tqdm(range(0,n2)):
   if len(a)==0: a = [1, 625]
   #print a
   minarea = np.sqrt(int(a[1]))#/1000
+  minaream = minarea*1000
   #print minarea
   grass.run_command('i.pca', flags='n', input='pre,epr,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44, overwrite=True) # dem
   pca1 = pa44+'.1'
@@ -87,7 +88,7 @@ for px in tqdm(range(0,n2)):
   grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid VARCHAR')
   grass.run_command('v.db.update', map=pa4,col='wdpaid',value=pa)
   #grass. message ("Checking shapefile")
-  grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minarea,overwrite=True)
+  grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minaream,overwrite=True)
   grass.run_command('v.db.addcolumn', map=pa44,col='wdpa_id VARCHAR')
   grass.run_command('v.db.update', map=pa44,col='wdpa_id',qcol='wdpaid || cat')
   #grass. message ("Exporting shapefile")
