@@ -7,5 +7,5 @@
 *.shx
 *.xml
 *.txt
-*.pyc
-*.pydevproject
+.RData
+.Rhistory
