@@ -17,8 +17,8 @@ r.to.vect -v input=sn_segm_vars052paf out=sn_segm_vars052paf type='area' --o
 r.neighbors in=sn_segm_vars052pa out=sn_segm_vars052paf_ecotones meth=div size=3 --o # apply this to obtain areas acting as ecotones!
 #d.vect -c sn_segm_vars052paf
 
-b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-pa3b = pa3+'b'
+b = grass.read_command('r.stats',input='segm_mask',flags='nc',separator='\n').splitlines()
+
 c = '-1'
 for g in np.arange(1,len(b),2):
  if b[g] < 6:
@@ -26,7 +26,7 @@ for g in np.arange(1,len(b),2):
   c = c + ' || '+str(b[g-1])
 
 if clean == 'T':
- optt = pa3b+' = if('+old+'=='+c+', nmode('+old+'[-1,0],'+old+'[-1,1],'+old+'[-1,-1],'+old+'[0,1],'+old+'[0,-1],'+old+'[1,0],'+old+'[1,1],'+old+'[1,-1]),'+old+')'
+ optt = 'new = if('+old+'=='+c+', nmode('+old+'[-1,0],'+old+'[-1,1],'+old+'[-1,-1],'+old+'[0,1],'+old+'[0,-1],'+old+'[1,0],'+old+'[1,1],'+old+'[1,-1]),'+old+')'
  grass.run_command('r.mapcalc',expression=optt,overwrite=True)
 
 

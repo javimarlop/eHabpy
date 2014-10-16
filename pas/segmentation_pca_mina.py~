@@ -87,9 +87,9 @@ for px in tqdm(range(0,n2)):
   for g in np.arange(1,len(b),2):
    if b[g] < 6:
     clean = 'T'
+    pa3b = pa3+'b'
     c = c + ' || '+str(b[g-1])
   if clean == 'T':
-   pa3b = pa3+'b'
    optt = pa3b+' = if('+old+'=='+c+', nmode('+old+'[-1,0],'+old+'[-1,1],'+old+'[-1,-1],'+old+'[0,1],'+old+'[0,-1],'+old+'[1,0],'+old+'[1,1],'+old+'[1,-1]),'+old+')'
    grass.run_command('r.mapcalc',expression=optt,overwrite=True)
   #grass. message ("Number of cells per segment")
