@@ -17,4 +17,10 @@ r.to.vect -v input=sn_segm_vars052paf out=sn_segm_vars052paf type='area' --o
 r.neighbors in=sn_segm_vars052pa out=sn_segm_vars052paf_ecotones meth=div size=3 --o # apply this to obtain areas acting as ecotones!
 #d.vect -c sn_segm_vars052paf
 
+b = grass.read_command('r.stats',input='segm_mask',flags='nc',separator='\n').splitlines()
+ind = np.arange(1,len(b),2)
+for g in range(0,ind):
+ if b[g] <= minarea:
+  r.mapcalc 'test = if(sn_segm_vars052pa==1707 || 1714 || 92 || 98, nmode(sn_segm_vars052pa[-1,0],sn_segm_vars052pa[-1,1],sn_segm_vars052pa[-1,-1],sn_segm_vars052pa[0,1],sn_segm_vars052pa[0,-1],sn_segm_vars052pa[1,0],sn_segm_vars052pa[1,1],sn_segm_vars052pa[1,-1]),sn_segm_vars052pa)' --o
 
+c + ' || ' + c

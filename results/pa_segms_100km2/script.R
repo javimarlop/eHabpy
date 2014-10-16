@@ -13,19 +13,33 @@ rownames(hri0)<-hri0$wdpaid
 
 library(vegan)
 hclust(vegdist(hri0[,12:38],"euclidean"),"ward.D2")->hclust_dist_euclid_segms
+cutree(hclust_dist_euclid_segms,h=40000)->hclust_dist_euclid_segms_5cl
 cutree(hclust_dist_euclid_segms,h=18000)->hclust_dist_euclid_segms_10cl
-cutree(hclust_dist_euclid_segms,h=5000)->hclust_dist_euclid_segms_40cl
+cutree(hclust_dist_euclid_segms,h=12000)->hclust_dist_euclid_segms_15cl
 cutree(hclust_dist_euclid_segms,h=9100)->hclust_dist_euclid_segms_20cl
+cutree(hclust_dist_euclid_segms,h=7000)->hclust_dist_euclid_segms_25cl
 cutree(hclust_dist_euclid_segms,h=6200)->hclust_dist_euclid_segms_30cl
+cutree(hclust_dist_euclid_segms,h=5500)->hclust_dist_euclid_segms_35cl
+cutree(hclust_dist_euclid_segms,h=5000)->hclust_dist_euclid_segms_40cl
 
-write.table(as.data.frame(cbind(hri0$wdpaid,hclust_dist_euclid_segms_10cl,hclust_dist_euclid_segms_20cl)),'habitats_10_20cl.csv',row.names=F)
+df<-as.data.frame(cbind(hri0$wdpaid,hclust_dist_euclid_segms_5cl,hclust_dist_euclid_segms_10cl,hclust_dist_euclid_segms_15cl,hclust_dist_euclid_segms_20cl,hclust_dist_euclid_segms_25cl))
+names(df)<-c('segment','5cl','10cl','15cl','20cl','25cl')
+
+write.table(df,'habitats_cl.csv',row.names=F)
 
 library(FactoMineR)
 PCA(hri0[,12:38])->PCA_segms
 CA(hri0[,12:38])->CA_segms
 
-plot(CA_segms$row$coord[,1],CA_segms$row$coord[,2],col=hclust_dist_euclid_segms_10cl)
-identify(CA_segms$row$coord[,1],CA_segms$row$coord[,2])
+plot(CA_segms_no_high_epr_min$row$coord[,1],CA_segms_no_high_epr_min$row$coord[,2],typ='n')
+text(CA_segms_no_high_epr_min$col$coord[,1],CA_segms_no_high_epr_min$col$coord[,2],labels=rownames(CA_segms_no_high_epr_min$col$coord),col=2)
+
+plot(CA_segms$row$coord[,1],CA_segms$row$coord[,2],col=hclust_dist_euclid_segms_5cl)
+text(CA_segms$col$coord[,1],CA_segms$col$coord[,2],labels=rownames(CA_segms$col$coord),col=2)
+identify(CA_segms_no_high_epr$row$coord[,1],CA_segms_no_high_epr$row$coord[,2])
+
+plot(CA_segms_no_epr$row$coord[,1],CA_segms_no_epr$row$coord[,2])#,col=hclust_dist_euclid_segms_5cl)
+text(CA_segms_no_epr$col$coord[,1],CA_segms_no_epr$col$coord[,2],labels=rownames(CA_segms_no_epr$col$coord),col=2)
 
 metaMDS(vdist_euclid_segms)->mds_segms
 #rf proximities
