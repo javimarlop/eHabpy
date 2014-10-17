@@ -92,13 +92,15 @@ for px in tqdm(range(0,10)):#n2)):
     clean = 'T'
     print 'cleaning cat '+ str(b[g-1])
     c2 = 'old'+ str(b[g-1])
-    c3 = c2+'new'
+    c3 = 'new'+c
     c = c + ','+c3
-    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
+    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())' # check the cleaning cat before for extra quotes...
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
 #r.mapcalc 'c1714 = if(sn_segm_vars052pa==1714,1,null())'
     oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1]),null())'
     grass.run_command('r.mapcalc',expression=oper2,overwrite=True)
+    bv = grass.read_command('r.stats',input=c3,flags='nc',separator='\n').splitlines()
+    print 'new cat is: '+str(bv)
 #r.mapcalc 'c1714new = if(c1714==1,nmode(sn_segm_vars052pa[-1,0],sn_segm_vars052pa[-1,1],sn_segm_vars052pa[-1,-1],sn_segm_vars052pa[0,1],sn_segm_vars052pa[0,-1],sn_segm_vars052pa[1,0],sn_segm_vars052pa[1,1],sn_segm_vars052pa[1,-1]),null())'
   if clean == 'T':
    pa3b = pa3+'b'
@@ -118,7 +120,8 @@ for px in tqdm(range(0,10)):#n2)):
   grass.run_command('v.db.addcolumn', map=pa4,col='aleat VARCHAR')
   grass.run_command('v.db.update', map=pa4,col='aleat',value=aleat)
   #grass. message ("Checking shapefile")
-  grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minaream,overwrite=True)
+  pa44 = pa4
+  #grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minaream,overwrite=True)
   grass.run_command('v.db.addcolumn', map=pa44,col='segm_id VARCHAR')
   grass.run_command('v.db.update', map=pa44,col='segm_id',qcol='wdpaid_pa || cat || aleat')
   #grass. message ("Exporting shapefile")
@@ -128,7 +131,7 @@ for px in tqdm(range(0,10)):#n2)):
    grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented_pca',type='area',dsn='.')
   grass. message ("Deleting tmp layers")
   grass.run_command('g.mremove',typ='rast',patt='old*',flags='f') 
-  grass.run_command('g.mremove',typ='rast',patt='*new',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='new*',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
