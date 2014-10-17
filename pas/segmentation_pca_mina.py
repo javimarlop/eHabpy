@@ -104,8 +104,8 @@ for px in tqdm(range(0,n2)):
   grass.run_command('v.db.update', map=pa4,col='aleat',value=aleat)
   #grass. message ("Checking shapefile")
   grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minaream,overwrite=True)
-  grass.run_command('v.db.addcolumn', map=pa44,col='wdpaid_segm VARCHAR')
-  grass.run_command('v.db.update', map=pa44,col='wdpaid_segm',qcol='wdpaid_pa || cat || aleat')
+  grass.run_command('v.db.addcolumn', map=pa44,col='segm_id VARCHAR')
+  grass.run_command('v.db.update', map=pa44,col='segm_id',qcol='wdpaid_pa || cat || aleat')
   #grass. message ("Exporting shapefile")
   if os.path.isfile('parks_segmented_pca.shp') == False:
    grass.run_command('v.out.ogr',input=pa44,ola='parks_segmented_pca',type='area',dsn='.') 
