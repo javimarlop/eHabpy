@@ -78,7 +78,7 @@ for px in tqdm(range(0,n2)):
   #c = pa3
   clean = None
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea/2:
+   if np.int(b[g]) < minarea:
     clean = 'T'
     print 'Cleaning small segments...'
     print 'cleaning cat '+ str(b[g-1])
@@ -97,7 +97,7 @@ for px in tqdm(range(0,n2)):
   b = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
   print b
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea/2:
+   if np.int(b[g]) < minarea:
     print 'Cleaning small segments II...'
     print 'cleaning cat '+ str(b[g-1])
     oper1 = pa3+'='+'if('+pa3+'=='+str(b[g-1])+','+str(b[0])+','+pa3+')'
