@@ -39,7 +39,7 @@ pa_list_done = np.genfromtxt(csvname1,dtype='string')
 
 n2 = len(pa_list)
 #print pa_list[1]
-for px in tqdm(range(0,10)):#n2)):
+for px in tqdm(range(0,n2)):
  aleat = np.random.random_integers(100)
 #for pa in pa_list:
  pa = pa_list[px]
@@ -80,40 +80,39 @@ for px in tqdm(range(0,10)):#n2)):
   opt2 = pa3+'='+pa2
   grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
   grass.run_command('g.remove', rast='MASK')
-  print 'Cleaning small segments...'
   print minarea
   b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
   print b
-  pa3b = pa3
-  c = pa3
+  #pa3b = pa3
+  #c = pa3
   clean = None
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea/2:
+   if np.int(b[g]) < 10:#minarea/2:
     clean = 'T'
+    print 'Cleaning small segments...'
     print 'cleaning cat '+ str(b[g-1])
     c2 = 'old'+ str(b[g-1])
-    c3 = 'new'+c
-    c = c + ','+c3
-    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())' # check the cleaning cat before for extra quotes...
+    c3 = 'new'+ str(b[g-1])#+c
+    #c = c + ','+c3
+    c = c3 + ','+pa3
+    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-#r.mapcalc 'c1714 = if(sn_segm_vars052pa==1714,1,null())'
-    oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1]),null())'
+    oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1],'+pa3+'[-2,0],'+pa3+'[-2,2],'+pa3+'[-2,-2],'+pa3+'[0,2],'+pa3+'[0,-2],'+pa3+'[2,0],'+pa3+'[2,2],'+pa3+'[2,-2],'+pa3+'[-3,0],'+pa3+'[-3,3],'+pa3+'[-3,-3],'+pa3+'[0,3],'+pa3+'[0,-3],'+pa3+'[3,0],'+pa3+'[3,3],'+pa3+'[3,-3]),null())'
     grass.run_command('r.mapcalc',expression=oper2,overwrite=True)
     bv = grass.read_command('r.stats',input=c3,flags='nc',separator='\n').splitlines()
     print 'new cat is: '+str(bv)
-#r.mapcalc 'c1714new = if(c1714==1,nmode(sn_segm_vars052pa[-1,0],sn_segm_vars052pa[-1,1],sn_segm_vars052pa[-1,-1],sn_segm_vars052pa[0,1],sn_segm_vars052pa[0,-1],sn_segm_vars052pa[1,0],sn_segm_vars052pa[1,1],sn_segm_vars052pa[1,-1]),null())'
-  if clean == 'T':
-   pa3b = pa3+'b'
-   print c
-   #r.patch in=c1714new,sn_segm_vars052pa out=sn_segm_vars052pa2
-   #optt = pa3b+' = if('+pa3+'=='+c+', nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1]),'+pa3+')'
-   grass.run_command('r.patch',input=c,out=pa3b,overwrite=True)
+    grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+
+  #if clean == 'T':
+   #pa3b = pa3+'b'
+   #print c
+   #grass.run_command('r.patch',input=c,out=pa3b,overwrite=True)
 
 
   #grass. message ("Number of cells per segment")
   #grass.run_command('r.stats',input=pa3,out=pa5,overwrite=True) # flags='nc'
   #grass. message ("converting to vector")
-  grass.run_command('r.to.vect', input=pa3b,out=pa4,type ='area',flags='v',overwrite=True)
+  grass.run_command('r.to.vect', input=pa3,out=pa4,type ='area',flags='v',overwrite=True)
   #grass. message ("adding labels to segments")
   grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid_pa VARCHAR')
   grass.run_command('v.db.update', map=pa4,col='wdpaid_pa',value=pa)
