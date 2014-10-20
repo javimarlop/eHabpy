@@ -103,11 +103,16 @@ for px in tqdm(range(0,n2)):
     print 'new cat is: '+str(bv)
     grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
 
-  #if clean == 'T':
-   #pa3b = pa3+'b'
-   #print c
-   #grass.run_command('r.patch',input=c,out=pa3b,overwrite=True)
-
+  b = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+  print b
+  for g in np.arange(1,len(b),2):
+   if np.int(b[g]) < 10:#minarea/2:
+    print 'Cleaning small segments II...'
+    print 'cleaning cat '+ str(b[g-1])
+    oper1 = pa3+'='+'if('+pa3+'=='+str(b[g-1])+','+str(b[0])+','+pa3+')'
+    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+    bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+    print bv
 
   #grass. message ("Number of cells per segment")
   #grass.run_command('r.stats',input=pa3,out=pa5,overwrite=True) # flags='nc'
