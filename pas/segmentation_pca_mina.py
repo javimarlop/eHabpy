@@ -81,33 +81,89 @@ for px in tqdm(range(0,n2)):
   grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
   grass.run_command('g.remove', rast='MASK')
   print minarea
+
+#  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+#  print b
+#  #clean = None
+#  for g in np.arange(1,len(b),2):
+#   if np.int(b[g]) < minarea/2:
+#    #clean = 'T'
+#    print 'Cleaning small segments I...'
+#    print 'cleaning cat '+ str(b[g-1])
+#    c2 = 'old'+ str(b[g-1])
+#    c3 = 'new'+ str(b[g-1])
+#    c = c3 + ','+pa3
+#    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
+#    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+#    oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1],'+pa3+'[-2,0],'+pa3+'[-2,2],'+pa3+'[-2,-2],'+pa3+'[0,2],'+pa3+'[0,-2],'+pa3+'[2,0],'+pa3+'[2,2],'+pa3+'[2,-2],'+pa3+'[-3,0],'+pa3+'[-3,3],'+pa3+'[-3,-3],'+pa3+'[0,3],'+pa3+'[0,-3],'+pa3+'[3,0],'+pa3+'[3,3],'+pa3+'[3,-3]),null())'
+#    grass.run_command('r.mapcalc',expression=oper2,overwrite=True)
+#    bv = grass.read_command('r.stats',input=c3,flags='nc',separator='\n').splitlines()
+#    print 'new cat is: '+str(bv)
+#    grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+
   b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
   print b
-  #pa3b = pa3
-  #c = pa3
   clean = None
+  c = pa3
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea:
-    clean = 'T'
-    print 'Cleaning small segments...'
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments I...'
     print 'cleaning cat '+ str(b[g-1])
     c2 = 'old'+ str(b[g-1])
-    c3 = 'new'+ str(b[g-1])#+c
-    #c = c + ','+c3
-    c = c3 + ','+pa3
+    c22 = c2+'b10km'
+    c3 = 'new'+ str(b[g-1])
     oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-    oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1],'+pa3+'[-2,0],'+pa3+'[-2,2],'+pa3+'[-2,-2],'+pa3+'[0,2],'+pa3+'[0,-2],'+pa3+'[2,0],'+pa3+'[2,2],'+pa3+'[2,-2],'+pa3+'[-3,0],'+pa3+'[-3,3],'+pa3+'[-3,-3],'+pa3+'[0,3],'+pa3+'[0,-3],'+pa3+'[3,0],'+pa3+'[3,3],'+pa3+'[3,-3]),null())'
-    grass.run_command('r.mapcalc',expression=oper2,overwrite=True)
-    bv = grass.read_command('r.stats',input=c3,flags='nc',separator='\n').splitlines()
-    print 'new cat is: '+str(bv)
-    grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+    grass.run_command('r.buffer',input=c2,output=c22,distances=3,units='kilometers',overwrite=True)
+    grass.run_command('r.mask', raster=c22,maskc=2)
+    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+    grass.run_command('g.remove', rast='MASK')
+    if len(buff) > 0:
+     clean = 'T'
+     print 'New: '+str(buff[0])
+     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
+     c = c3 + ',' + c
+     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+  if clean=='T':
+   print c
+   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+   print bv
+
+  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+  print b
+  clean = None
+  c = pa3
+  for g in np.arange(1,len(b),2):
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments II...'
+    print 'cleaning cat '+ str(b[g-1])
+    c2 = 'old'+ str(b[g-1])
+    c22 = c2+'b10km'
+    c3 = 'new'+ str(b[g-1])
+    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
+    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+    grass.run_command('r.buffer',input=c2,output=c22,distances=10,units='kilometers',overwrite=True)
+    grass.run_command('r.mask', raster=c22,maskc=2)
+    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+    grass.run_command('g.remove', rast='MASK')
+    if len(buff) > 0:
+     clean = 'T'
+     print 'New: '+str(buff[0])
+     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
+     c = c3 + ',' + c
+     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+  if clean=='T':
+   print c
+   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+   print bv
 
   b = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
   print b
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea:
-    print 'Cleaning small segments II...'
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments III...'
     print 'cleaning cat '+ str(b[g-1])
     oper1 = pa3+'='+'if('+pa3+'=='+str(b[g-1])+','+str(b[0])+','+pa3+')'
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
@@ -134,8 +190,9 @@ for px in tqdm(range(0,n2)):
   else:
    grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented_pca',type='area',dsn='.')
   grass. message ("Deleting tmp layers")
-  grass.run_command('g.mremove',typ='rast',patt='old*',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='old*',flags='f')
   grass.run_command('g.mremove',typ='rast',patt='new*',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='*b10km',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
