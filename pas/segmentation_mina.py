@@ -8,9 +8,9 @@ import sys
 import csv
 
 GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-GRASSDBASE = "/local1/majavie/hanksgrass7"
+GRASSDBASE = "/local0/majavie/hanksgrass7"
 MYLOC = "global_MW"
-mapset = 'ehabitat'
+mapset = 'majavie'#'ehabitat'
 col= 'WDPA_ID'#'wdpaid'
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
