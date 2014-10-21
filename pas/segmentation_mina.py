@@ -18,7 +18,6 @@ import grass.script as grass
 import grass.script.setup as gsetup
 
 gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
-# add rnd number to cat!!!
 source = 'wdpa_snapshot_new_mollweide'#'wdpa_aug14_100km2_moll'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
@@ -28,7 +27,7 @@ pa_list = pa_list2[0:n-2] # testing 5 first!
 #pa_list = '257','101922','2017','11','68175','643','555542456'
 print pa_list
 
-csvname1 = 'pas_segm_done_pca.csv'
+csvname1 = 'pas_segm_done.csv'
 if os.path.isfile(csvname1) == False:
  wb = open(csvname1,'a')
  wb.write('None')
@@ -44,8 +43,6 @@ for px in tqdm(range(0,n2)):
 #for pa in pa_list:
  pa = pa_list[px]
  if pa not in pa_list_done:
-  if os.path.isfile('/local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF') == True:
-   os.system ('rm /local1/majavie/hanksgrass7/global_MW/ehabitat/group/segm/REF')
   print pa
   pa44 = 'pa_'+str(pa)
   pa0 = 'v0_'+pa
@@ -53,7 +50,7 @@ for px in tqdm(range(0,n2)):
   grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True) # check inital region from which to copy from!
   pa2 = pa+'v2'
   pa3 = pa+'v3'
-  pa4 = 'paa_'+pa
+  pa4 = 'paa_pca_'+pa
   pa5 = pa4+'.txt'
   same = pa2+'= const'
   #grass. message ("setting up the working region")
@@ -65,6 +62,8 @@ for px in tqdm(range(0,n2)):
   #print a
   minarea = np.sqrt(int(a[1]))#/1000
   minaream = minarea*1000
+  #print minarea
+  #grass. message ("segmenting the park")
   grass.run_command('i.segment', group='segm2', output=pa2, threshold='0.8', method='region_growing', similarity='euclidean', memory='100000', minsize=minarea, iterations='20',overwrite=True) # 
   #grass. message ("cropping the segments")
   grass.run_command('r.mask', vector=source, where=opt1)
@@ -72,33 +71,70 @@ for px in tqdm(range(0,n2)):
   grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
   grass.run_command('g.remove', rast='MASK')
   print minarea
+
   b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
   print b
-  #pa3b = pa3
-  #c = pa3
   clean = None
+  c = pa3
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea:
-    clean = 'T'
-    print 'Cleaning small segments...'
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments I...'
     print 'cleaning cat '+ str(b[g-1])
     c2 = 'old'+ str(b[g-1])
-    c3 = 'new'+ str(b[g-1])#+c
-    #c = c + ','+c3
-    c = c3 + ','+pa3
+    c22 = c2+'b10km'
+    c3 = 'new'+ str(b[g-1])
     oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-    oper2 = c3+'='+'if('+c2+'==1,nmode('+pa3+'[-1,0],'+pa3+'[-1,1],'+pa3+'[-1,-1],'+pa3+'[0,1],'+pa3+'[0,-1],'+pa3+'[1,0],'+pa3+'[1,1],'+pa3+'[1,-1],'+pa3+'[-2,0],'+pa3+'[-2,2],'+pa3+'[-2,-2],'+pa3+'[0,2],'+pa3+'[0,-2],'+pa3+'[2,0],'+pa3+'[2,2],'+pa3+'[2,-2],'+pa3+'[-3,0],'+pa3+'[-3,3],'+pa3+'[-3,-3],'+pa3+'[0,3],'+pa3+'[0,-3],'+pa3+'[3,0],'+pa3+'[3,3],'+pa3+'[3,-3]),null())'
-    grass.run_command('r.mapcalc',expression=oper2,overwrite=True)
-    bv = grass.read_command('r.stats',input=c3,flags='nc',separator='\n').splitlines()
-    print 'new cat is: '+str(bv)
-    grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+    grass.run_command('r.buffer',input=c2,output=c22,distances=3,units='kilometers',overwrite=True)
+    grass.run_command('r.mask', raster=c22,maskc=2)
+    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+    grass.run_command('g.remove', rast='MASK')
+    if len(buff) > 0:
+     clean = 'T'
+     print 'New: '+str(buff[0])
+     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
+     c = c3 + ',' + c
+     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+  if clean=='T':
+   print c
+   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+   print bv
+
+  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+  print b
+  clean = None
+  c = pa3
+  for g in np.arange(1,len(b),2):
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments II...'
+    print 'cleaning cat '+ str(b[g-1])
+    c2 = 'old'+ str(b[g-1])
+    c22 = c2+'b10km'
+    c3 = 'new'+ str(b[g-1])
+    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
+    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+    grass.run_command('r.buffer',input=c2,output=c22,distances=10,units='kilometers',overwrite=True)
+    grass.run_command('r.mask', raster=c22,maskc=2)
+    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+    grass.run_command('g.remove', rast='MASK')
+    if len(buff) > 0:
+     clean = 'T'
+     print 'New: '+str(buff[0])
+     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
+     c = c3 + ',' + c
+     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
+  if clean=='T':
+   print c
+   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
+   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
+   print bv
 
   b = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
   print b
   for g in np.arange(1,len(b),2):
-   if np.int(b[g]) < minarea:
-    print 'Cleaning small segments II...'
+   if np.int(b[g]) < minarea/2:
+    print 'Cleaning small segments III...'
     print 'cleaning cat '+ str(b[g-1])
     oper1 = pa3+'='+'if('+pa3+'=='+str(b[g-1])+','+str(b[0])+','+pa3+')'
     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
@@ -125,8 +161,9 @@ for px in tqdm(range(0,n2)):
   else:
    grass.run_command('v.out.ogr',flags='a',input=pa44,ola='parks_segmented',type='area',dsn='.')
   grass. message ("Deleting tmp layers")
-  grass.run_command('g.mremove',typ='rast',patt='old*',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='old*',flags='f')
   grass.run_command('g.mremove',typ='rast',patt='new*',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='*b10km',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
@@ -134,7 +171,7 @@ for px in tqdm(range(0,n2)):
   grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
   grass.run_command('g.mremove',typ='vect',patt='pa_*',flags='f') 
   grass.run_command('g.mremove',typ='vect',patt='paa_*',flags='f') 
-  grass.run_command('g.mremove',typ='vect',patt='paa_*',flags='f')
+  grass.run_command('g.mremove',typ='vect',patt='paa_pca*',flags='f')
   grass. message ("Done")
   print "Done PA:"+pa 
   wb = open(csvname1,'a')

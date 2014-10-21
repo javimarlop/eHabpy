@@ -18,7 +18,6 @@ import grass.script as grass
 import grass.script.setup as gsetup
 
 gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
-# add rnd number to cat!!!
 source = 'wdpa_snapshot_new_mollweide'#'wdpa_aug14_100km2_moll'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
