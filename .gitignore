@@ -9,3 +9,4 @@
 *.txt
 .RData
 .Rhistory
+*.pyc
