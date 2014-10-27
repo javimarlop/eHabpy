@@ -19,10 +19,8 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
-source = 'parks_segmented'
-#source = 'parks_segmented_pca'
-#source2 = 'parks_segmented_pca_100km2'
-grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
+source = 'parks_segmented@ehabitat'
+#grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='segm_id'). splitlines ()
 pa_list = np.unique(pa_list0)
@@ -39,62 +37,73 @@ grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
 grass. message("omitting previous masks")
 grass.run_command('g.remove', rast='MASK')
 
-n = len(pa_list)-2 # there is also a segm_id element!
-#print pa_list[1]
-for px in tqdm(range(95,n)): # 0
+csvname1 = 'pas_segm_tiff_done.csv'
+if os.path.isfile(csvname1) == False:
+ wb = open(csvname1,'a')
+ wb.write('None')
+ wb.write('\n')
+ wb.close()
 
-#for pa in pa_list:
+pa_list_done = np.genfromtxt(csvname1,dtype='string')
+n = len(pa_list)-2 # there is also a segm_id element!
+for px in tqdm(range(0,n)): # 0
  pa = pa_list[px]
- pa0 = 'v0_'+pa
- opt1 = 'segm_id = '+pa
- print px
- print "Extracting PA:"+pa
- grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True)
  pa2 = 'vv'+pa
  #pa3 = pa+'v3'
  pa4 = 'pa_'+pa
  pa5 = 'pa_'+pa+'.tif'
- # try to crop PAs shapefile with coastal line or input vars
- grass. message ("setting up the working region")
- grass.run_command('g.region',vect=pa0,res=1000)
- grass.run_command('v.to.rast',input=pa0,out=pa0,use='cat',labelcol='segm_id')
- opt3 = pa2+'= @'+pa0
- opt4 = pa2+'= round('+pa2+')'
- grass.run_command('r.mapcalc',expression=opt3,overwrite=True)
- grass.run_command('r.mapcalc',expression=opt4,overwrite=True)
- grass.run_command('r.mask', vector=pa0, where=opt1)
- opt2 = pa4+'='+pa2
- opt22 = pa4+'='+pa4
- grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
- grass.run_command('g.remove', rast='MASK')
- grass.run_command('r.mask', rast='pre') # new to crop parks to wherw we have indicators information
- grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
- grass.run_command('g.remove', rast='MASK') # new
- grass.run_command('r.null',map=pa4,null=0)
- grass.run_command('g.region',res=10)
- eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
- print eco_list
- eco = eco_list[0]
- if len(eco_list)>1 and eco == '*': eco = eco_list[1]
- print eco
- econame = str(eco)+'.csv'
- grass.run_command('g.region',res=1000)
- grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
- grass. message ("Deleting tmp layers") 
- grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
- grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
- grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
- grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
- grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
- wb = open(econame,'a')
- wb.write(pa)
- wb.write('\n')
- wb.close() 
- wb = open('ecoregs.csv','a')
- wb.write(eco)
- wb.write('\n')
- wb.close() 
- grass. message ("Done")
- print "Done PA:"+pa
+ pa0 = 'v0_'+pa
+ opt1 = 'segm_id = '+pa
+ if pa not in pa_list_done:
+  print px
+  print "Extracting PA:"+pa
+  grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True)
+  # try to crop PAs shapefile with coastal line or input vars
+  grass. message ("setting up the working region")
+  grass.run_command('g.region',vect=pa0,res=1000)
+  grass.run_command('v.to.rast',input=pa0,out=pa0,use='cat',labelcol='segm_id')
+  opt3 = pa2+'= @'+pa0
+  opt4 = pa2+'= round('+pa2+')'
+  grass.run_command('r.mapcalc',expression=opt3,overwrite=True)
+  grass.run_command('r.mapcalc',expression=opt4,overwrite=True)
+  grass.run_command('r.mask', vector=pa0, where=opt1)
+  opt2 = pa4+'='+pa2
+  opt22 = pa4+'='+pa4
+  grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
+  grass.run_command('g.remove', rast='MASK')
+  grass.run_command('r.mask', rast='pre') # new to crop parks to where we have indicators information
+  grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
+  grass.run_command('g.remove', rast='MASK') # new
+  grass.run_command('r.null',map=pa4,null=0)
+  grass.run_command('g.region',res=10)
+  eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
+  print eco_list
+  eco = eco_list[0]
+  if len(eco_list)>1 and eco == '*': eco = eco_list[1]
+  print eco
+  econame = str(eco)+'.csv'
+  grass.run_command('g.region',res=1000)
+  grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
+  grass. message ("Deleting tmp layers") 
+  grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
+  grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
+  grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
+  wb = open(econame,'a')
+  wb.write(pa)
+  wb.write('\n')
+  wb.close() 
+  wb = open('ecoregs.csv','a')
+  wb.write(eco)
+  wb.write('\n')
+  wb.close() 
+  wb = open(csvname1,'a')
+  var = str(pa)
+  wb.write(var)
+  wb.write('\n')
+  wb.close() 
+  grass. message ("Done")
+  print "Done PA:"+pa
 
 # try to paralellize it?
