@@ -100,7 +100,7 @@ def initglobalmaps():
 	ndwif = 'ndwi.tif'
 	slopef = 'slope.tif'
 	biof = 'bio.tif'
-	eprf = 'epr.tif'
+	eprf = 'eprsqrt2.tif'
 	pref = 'pre.tif'
 	
 	biof_globalfile = os.path.join(os.path.sep, indir, biof)
@@ -219,7 +219,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
+		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpratio2 numpszok lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
 		wb.write('\n')
 		wb.close()
 	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None
@@ -657,7 +657,9 @@ def	ehabitat(ecor,nw,nwpathout):
 							 if num_featuresaver > 0:
 							  lbls = np.arange(1, num_featuresaver+1)
 							  psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
-							  #pszmin = psizes.min()
+							  indokpsz = psizes >= pxpa
+							  pszsok = psizes[indokpsz] # NEW
+							  sumpszok = sum(pszsok)
 							  pszmax = psizes.max()#-hr1insumaver
 							  dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
 							  dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
@@ -669,6 +671,8 @@ def	ehabitat(ecor,nw,nwpathout):
 							  hr2aver = hr1sumaver #- hr1insumaver
 							  pxpa = ind_pa.shape[0]
 							  lpratio=round(float(pszmax/pxpa),2)
+							  lpratio2=round(float(sumpszok/pxpa),2)
+							  numpszok = len(pszsok)
 							  hr3aver = round(float(hr2aver/pxpa),2)
 							  aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
@@ -676,7 +680,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(lpratio2)+' '+str(numpszok)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()
