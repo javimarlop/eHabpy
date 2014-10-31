@@ -657,9 +657,6 @@ def	ehabitat(ecor,nw,nwpathout):
 							 if num_featuresaver > 0:
 							  lbls = np.arange(1, num_featuresaver+1)
 							  psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
-							  indokpsz = psizes >= pxpa
-							  pszsok = psizes[indokpsz] # NEW
-							  sumpszok = sum(pszsok)
 							  pszmax = psizes.max()#-hr1insumaver
 							  dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
 							  dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
@@ -670,6 +667,9 @@ def	ehabitat(ecor,nw,nwpathout):
 							  hr1sumaver = sum(hr1aver)
 							  hr2aver = hr1sumaver #- hr1insumaver
 							  pxpa = ind_pa.shape[0]
+							  indokpsz = psizes >= pxpa
+							  pszsok = psizes[indokpsz] # NEW
+							  sumpszok = sum(pszsok)
 							  lpratio=round(float(pszmax/pxpa),2)
 							  lpratio2=round(float(sumpszok/pxpa),2)
 							  numpszok = len(pszsok)
