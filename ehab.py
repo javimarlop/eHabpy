@@ -571,7 +571,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					ind_pa = ind_pa0[:,cols]
 					ind_eco = ind_eco0[:,cols]
 					print ind_pa.shape
-					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
+					hr1sum = hr1insum = indokpsz = pszok = sumpszok = lpratio2 = numpszok = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
 					#print ind_pa
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: 

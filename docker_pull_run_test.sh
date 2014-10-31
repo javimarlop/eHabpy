@@ -7,7 +7,7 @@ docker run --rm -ti javimarlop/ubuntugis-docker
 
 su user
 cd /home/user
-mkdir hanksgrass7
+mkdir /home/user/hanksgrass7
 sshfs xxx@yyy:/local1/majavie/hanksgrass7 /home/user/hanksgrass7/
 # 1st tzar localrun
 
