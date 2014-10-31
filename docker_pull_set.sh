@@ -17,7 +17,7 @@ mkdir /home/majavie/data
 sshfs xxx@yyy:/local1/majavie/hanksgrass7 /home/majavie/hanksgrass7/ # mount grass db
 sshfs xxx@yyy:/local0/majavie/eHabpy /home/majavie/data/ # mount ehabpy dir with all data
 #fusermount -u /home/webuser/hanksgrass7/
-cd data/pas
+#cd data/pas
 python docker_test_grass.py
 
 ## tzar localrun
