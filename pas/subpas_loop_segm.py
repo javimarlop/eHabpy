@@ -79,12 +79,12 @@ for px in tqdm(range(0,n)): # 0
   eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
   print eco_list
   eco = eco_list[0]
-  if len(eco_list)>1 and eco == '*': eco = eco_list[1]
-  if len(eco_list)>1 and eco == '*':
+  if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998': eco = eco_list[1]
+  if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998':
    grass.run_command('g.region',res=10)
    eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
    eco = eco_list[0]
-   if len(eco_list)>1 and eco == '*': eco = eco_list[1]
+   if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998': eco = eco_list[1]
   print eco
   econame = str(eco)+'.csv'
   grass.run_command('g.region',res=1000)
