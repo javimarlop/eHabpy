@@ -19,7 +19,7 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
-source = 'parks_segmented@ehabitat'
+source = 'parks_segmented_filter@ehabitat'
 #grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='segm_id'). splitlines ()
@@ -61,25 +61,30 @@ for px in tqdm(range(0,n)): # 0
   # try to crop PAs shapefile with coastal line or input vars
   grass. message ("setting up the working region")
   grass.run_command('g.region',vect=pa0,res=1000)
-  grass.run_command('v.to.rast',input=pa0,out=pa0,use='cat',labelcol='segm_id')
-  opt3 = pa2+'= @'+pa0
-  opt4 = pa2+'= round('+pa2+')'
-  grass.run_command('r.mapcalc',expression=opt3,overwrite=True)
-  grass.run_command('r.mapcalc',expression=opt4,overwrite=True)
-  grass.run_command('r.mask', vector=pa0, where=opt1)
-  opt2 = pa4+'='+pa2
-  opt22 = pa4+'='+pa4
-  grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
-  grass.run_command('g.remove', rast='MASK')
+  grass.run_command('v.to.rast',input=pa0,out=pa0,use='val')#use='cat',labelcol='segm_id')
+  #opt3 = pa2+'= @'+pa0
+  #opt4 = pa2+'= round('+pa2+')'
+  #grass.run_command('r.mapcalc',expression=opt3,overwrite=True)
+  #grass.run_command('r.mapcalc',expression=opt4,overwrite=True)
+  #grass.run_command('r.mask', vector=pa0, where=opt1)
+  #opt2 = pa4+'='+pa2
+  #opt22 = pa4+'='+pa4
+  optt = pa4+'='+pa0
+  #grass.run_command('r.mapcalc',expression=opt2,overwrite=True)
+  #grass.run_command('g.remove', rast='MASK')
   grass.run_command('r.mask', rast='pre') # new to crop parks to where we have indicators information
-  grass.run_command('r.mapcalc',expression=opt3,overwrite=True) # new
+  grass.run_command('r.mapcalc',expression=optt,overwrite=True) # opt3
   grass.run_command('g.remove', rast='MASK') # new
   grass.run_command('r.null',map=pa4,null=0)
-  grass.run_command('g.region',res=10)
   eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
   print eco_list
   eco = eco_list[0]
   if len(eco_list)>1 and eco == '*': eco = eco_list[1]
+  if len(eco_list)>1 and eco == '*':
+   grass.run_command('g.region',res=10)
+   eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
+   eco = eco_list[0]
+   if len(eco_list)>1 and eco == '*': eco = eco_list[1]
   print eco
   econame = str(eco)+'.csv'
   grass.run_command('g.region',res=1000)

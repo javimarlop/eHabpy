@@ -347,7 +347,7 @@ def	ehabitat(ecor,nw,nwpathout):
 				par = src_ds_pa.GetRasterBand(1)
 				pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
 				pa_mask = pa_mask0.flatten()
-				ind = pa_mask == int(pa)#>	0
+				ind = pa_mask >	0 #==int(pa)
 				go = 1
 				sum_pa_mask = sum(pa_mask[ind])/int(pa)
 				if sum_pa_mask < 3: go = 0	#	not	processing	areas	smaller	than	3	pixels
@@ -614,7 +614,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
+						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN'):#and ratiogeom < 100: #	also	checks	if results	are	not	empty
 
 							# reading the similarity ecoregion without the PA (tmp mask)
 							os.system('gdal_merge.py '+str(ecofile)+' '+str(pa4)+' -o '+str(outfile3)+' -ot Int32')
