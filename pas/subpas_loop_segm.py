@@ -79,13 +79,25 @@ for px in tqdm(range(0,n)): # 0
   eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
   print eco_list
   eco = eco_list[0]
-  if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998': eco = eco_list[1]
-  if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998':
+  if eco == '*' or eco == '-9999' or eco == '-9998':
+   if len(eco_list)>1:eco = eco_list[1]
+  if eco == '*' or eco == '-9999' or eco == '-9998':
    grass.run_command('g.region',res=10)
    eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
    eco = eco_list[0]
-   if len(eco_list)>1 and eco == '*' or eco == '-9999' or eco == '-9998': eco = eco_list[1]
-  print eco
+   grass.run_command('g.region',res=1000)
+  if eco == '*' or eco == '-9999' or eco == '-9998':
+   c22 = pa0+'b50km'
+   grass.run_command('g.region',flags='d')
+   grass.run_command('r.buffer',input=pa0,output=c22,distances=50,units='kilometers',overwrite=True)
+   grass.run_command('g.region',zoom=c22,res=1000)
+   grass.run_command('r.mask', raster=c22,maskc=2)
+   eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
+   eco = eco_list[0]
+   print eco_list
+   if eco == '*' or eco == '-9999' or eco == '-9998':eco = eco_list[1]
+   grass.run_command('g.remove', rast='MASK') # new
+  print 'eco: '+eco
   econame = str(eco)+'.csv'
   grass.run_command('g.region',res=1000)
   grass.run_command('r.out.gdal',input=pa4,out=pa5,overwrite=True)
@@ -95,6 +107,8 @@ for px in tqdm(range(0,n)): # 0
   grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
   grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
+  grass.run_command('g.mremove',typ='rast',patt='pa_*',flags='f')
+  grass.run_command('g.mremove',typ='rast',patt='*b50km',flags='f')
   wb = open(econame,'a')
   wb.write(pa)
   wb.write('\n')
