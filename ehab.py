@@ -349,7 +349,7 @@ def	ehabitat(ecor,nw,nwpathout):
 				pa_mask = pa_mask0.flatten()
 				ind = pa_mask >	0 #==int(pa)
 				go = 1
-				sum_pa_mask = sum(pa_mask[ind])/int(pa)
+				sum_pa_mask = sum(pa_mask[ind])#/int(pa)
 				if sum_pa_mask < 3: go = 0	#	not	processing	areas	smaller	than	3	pixels
 				print sum_pa_mask
 				sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
