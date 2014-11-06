@@ -95,7 +95,9 @@ for px in tqdm(range(0,n)): # 0
    eco_list = grass.read_command ('r.stats', input='ecoregs_moll',sort='desc'). splitlines ()
    eco = eco_list[0]
    print eco_list
-   if eco == '*' or eco == '-9999' or eco == '-9998':eco = eco_list[1]
+   if eco == '*' or eco == '-9999' or eco == '-9998':
+    eco = 'noterreco'
+    if len(eco_list)>1:eco = eco_list[1]
    grass.run_command('g.remove', rast='MASK') # new
   print 'eco: '+eco
   econame = str(eco)+'.csv'
