@@ -5,7 +5,7 @@ from tqdm import *
 
 #gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
 gisbase = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-gisdbase = os.path.join("/local1/majavie/hanksgrass7")
+gisdbase = os.path.join("/local0/majavie/hanksgrass7")
 location = "global_MW"
 mapset   = "ehabitat"#"rasterized_parks"
 

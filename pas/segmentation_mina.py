@@ -10,15 +10,15 @@ import csv
 GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/local0/majavie/hanksgrass7"
 MYLOC = "global_MW"
-mapset = 'majavie'#'ehabitat'
-col= 'WDPA_ID'#'wdpaid'
+mapset = 'ehabitat'
+col= 'wdpaid'
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
 import grass.script as grass
 import grass.script.setup as gsetup
 
 gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
-source = 'wdpa_snapshot_new_mollweide'#'wdpa_aug14_100km2_moll'
+source = 'wdpa_aug14_100km2_moll'
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
