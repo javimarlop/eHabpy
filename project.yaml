@@ -2,7 +2,7 @@ project_name: eHabitat
 runner_class: PythonRunner
  
 base_params:
-    shared_dir: /home/majavie/data
+    shared_dir: /home/majavie/data/eHabpy
 
     # path_to_library_code: $$library_path(r-library)$$/some_path
     # a_useful_input_file: $$input_path$$useful.txt
