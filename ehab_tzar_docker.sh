@@ -3,7 +3,7 @@ docker pull javimarlop/ubuntugis-docker # clone docker image
 docker run --rm --privileged -ti javimarlop/ubuntugis-docker /bin/bash
 
 useradd -m majavie #--uid xxx
-#usermod -a -G fuse majavie
+usermod -a -G fuse majavie
 usermod -s /bin/bash majavie
 
 su majavie

@@ -23,7 +23,8 @@ python docker_test_grass.py
 ## tzar localrun
 #wget https://tzar-framework.atlassian.net/wiki/download/attachments/4980739/tzar-0.5.4.jar?version=1&modificationDate=1405994845498&api=v2
 
-
+## Postgres docker
+docker pull postgres:9.1
 
 
 
