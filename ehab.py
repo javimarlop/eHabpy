@@ -337,7 +337,9 @@ def	ehabitat(ecor,nw,nwpathout):
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
 
-			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
+			#pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
+			pa4 = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, pa_infile)
+
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 
 			dropcols = np.arange(9,dtype=int)
