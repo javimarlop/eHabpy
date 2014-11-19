@@ -8,7 +8,7 @@ usermod -s /bin/bash majavie
 
 su majavie
 cd /home/majavie
-mkdir /home/majavie/data
+mkdir /home/majavie/eHabpy
 #mkdir /home/majavie/.ssh
 #echo '139.191.147.102' > /home/majavie/.ssh/hosts
 
