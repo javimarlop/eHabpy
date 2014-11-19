@@ -224,7 +224,8 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.close()
 	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None
 	ef = 'eco_'+str(ecor)+'.tif'
-	ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
+	#ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
+	ecofile = os.path.join(os.path.sep, nwpath, os.path.sep,'ecoregs', os.path.sep, ef)
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
