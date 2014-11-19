@@ -210,6 +210,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
 	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done.csv')
+	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
 		wb.write('None')
@@ -217,6 +218,7 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.close()
 	#	LOCAL FOLDER	
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
+	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
 		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpratio2 numpszok lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
@@ -230,8 +232,9 @@ def	ehabitat(ecor,nw,nwpathout):
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
-		#ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
-		ecoparksf = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, eco_csv)
+		print eco_csv
+		ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
+		#ecoparksf = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, eco_csv)
 		print ecoparksf
 		#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
