@@ -2,13 +2,13 @@ project_name: eHabitat
 runner_class: PythonRunner
  
 base_params:
-    shared_dir: \\LONGORIA\export\test
+    shared_dir: home/majavie/eHabpy
 
     # path_to_library_code: $$library_path(r-library)$$/some_path
     # a_useful_input_file: $$input_path$$useful.txt
     # another_useful_input_file: $$input_path$$also_useful.txt
     output_dir: $$output_path$$
-    ecoreg_index: 2
+    ecoreg_index: 0
     # start at 4 because the first 3 are negaitive - TODO consider how to fix this.
     # a_string_array: [abc,def,ghi]
     # another_array:
@@ -20,7 +20,7 @@ repetitions:
     generators:
       - key: ecoreg_index
         generator_type: linear_step
-        start: 2
+        start: 0
         step_size: 1
         count: 10
  

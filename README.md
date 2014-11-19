@@ -6,4 +6,11 @@ eHabpy
 [![DOI](https://zenodo.org/badge/4755/javimarlop/eHabpy.png)](http://dx.doi.org/10.5281/zenodo.10612)
 
 
-**eHabitat** GRASS GIS and Python scripts for automatic delineation of habitats within protected areas and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in protected areas within the corresponding ecoregion. A habitat replaceability index (HRI) is also computed based on the ratio between the extent of similar areas around the park and the park extent. Processed results are being updated and can be accessed through the [DOPA Explorer](http://ehabitat-wps.jrc.ec.europa.eu/dopa_explorer/).
+**eHabitat** GRASS GIS 7 scripts and Python 2.7 library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](http://ehabitat-wps.jrc.ec.europa.eu/dopa_explorer/).
+
+## Notes
+
+* gdal command line utilities must be installed and accessible in order to run some landscape metrics.
+
+* The Python library can be executed using [Tzar](https://tzar-framework.atlassian.net/wiki/display/TD/Tzar+documentation) distributed computing framework thanks to [doctorluz](https://github.com/doctorluz).
+

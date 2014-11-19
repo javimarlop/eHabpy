@@ -93,6 +93,7 @@ def initglobalmaps():
 	
 	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
 	indir = os.path.join(os.path.sep, nwpath, 'inVars')
+	print indir
 	herbf = 'herb.tif'
 	treef = 'tree.tif'
 	ndvimaxf = 'ndvimax.tif'
@@ -100,10 +101,11 @@ def initglobalmaps():
 	ndwif = 'ndwi.tif'
 	slopef = 'slope.tif'
 	biof = 'bio.tif'
-	eprf = 'epr.tif'
+	eprf = 'eprsqrt2.tif'
 	pref = 'pre.tif'
 	
 	biof_globalfile = os.path.join(os.path.sep, indir, biof)
+	print biof_globalfile
 	global	src_ds_bio_global
 	src_ds_bio_global = gdal.Open(biof_globalfile)
 	global	bio_global
@@ -210,6 +212,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
 	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done.csv')
+	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
 		wb.write('None')
@@ -217,17 +220,24 @@ def	ehabitat(ecor,nw,nwpathout):
 		wb.close()
 	#	LOCAL FOLDER	
 	csvname = os.path.join(os.path.sep, outdir, 'hri_results.csv')
+	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax')
+		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpratio2 numpszok lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
 		wb.write('\n')
 		wb.close()
+	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None
 	ef = 'eco_'+str(ecor)+'.tif'
 	ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
+	#ecofile = os.path.join(os.path.sep, nwpath, os.path.sep,'ecoregs', os.path.sep, ef)
+	print ecofile
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
+		print eco_csv
 		ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
+		#ecoparksf = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, eco_csv)
+		print ecoparksf
 		#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
 		eco = src_ds_eco.GetRasterBand(1)
@@ -335,6 +345,8 @@ def	ehabitat(ecor,nw,nwpathout):
 			pa_infile = 'pa_'+str(pa)+'.tif'
 
 			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
+			#pa4 = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, pa_infile)
+			print pa4
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 
 			dropcols = np.arange(9,dtype=int)
@@ -346,9 +358,9 @@ def	ehabitat(ecor,nw,nwpathout):
 				par = src_ds_pa.GetRasterBand(1)
 				pa_mask0 = par.ReadAsArray(0,0,par.XSize,par.YSize).astype(np.int32)
 				pa_mask = pa_mask0.flatten()
-				ind = pa_mask == int(pa)#>	0
+				ind = pa_mask >	0 #==int(pa)
 				go = 1
-				sum_pa_mask = sum(pa_mask[ind])/int(pa)
+				sum_pa_mask = sum(pa_mask[ind])#/int(pa)
 				if sum_pa_mask < 3: go = 0	#	not	processing	areas	smaller	than	3	pixels
 				print sum_pa_mask
 				sum_pa_mask_inv = len(pa_mask[pa_mask == 0])
@@ -383,6 +395,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						treepamin = round(tree_pa.min(),2)
 						treepamax = round(tree_pa.max(),2)
+						treepamean = round(np.mean(tree_pa),2)
 						print treepamin
 						print treepamax
 						treediff = abs(tree_pa.min()-tree_pa.max())
@@ -404,6 +417,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						eprpamin = round(epr_pa.min(),2)
 						eprpamax = round(epr_pa.max(),2)
+						eprpamean = round(np.mean(epr_pa),2)
 						print eprpamin
 						print eprpamax
 						eprdiff = abs(epr_pa.min()-epr_pa.max())
@@ -425,6 +439,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						prepamin = round(pre_pa.min(),2)
 						prepamax = round(pre_pa.max(),2)
+						prepamean = round(np.mean(pre_pa),2)
 						print prepamin
 						print prepamax
 						prediff = abs(pre_pa.min()-pre_pa.max())
@@ -446,6 +461,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						biopamin = round(bio_pa.min(),2)
 						biopamax = round(bio_pa.max(),2)
+						biopamean = round(np.mean(bio_pa),2)
 						print biopamin
 						print biopamax
 						biodiff = abs(bio_pa.min()-bio_pa.max())
@@ -467,6 +483,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						slopepamin = round(slope_pa.min(),2)
 						slopepamax = round(slope_pa.max(),2)
+						slopepamean = round(np.mean(slope_pa),2)
 						print slopepamin
 						print slopepamax
 						slopediff = abs(slope_pa.min()-slope_pa.max())
@@ -488,6 +505,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndwipamin = round(ndwi_pa.min(),2)
 						ndwipamax = round(ndwi_pa.max(),2)
+						ndwipamean = round(np.mean(ndwi_pa),2)
 						print ndwipamin
 						print ndwipamax
 						ndwidiff = abs(ndwi_pa.min()-ndwi_pa.max())
@@ -509,6 +527,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndvimaxpamin = round(ndvimax_pa.min(),2)
 						ndvimaxpamax = round(ndvimax_pa.max(),2)
+						ndvimaxpamean = round(np.mean(ndvimax_pa),2)
 						print ndvimaxpamin
 						print ndvimaxpamax
 						ndvimaxdiff = abs(ndvimax_pa.min()-ndvimax_pa.max())
@@ -530,6 +549,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						ndviminpamin = round(ndvimin_pa.min(),2)
 						ndviminpamax = round(ndvimin_pa.max(),2)
+						ndviminpamean = round(np.mean(ndvimin_pa),2)
 						print ndviminpamin
 						print ndviminpamax
 						ndvimindiff = abs(ndvimin_pa.min()-ndvimin_pa.max())
@@ -551,6 +571,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 						hpamin = round(herb_pa.min(),2)
 						hpamax = round(herb_pa.max(),2)
+						hpamean = round(np.mean(herb_pa),2)
 						print hpamin
 						print hpamax
 						hdiff = abs(herb_pa.min()-herb_pa.max())
@@ -561,7 +582,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					ind_pa = ind_pa0[:,cols]
 					ind_eco = ind_eco0[:,cols]
 					print ind_pa.shape
-					hr1sum = hr1insum = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
+					hr1sum = hr1insum = indokpsz = pszok = sumpszok = lpratio2 = numpszok = hr1averpa = hr3aver = hr2aver = pszmax = num_featuresaver = lpratio = hr1medianpa = hr1insumaver = pxpa = aggregation = None
 					print "PA masked"
 					#print ind_pa
 					if ind_pa.shape[0]>4 and ind_pa.shape[1]>1: 
@@ -604,7 +625,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						yless = sim.YSize - yextentpa
 						xsize = par.XSize
 						ysize = par.YSize
-						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN')and ratiogeom < 100: #	also	checks	if results	are	not	empty
+						if xoff>0 and yoff>0 and pmhhmax>0.01 and hr1sum>1 and maxmh!=float('NaN'):#and ratiogeom < 100: #	also	checks	if results	are	not	empty
 
 							# reading the similarity ecoregion without the PA (tmp mask)
 							os.system('gdal_merge.py '+str(ecofile)+' '+str(pa4)+' -o '+str(outfile3)+' -ot Int32')
@@ -619,52 +640,58 @@ def	ehabitat(ecor,nw,nwpathout):
 							hri_pa_bb02_max = hri_pa_bb02.max()
 							print 'PA: '+str(pa)
 							print 'PA (= max) value from mask = '+str(hri_pa_bb02_max)
-							hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
+							if hri_pa_bb02.shape == hri_pa_bb03.shape:
+							 hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
 
 
-							if xless < 0: xsize = xsize + xless
-							if yless < 0: ysize = ysize + yless
-							hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
-							hri_pa_bb = hri_pa_bb0.flatten()
-							indd = hri_pa_bb > 0
-							hri_pa0 = hri_pa_bb[indd]
-							print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
-							hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
-							#print hr1averpa
-							#hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
-							print 'mean similarity in the park is '+str(hr1averpa)
-							#hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
-							hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
-							hr1insumaver = sum(hr1inaver)
-							#print hr1insum
-							##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
-							hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
-							hr1aver = hr1averr.flatten()
-							print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
-							labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
-							print 'Nr of similar patches found: '+str(num_featuresaver)
-							lbls = np.arange(1, num_featuresaver+1)
-							psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
-							#pszmin = psizes.min()
-							pszmax = psizes.max()#-hr1insumaver
-							dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
-							dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
-							dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
-							dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
-							dst_ds2 = None
-							#num_feats = num_features - num_featuresaver
-							hr1sumaver = sum(hr1aver)
-							hr2aver = hr1sumaver #- hr1insumaver
-							pxpa = ind_pa.shape[0]
-							lpratio=round(float(pszmax/pxpa),2)
-							hr3aver = round(float(hr2aver/pxpa),2)
-							aggregation = round(float(hr2aver/num_featuresaver),2)
+							 if xless < 0: xsize = xsize + xless
+							 if yless < 0: ysize = ysize + yless
+							 hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
+							 hri_pa_bb = hri_pa_bb0.flatten()
+							 indd = hri_pa_bb > 0
+							 hri_pa0 = hri_pa_bb[indd]
+							 print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
+							 hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
+							 #print hr1averpa
+							 #hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
+							 print 'mean similarity in the park is '+str(hr1averpa)
+							 #hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
+							 hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
+							 hr1insumaver = sum(hr1inaver)
+							 #print hr1insum
+							 ##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
+							 hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
+							 hr1aver = hr1averr.flatten()
+							 print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
+							 labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
+							 print 'Nr of similar patches found: '+str(num_featuresaver)
+							 if num_featuresaver > 0:
+							  lbls = np.arange(1, num_featuresaver+1)
+							  psizes = nd.labeled_comprehension(labeled_arrayaver, labeled_arrayaver, lbls, np.count_nonzero, float, 0) #-1
+							  pszmax = psizes.max()#-hr1insumaver
+							  dst_ds2 = driver.Create(outfile2,src_ds_eco.RasterXSize,src_ds_eco.RasterYSize,num_bands,gdal.GDT_Int32,dst_options)
+							  dst_ds2.SetGeoTransform(src_ds_eco.GetGeoTransform())
+							  dst_ds2.SetProjection(src_ds_eco.GetProjectionRef())
+							  dst_ds2.GetRasterBand(1).WriteArray(labeled_arrayaver)
+							  dst_ds2 = None
+							  #num_feats = num_features - num_featuresaver
+							  hr1sumaver = sum(hr1aver)
+							  hr2aver = hr1sumaver #- hr1insumaver
+							  pxpa = ind_pa.shape[0]
+							  indokpsz = psizes >= pxpa
+							  pszsok = psizes[indokpsz] # NEW
+							  sumpszok = sum(pszsok)
+							  lpratio=round(float(pszmax/pxpa),2)
+							  lpratio2=round(float(sumpszok/pxpa),2)
+							  numpszok = len(pszsok)
+							  hr3aver = round(float(hr2aver/pxpa),2)
+							  aggregation = round(float(hr2aver/num_featuresaver),2)
 						#hr2 = hr1sumaver - hr1insumaver
 						#print hr2
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(lpratio2)+' '+str(numpszok)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()

@@ -7,5 +7,10 @@
 *.shx
 *.xml
 *.txt
+.RData
+.Rhistory
 *.pyc
-*.pydevproject
+*.ovr
+*.png
+*.tfw
+pre4root*
