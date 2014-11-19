@@ -229,7 +229,8 @@ def	ehabitat(ecor,nw,nwpathout):
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
-		ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
+		#ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
+		ecoparksf = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, eco_csv)
 		#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
 		eco = src_ds_eco.GetRasterBand(1)
