@@ -93,6 +93,7 @@ def initglobalmaps():
 	
 	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
 	indir = os.path.join(os.path.sep, nwpath, 'inVars')
+	print indir
 	herbf = 'herb.tif'
 	treef = 'tree.tif'
 	ndvimaxf = 'ndvimax.tif'
@@ -104,6 +105,7 @@ def initglobalmaps():
 	pref = 'pre.tif'
 	
 	biof_globalfile = os.path.join(os.path.sep, indir, biof)
+	print biof_globalfile
 	global	src_ds_bio_global
 	src_ds_bio_global = gdal.Open(biof_globalfile)
 	global	bio_global
@@ -342,8 +344,8 @@ def	ehabitat(ecor,nw,nwpathout):
 			#outfile = outdir+'/'+str(ecor)+'_'+str(pa)+'.tif'	#	LOCAL FOLDER
 			pa_infile = 'pa_'+str(pa)+'.tif'
 
-			#pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
-			pa4 = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, pa_infile)
+			pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
+			#pa4 = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, pa_infile)
 			print p4
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 
