@@ -226,11 +226,13 @@ def	ehabitat(ecor,nw,nwpathout):
 	ef = 'eco_'+str(ecor)+'.tif'
 	#ecofile = os.path.join(os.path.sep, nwpath, 'ecoregs', ef)
 	ecofile = os.path.join(os.path.sep, nwpath, os.path.sep,'ecoregs', os.path.sep, ef)
+	print ecofile
 	avail = os.path.isfile(ecofile)
 	if avail == True:
 		eco_csv = str(ecor)+'.csv'
 		#ecoparksf = os.path.join(os.path.sep, nwpath, 'pas', eco_csv)
 		ecoparksf = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, eco_csv)
+		print ecoparksf
 		#ecoparksf = nwpath+'/pas/'+str(ecor)+'.csv'
 		src_ds_eco = gdal.Open(ecofile)
 		eco = src_ds_eco.GetRasterBand(1)
@@ -339,7 +341,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 			#pa4 = os.path.join(os.path.sep, nwpath, 'pas', pa_infile)
 			pa4 = os.path.join(os.path.sep, nwpath, os.path.sep, 'pas', os.path.sep, pa_infile)
-
+			print p4
 			#pa4 = nwpath+'/pas/pa_'+str(pa)+'.tif'
 
 			dropcols = np.arange(9,dtype=int)
