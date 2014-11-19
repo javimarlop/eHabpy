@@ -10,3 +10,6 @@
 .RData
 .Rhistory
 *.pyc
+*.ovr
+*.png
+*.tfw

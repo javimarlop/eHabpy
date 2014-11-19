@@ -8,11 +8,11 @@ usermod -s /bin/bash majavie
 
 su majavie
 cd /home/majavie
-mkdir /home/majavie/local0
+mkdir /home/majavie/data
 #mkdir /home/majavie/.ssh
 #echo '139.191.147.102' > /home/majavie/.ssh/hosts
 
-sshfs xxx@yyy:/local0/majavie/ /home/majavie/local0
+sshfs xxx@yyy:/local0/majavie/eHabpy /home/majavie/eHabpy
 
 #wget https://tzar-framework.atlassian.net/wiki/download/attachments/4980739/tzar-0.5.4.jar?version=1&modificationDate=1405994845498&api=v2
 
