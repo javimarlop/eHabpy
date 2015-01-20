@@ -49,28 +49,42 @@ dev.off()
 
 metaMDS(vegdist(hri[,14:40],"euclidean"))->mds_segms
 #rf proximities
-plot(mds_segms$points,col=hclust_dist_euclid_segms_10cl)
-identify(mds_segms$points)->examples_cats
-#[1]   886  3294  4939  6850  8774 11563 12120 12518 13457 13774
-hri0$wdpaid[examples_cats[1]]
+#plot(mds_segms$points,col=hclust_dist_euclid_segms_10cl)
+#identify(mds_segms$points)->examples_cats
+##[1]   886  3294  4939  6850  8774 11563 12120 12518 13457 13774
+#hri0$wdpaid[examples_cats[1]]
 
+table(hclust_dist_euclid_segms_5cl)
+#    1     2     3     4     5
+# 7835  4324 10624  1849   458
 
 table(hclust_dist_euclid_segms_10cl)
-#hclust_dist_euclid_segms_10cl
 #   1    2    3    4    5    6    7    8    9   10
-#1780 2068 2861  597 3417 1760  342 1130  108   41
+#2601 3430  894 5234 4913 5711 1539  310  174  284
 
-boxplot(hri0$prepamax ~ hclust_dist_euclid_segms_10cl)
+table(hclust_dist_euclid_segms_15cl)
+#   1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+#2601 1204 2226  858 2053 3181   36 3571 5711 1342 1077  462  310  174  284
+
+#png('premax_10cl_boxplots.png')
+#boxplot(hri$prepamax ~ hclust_dist_euclid_segms_10cl)
+#dev.off()
 
 library(vegan)
 library(ade4)
+
+png('mds_segms_5cl.png')
+plot(mds_segms)
+s.class(mds_segms$points,as.factor(hclust_dist_euclid_segms_5cl),col=1:5)
+dev.off()
+
 png('mds_segms_10cl.png')
 plot(mds_segms)
 s.class(mds_segms$points,as.factor(hclust_dist_euclid_segms_10cl),col=1:10)
 dev.off()
 
-png('mds_segms_20cl.png')
+png('mds_segms_15cl.png')
 plot(mds_segms)
-s.class(mds_segms$points,as.factor(hclust_dist_euclid_segms_20cl),col=1:20)
+s.class(mds_segms$points,as.factor(hclust_dist_euclid_segms_15cl),col=1:15)
 dev.off()
 
