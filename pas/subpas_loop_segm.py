@@ -19,7 +19,7 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
-source = 'parks_segmented_filter@ehabitat'
+source = 'parks_segmented_100km2'
 #grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
 grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column='segm_id'). splitlines ()
@@ -128,3 +128,4 @@ for px in tqdm(range(0,n)): # 0
   print "Done PA:"+pa
 
 # try to paralellize it?
+
