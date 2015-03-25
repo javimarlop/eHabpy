@@ -6,7 +6,7 @@ import sys
 import csv
 
 #os.system('touch optim_thresholds.csv')
-ecox_list0 = np.genfromtxt('pas_segm_done.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+ecox_list0 = np.genfromtxt('csv/pas_segm_done.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 ecox_list = np.unique(ecox_list0) # ['19297']
 mx = len(ecox_list)
 for	pmx	in	range(0,mx):
@@ -14,14 +14,14 @@ for	pmx	in	range(0,mx):
  print park
  #csvname4 = str(park)+'_movar_segmsum0.csv'
  #csvname40 = str(park)+'_movar_segmsum02.csv'
- csvname = str(park)+'_movar_segmsum.csv'
- csvnamem = str(park)+'_moran_segm.csv'
- csvnamev = str(park)+'_var_segm.csv'
- csvnamem2 = str(park)+'_moran_mean.csv'
- csvnamev2 = str(park)+'_var_mean.csv'
+ csvname = 'csv/'+str(park)+'_movar_segmsum.csv'
+ csvnamem = 'csv/'+str(park)+'_moran_segm.csv'
+ csvnamev = 'csv/'+str(park)+'_var_segm.csv'
+ csvnamem2 = 'csv/'+str(park)+'_moran_mean.csv'
+ csvnamev2 = 'csv/'+str(park)+'_var_mean.csv'
  #csvname3 = str(park)+'_movar_segmsumf.csv'
  #csvname30 = str(park)+'_movar_segmsumf0.csv'
- csvname2 = str(park)+'_movar_thresholds.csv'
+ csvname2 = 'csv/'+str(park)+'_movar_thresholds.csv'
  for i in np.arange(2,11): # loop by variable
   mors = []
   varis = []
@@ -29,9 +29,9 @@ for	pmx	in	range(0,mx):
   for k in range(1,10): # loop by segmentation threshold
 	wpn = 0
 	layrname = 'park_segm_'+str(park)+'_'+str(k)
-	shpname = 'park_segm_'+str(park)+'_'+str(k)+'.shp'
+	shpname = 'shp/'+'park_segm_'+str(park)+'_'+str(k)+'.shp'
 	shpname2 = 'park_segm_'+str(park)+'_'+str(k)+'_diss.shp'
-	hriname = 'park_'+str(park)+'_hri_results'+str(k)+'.csv'
+	hriname = 'csv/'+'park_'+str(park)+'_hri_results'+str(k)+'.csv'
 	sumareas = np.genfromtxt(hriname,delimiter=' ',skip_header=1,usecols=(20))
 	if os.path.isfile(shpname2) == False:
 	 os.system('ogr2ogr '+shpname2+' '+shpname+' -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM '+layrname+' GROUP BY segm_id"')
@@ -122,5 +122,5 @@ for	pmx	in	range(0,mx):
   wb.write('\n')
   wb.close()
 
-#os.system('Rscript moranvar_plots.R')
+os.system('Rscript moranvar_plots.R')
 print "BATCH END"

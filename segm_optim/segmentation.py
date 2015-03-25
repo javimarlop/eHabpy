@@ -27,7 +27,7 @@ n = len(pa_list2)
 pa_list = ['555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389', '2006','900883','93294','198301','61612','555577555','555556047','555538721','19297'] # ]# '95786'
 print pa_list
 
-csvname1 = 'pas_segm_done.csv'
+csvname1 = 'csv/pas_segm_done.csv'
 if os.path.isfile(csvname1) == False:
  os.system('touch '+str(csvname1))
  #wb = open(csvname1,'a')
@@ -182,7 +182,7 @@ for px in tqdm(range(0,n2)):
 	  grass.run_command('v.db.addcolumn', map=pa44,col='segm_id numeric')#VARCHAR')
 	  grass.run_command('v.db.update', map=pa44,col='segm_id',qcol='wdpaid_pa || cat || aleat')
 	  #grass. message ("Exporting shapefile")
-	  name = 'park_segm_'+str(pa)+'_'+str(j)
+	  name = 'shp/park_segm_'+str(pa)+'_'+str(j)
 	  if os.path.isfile(name+'.shp') == False:
 	   grass.run_command('v.out.ogr',input=pa44,ola=name,type='area',dsn='.') 
 	  else:
@@ -205,7 +205,7 @@ for px in tqdm(range(0,n2)):
 	   spa2 = 'svv'+spa
 	 #pa3 = pa+'v3'
 	   spa4 = 'spa_'+spa
-	   spa5 = 'pa_'+spa+'.tif'
+	   spa5 = 'tiffs/pa_'+spa+'.tif'
 	   spa0 = 'sv0_'+spa
 	   sopt1 = 'segm_id = '+spa
 	 #if pa not in pa_list_done:
@@ -223,7 +223,7 @@ for px in tqdm(range(0,n2)):
 	   grass.run_command('r.null',map=spa4,null=0)
 	   econame = 'park_'+str(pa)+'_'+str(j)+'.csv'
 	   eco = str(j)
-	   econ = 'ecoregs'+str(j)+'.csv'
+	   econ = 'csv/ecoregs'+str(j)+'.csv'
 	   grass.run_command('r.out.gdal',input=spa4,out=spa5,overwrite=True)
 #	   grass. message ("Deleting tmp layers") 
 	   wb = open(econame,'a')

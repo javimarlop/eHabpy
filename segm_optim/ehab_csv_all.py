@@ -211,7 +211,7 @@ def	ehabitat1(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done1.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done1.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -219,7 +219,7 @@ def	ehabitat1(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results1.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results1.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -233,7 +233,7 @@ def	ehabitat1(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -527,7 +527,7 @@ def	run_batch1():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs1.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs1.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -561,7 +561,7 @@ def	ehabitat2(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done2.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done2.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -569,7 +569,7 @@ def	ehabitat2(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results2.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results2.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -583,7 +583,7 @@ def	ehabitat2(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -877,7 +877,7 @@ def	run_batch2():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs2.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs2.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -911,7 +911,7 @@ def	ehabitat3(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done3.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done3.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -919,7 +919,7 @@ def	ehabitat3(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results3.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results3.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -933,7 +933,7 @@ def	ehabitat3(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -1227,7 +1227,7 @@ def	run_batch3():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs3.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs3.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -1261,7 +1261,7 @@ def	ehabitat4(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done4.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done4.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -1269,7 +1269,7 @@ def	ehabitat4(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results4.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results4.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -1283,7 +1283,7 @@ def	ehabitat4(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -1577,7 +1577,7 @@ def	run_batch4():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs4.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs4.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -1611,7 +1611,7 @@ def	ehabitat5(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done5.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done5.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -1619,7 +1619,7 @@ def	ehabitat5(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results5.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results5.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -1633,7 +1633,7 @@ def	ehabitat5(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -1927,7 +1927,7 @@ def	run_batch5():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs5.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs5.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -1961,7 +1961,7 @@ def	ehabitat6(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done6.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done6.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -1969,7 +1969,7 @@ def	ehabitat6(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results6.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results6.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -1983,7 +1983,7 @@ def	ehabitat6(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -2277,7 +2277,7 @@ def	run_batch6():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs6.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs6.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -2311,7 +2311,7 @@ def	ehabitat7(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done7.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done7.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -2319,7 +2319,7 @@ def	ehabitat7(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results7.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results7.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -2333,7 +2333,7 @@ def	ehabitat7(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -2627,7 +2627,7 @@ def	run_batch7():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs7.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs7.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -2661,7 +2661,7 @@ def	ehabitat8(ecor,nw,nwpathout):
 	treepamin = treepamax = eprpamin = eprpamax = prepamin = prepamax = biopamin = biopamax = slopepamin = slopepamax = ndwipamin = ndwipamax = ndvimaxpamin = ndvimaxpamax = ndviminpamin = ndviminpamax = hpamin = hpamax = treepavar = eprpavar = prepavar = biopavar = slopepavar = ndwipavar = ndvimaxpavar = ndviminpavar = hpavar = treepavar2 = eprpavar2 = prepavar2 = biopavar2 = slopepavar2 = ndwipavar2 = ndvimaxpavar2 = ndviminpavar2 = hpavar2 = None
 	#s = nd.generate_binary_structure(2,2)	#	most	restrictive	pattern	for	the	landscape	patches
 	#	LOCAL FOLDER
-	csvname1 = os.path.join(os.path.sep, outdir, 'ecoregs_done8.csv')
+	csvname1 = os.path.join(os.path.sep, outdir, 'csv/ecoregs_done8.csv')
 	print csvname1
 	if os.path.isfile(csvname1) == False:
 		wb = open(csvname1,'a')
@@ -2669,7 +2669,7 @@ def	ehabitat8(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results8.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results8.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -2683,7 +2683,7 @@ def	ehabitat8(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -2977,7 +2977,7 @@ def	run_batch8():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs8.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs8.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -3019,7 +3019,7 @@ def	ehabitat9(ecor,nw,nwpathout):
 		wb.write('\n')
 		wb.close()
 	#	LOCAL FOLDER	
-	csvname = os.path.join(os.path.sep, outdir, 'park_'+str(park)+'_hri_results9.csv')
+	csvname = os.path.join(os.path.sep, outdir, 'csv/park_'+str(park)+'_hri_results9.csv')
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
@@ -3033,7 +3033,7 @@ def	ehabitat9(ecor,nw,nwpathout):
 	#print ecofile
 	#avail = os.path.isfile(ecofile)
 
-	eco_csv = 'park_'+str(park)+'_'+str(ecor)+'.csv'
+	eco_csv = 'csv/park_'+str(park)+'_'+str(ecor)+'.csv'
 	print eco_csv
 	ecoparksf = os.path.join(os.path.sep, nwpath,  eco_csv)
 
@@ -3327,7 +3327,7 @@ def	run_batch9():
 #	if __name__ == '__main__':
 	#from	datetime	import	datetime
 	#import	numpy	as	np
-	eco_list0 = np.genfromtxt('ecoregs9.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	eco_list0 = np.genfromtxt('csv/ecoregs9.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	eco_list = np.unique(eco_list0)
 	#print eco_list
 	m = len(eco_list)
@@ -3340,7 +3340,7 @@ def	run_batch9():
 
 def	run_batch_all():
 #	if __name__ == '__main__':
-	ecox_list0 = np.genfromtxt('pas_segm_done.csv',dtype='int')	#	crear	este	archivo	en	subpas!
+	ecox_list0 = np.genfromtxt('csv/pas_segm_done.csv',dtype='int')	#	crear	este	archivo	en	subpas!
 	ecox_list = np.unique(ecox_list0)
 	#print eco_list
 	mx = len(ecox_list)
