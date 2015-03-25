@@ -249,10 +249,10 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   
   # ... + group (cluster) 'paths'
   base <- base + geom_path(data=group$path,aes(x=x,y=y,group=group,colour=group),
-                           size=group.line.width) + scale_colour_brewer(palette='Paired')
+                           size=group.line.width) + scale_colour_brewer(palette='Set1')
   
   # ... + group points (cluster data)
-  base <- base + geom_point(data=group$path,aes(x=x,y=y,group=group,colour=group),size=group.point.size) + scale_colour_brewer(palette='Paired')
+  base <- base + geom_point(data=group$path,aes(x=x,y=y,group=group,colour=group),size=group.point.size) + scale_colour_brewer(palette='Set1')
   
   #... + amend Legend title
   if (plot.legend==TRUE) base  <- base + labs(colour=legend.title,size=legend.text.size)

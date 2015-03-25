@@ -7,7 +7,7 @@ library(reshape2)
 library(rgdal)
 library(RColorBrewer)
 
-kols<-brewer.pal(12,'Paired')
+kols<-brewer.pal(6,'Set1')
 #coord_radar <- function(...) {
 #  structure(coord_polar(...), class = c("radar", "polar", "coord"))
 #}
