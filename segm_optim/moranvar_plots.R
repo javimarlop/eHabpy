@@ -31,13 +31,13 @@ for (pmx in 1:mx){
 	df0v<-read.table(namev,sep=' ',header=F)
 	#df1<-df0[!is.nan(df0$V2),]
 
-	name2 <- paste('csv/',park,'_movar_thresholds.csv',sep='')
-	df02<-read.table(name2,sep=' ',header=F)
-	df11<-merge(df1,df02,by='V1')
-	df<-df11[!duplicated(df11),]
-	rang<-max(df$V2.x)-min(df$V2.x)
-	rang2<-max(df$V2.y)-min(df$V2.y)
-	relns<-(df$V2.y-min(df$V2.y))/rang2
+	#name2 <- paste('csv/',park,'_movar_thresholds.csv',sep='')
+	#df02<-read.table(name2,sep=' ',header=F)
+	#df11<-merge(df1,df02,by='V1')
+	#df<-df11[!duplicated(df11),]
+	#rang<-max(df$V2.x)-min(df$V2.x)
+	#rang2<-max(df$V2.y)-min(df$V2.y)
+	#relns<-(df$V2.y-min(df$V2.y))/rang2
 
 	x1<-df0m$V2
 	x2<-df0v$V2
@@ -57,9 +57,9 @@ for (pmx in 1:mx){
 
 
 	newtot<-df0$V2#/2
-	uppv <- max(c(df0m$V2,df0v$V2,newtot))
+	uppv <- 1# max(c(df0m$V2,df0v$V2,newtot))
 	png(paste('results/',park,'_moran_var_mean.png',sep=''))
-	plot(df0m$V1,df0m$V2,ylim=c(0,uppv), col=1,typ='o',ylab='Moran and Variance',xlab='Similarity threshold (x 0.1)',main=park) # black
+	plot(df0m$V1,df0m$V2,ylim=c(0,uppv), col=1,typ='o',ylab='Moran I. and Variance',xlab='Similarity threshold (x 0.1)',main=park) # black
 	lines(df0v$V1,df0v$V2,col=3,typ='o') # green
 	lines(df0$V1,newtot,col=4,typ='o') # blue
 	points(x.points,y.points,col='red')

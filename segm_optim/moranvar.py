@@ -29,9 +29,9 @@ for	pmx	in	range(0,mx):
   for k in range(1,10): # loop by segmentation threshold
 	wpn = 0
 	layrname = 'park_segm_'+str(park)+'_'+str(k)
-	shpname = 'shp/'+'park_segm_'+str(park)+'_'+str(k)+'.shp'
-	shpname2 = 'park_segm_'+str(park)+'_'+str(k)+'_diss.shp'
-	hriname = 'csv/'+'park_'+str(park)+'_hri_results'+str(k)+'.csv'
+	shpname = 'shp/park_segm_'+str(park)+'_'+str(k)+'.shp'
+	shpname2 = 'shp/park_segm_'+str(park)+'_'+str(k)+'_diss.shp'
+	hriname = 'csv/park_'+str(park)+'_hri_results'+str(k)+'.csv'
 	sumareas = np.genfromtxt(hriname,delimiter=' ',skip_header=1,usecols=(20))
 	if os.path.isfile(shpname2) == False:
 	 os.system('ogr2ogr '+shpname2+' '+shpname+' -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM '+layrname+' GROUP BY segm_id"')
@@ -88,8 +88,8 @@ for	pmx	in	range(0,mx):
  #os.system('cat '+csvname4+' | sed "s/[\+//g" > '+csvname3) #\t
  #os.system('cat '+csvname30+' | sed "s/ \+//g" > '+csvname3) #\t
  #os.system('rm '+csvname+' '+csvname4)
- csvname5 = str(park)+'_movar_results.csv'
- thrs = np.genfromtxt(csvname2,delimiter='',skip_header=0,usecols=(0))
+ csvname5 = 'csv/'+str(park)+'_movar_results.csv'
+ thrs = np.genfromtxt(csvname2,delimiter=' ',skip_header=0,usecols=(0)) # check delimiter!
  segs = np.unique(thrs)
  h = -1
  f = len(segs)#+1

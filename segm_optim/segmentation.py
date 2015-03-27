@@ -24,7 +24,7 @@ pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitline
 pa_list2 = np.unique(pa_list0)
 n = len(pa_list2)
 #pa_list = pa_list2[0:n-2] # testing 5 first!
-pa_list = ['555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389', '2006','900883','93294','198301','61612','555577555','555556047','555538721','19297'] # ]# '95786'
+pa_list = ['2580']#'555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389', '2006','900883','93294','198301','61612','555577555','555556047','555538721','19297'] # ]# '95786'
 print pa_list
 
 csvname1 = 'csv/pas_segm_done.csv'
@@ -221,7 +221,7 @@ for px in tqdm(range(0,n2)):
 	   grass.run_command('r.mapcalc',expression=soptt,overwrite=True) # opt3
 	   grass.run_command('g.remove', rast='MASK') # new
 	   grass.run_command('r.null',map=spa4,null=0)
-	   econame = 'park_'+str(pa)+'_'+str(j)+'.csv'
+	   econame = 'csv/park_'+str(pa)+'_'+str(j)+'.csv'
 	   eco = str(j)
 	   econ = 'csv/ecoregs'+str(j)+'.csv'
 	   grass.run_command('r.out.gdal',input=spa4,out=spa5,overwrite=True)
