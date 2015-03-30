@@ -6,7 +6,6 @@
 *.qpj
 *.shx
 *.xml
-*.txt
 .RData
 .Rhistory
 *.pyc
