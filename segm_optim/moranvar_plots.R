@@ -119,6 +119,11 @@ for (pmx in 1:mx){
 	cutree(hclust_mh,h=mean(hclust_mh$height))->hclust_mean
 	ncl<-length(unique(hclust_mean))
 
+	if(ncl==1){
+	as.numeric(factor(hri$segm_id))->hclust_mean
+	ncl<-length(unique(hclust_mean))
+	}
+
 	if(ncl>6){
 	cutree(hclust_mh,k=6)->hclust_mean
 	ncl<-length(unique(hclust_mean))
