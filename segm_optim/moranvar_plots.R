@@ -7,14 +7,14 @@ library(reshape2)
 library(rgdal)
 library(RColorBrewer)
 
-kols<-brewer.pal(6,'Set1')
+kols<-brewer.pal(4,'Set1')
 #coord_radar <- function(...) {
 #  structure(coord_polar(...), class = c("radar", "polar", "coord"))
 #}
 
 is.linear.radar <- function(coord) TRUE
 
-df0<-read.table('csv/pas_segm_done.csv',sep=' ',header=F)
+df0<-read.table('csv/segm_done.csv',sep=' ',header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
 
@@ -24,6 +24,8 @@ for (pmx in 1:mx){
 	name <- paste('csv/',park,'_movar_results.csv',sep='')
 	df0<-read.table(name,sep=' ',header=F)
 	df1<-df0[!is.nan(df0$V2),]
+	fthr<-0
+	if(dim(df1)[1]==0){fthr<-1; print("Using a fixed threshold")}
 
 	namem <- paste('csv/',park,'_moran_mean.csv',sep='')
 	df0m<-read.table(namem,sep=' ',header=F)
@@ -70,7 +72,7 @@ for (pmx in 1:mx){
 	res0<-as.data.frame(cbind(5,NA))
 	res2<-res0#[1,]
 
-	if(length(x.points)>=0){
+	if(length(x.points)>0){ #>=
 	res<-round(x.points[1])#length(x.points)
 	res0<-as.data.frame(cbind(x.points,y.points))
 	res2<-res0[1,]
@@ -112,11 +114,16 @@ for (pmx in 1:mx){
 	namef <- paste('csv/','park_',park,'_hri_results',res,'.csv',sep='')
 	hri<-read.table(namef,sep=' ',header=T)
 	#dmh<-NULL
-	dmh<-vegdist(hri[,c(3,20)],"mahalanobis")
+	skaled <- as.data.frame(lapply(hri[,3:20], ggplot2:::rescale01))
+	try(dmh<-vegdist(skaled,"euclidean",na.rm=T))#"mahalanobis")
 	#if(!is.null(dmh)){
 	hclust(dmh,"ward.D2")->hclust_mh
-	metaMDS(dmh)->mds_mh
-	cutree(hclust_mh,h=mean(hclust_mh$height))->hclust_mean
+	cophval<-0
+	try(chcl<-cophenetic(hclust_mh))
+	try(cophval<-cor(chcl,dmh))
+	try(metaMDS(dmh)->mds_mh)
+	q25<-quantile(hclust_mh$height)[2]
+	cutree(hclust_mh,h=q25)->hclust_mean # k=3
 	ncl<-length(unique(hclust_mean))
 
 	if(ncl==1){
@@ -124,25 +131,26 @@ for (pmx in 1:mx){
 	ncl<-length(unique(hclust_mean))
 	}
 
-	if(ncl>6){
-	cutree(hclust_mh,k=6)->hclust_mean
+	upplim<-4
+	if(ncl>upplim){
+	cutree(hclust_mh,k=upplim)->hclust_mean
 	ncl<-length(unique(hclust_mean))
 	}
 
 	if(ncl>1){
 
 	png(paste('results/hclust_',park,'_',res,'_segms_mean.png',sep=''))
-	plot(hclust_mh,hang=-1,main=park);try(rect.hclust(hclust_mh,h=mean(hclust_mh$height)))
+	try(plot(hclust_mh,hang=-1,main=park,sub=cophval));try(rect.hclust(hclust_mh,k=3))
 	dev.off()
 
 	png(paste('results/NMDS_',park,'_',res,'_segms_mean.png',sep=''))
-	plot(mds_mh)
-	s.class(mds_mh$points,as.factor(hclust_mean),col=1:length(unique(hclust_mean)))
+	try(plot(mds_mh))
+	try(s.class(mds_mh$points,as.factor(hclust_mean),col=1:length(unique(hclust_mean))))
 	dev.off()
 
 	hrin<-cbind(hri[,1:11],hclust_mean)
 #	rownames(hrin)<-hri[,12]
-	names(hrin)[3:11]<-c("TREE","Aridity","Precip","BioTemp","Slope","NDWI","NDVI_MAX","NDVI_MIN","GRASSLAND")
+	names(hrin)[3:11]<-c("Woody","Aridity","Precip","BioTemp","Slope","NDWI","NDVI_MAX","NDVI_MIN","Grassland")
 	hri3<-melt(hrin[,3:12],'hclust_mean')
 	hri4<-dcast(hri3,hclust_mean ~ variable,mean)
 
