@@ -9,10 +9,10 @@ import os
 import sys
 import csv
 
-GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/home/majavie/hanksgrass7"
 MYLOC = "global_MW"
-mapset = 'm4'#ehabitat'
+mapset = 'm'#ehabitat'
 col= 'wdpaid'
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
@@ -25,9 +25,9 @@ grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
 n = len(pa_list2)
-#pa_list = pa_list2[0:n-2] # testing 5 first!
-pa_list_tmp = ['6317','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045','6317','2579','372151','979','2013','983','55557661','555555854','132','19984','35002','10908','1111192','984','9632','1083','801','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045'] # ]# '95786'
-pa_list = np.unique(pa_list_tmp)
+pa_list = pa_list2[0:n-2] # testing 5 first!
+#pa_list_tmp = ['6317','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045','6317','2579','372151','979','2013','983','55557661','555555854','132','19984','35002','10908','1111192','984','9632','1083','801','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045'] # ]# '95786'
+#pa_list = np.unique(pa_list_tmp)
 print pa_list
 
 csvname1 = 'csv/segm_done.csv'
@@ -41,32 +41,38 @@ if os.path.isfile(csvname1) == False:
 def fsegm(pa):
 
  pa_list_done = np.genfromtxt(csvname1,dtype='string')
- current = multiprocessing.current_process()
- mn = current._identity[0]
+ #current = multiprocessing.current_process()
+ mn = 1#current._identity[0]
  print 'running:', mn
-
+ #rmk = 'MASK=if(MASK>0,MASK,0)'
+ rmk = 'MASK = if( MASK > 0 , MASK , 0)'
  if pa not in pa_list_done:
 
-  GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-  GRASSDBASE = "/home/majavie/hanksgrass7"
-  MYLOC = "global_MW"
-  mapset = 'm'+str(mn)#ehabitat'
-  col= 'wdpaid'
+  #GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+  #GRASSDBASE = "/home/majavie/hanksgrass7"
+  #MYLOC = "global_MW"
+  mapset2 = 'm'+str(mn)#ehabitat'
+  print mapset2
+  #col= 'wdpaid'
+  os.system('rm csv/*'+str(pa)+'*')
+  os.system('rm shp/*'+str(pa)+'*')
+  #sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
+  #import grass.script as grass
+  #import grass.script.setup as gsetup
 
-  sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
-  import grass.script as grass
-  import grass.script.setup as gsetup
-
-  gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
+  gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset2)
   source = 'wdpa_aug14_100km2_moll'
 
+  grass.run_command('g.remove',group='segm')
+  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
+  grass.run_command('g.remove', rast='MASK')
   grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
-  grass.run_command('g.mremove',typ='rast',patt='*',flags='f')
+  grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
 
   reps = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 
-  if os.path.isfile('/home/majavie/hanksgrass7/global_MW/'+mapset+'/group/segm/REF') == True:
-   os.system ('rm /home/majavie/hanksgrass7/global_MW/'+mapset+'/group/segm/REF')
+  #if os.path.isfile('/home/majavie/hanksgrass7/global_MW/'+mapset2+'/group/segm/REF') == True:
+  # os.system ('rm /home/majavie/hanksgrass7/global_MW/'+mapset2+'/group/segm/REF')
   print pa
   pa44 = 'pa_'+str(pa)
   pa44x = 'pax_'+str(pa)
@@ -93,7 +99,7 @@ def fsegm(pa):
   pca3 = pa44x+'.3'
   pcas = pca1+','+pca2+','+pca3
   grass.run_command('i.group',gr='segm',input=pcas)
-  os.system ('cat /home/majavie/hanksgrass7/global_MW/'+mapset+'/group/segm/REF')
+  os.system ('cat /home/majavie/hanksgrass7/global_MW/'+mapset2+'/group/segm/REF')
   j = 0
   for thr in reps:
   	  pa2 = pa+'v2_'+str(j)
@@ -109,6 +115,7 @@ def fsegm(pa):
 	  grass.run_command('r.mask', vector=source, where=opt1)
 	  opt2 = pa3+'='+pa2
 	  grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
+	  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
 	  grass.run_command('g.remove', rast='MASK')
 	  print minarea
 
@@ -128,6 +135,7 @@ def fsegm(pa):
 	    grass.run_command('r.buffer',input=c2,output=c22,distances=3,units='kilometers',overwrite=True)
 	    grass.run_command('r.mask', raster=c22,maskc=2)
 	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+  	    grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
 	    grass.run_command('g.remove', rast='MASK')
 	    if len(buff) > 0:
 	     clean = 'T'
@@ -157,6 +165,7 @@ def fsegm(pa):
 	    grass.run_command('r.buffer',input=c2,output=c22,distances=10,units='kilometers',overwrite=True)
 	    grass.run_command('r.mask', raster=c22,maskc=2)
 	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
+	    grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
 	    grass.run_command('g.remove', rast='MASK')
 	    if len(buff) > 0:
 	     clean = 'T'
@@ -211,6 +220,7 @@ def fsegm(pa):
 	# save it as a csv excluding last item!
 
 	  grass. message("omitting previous masks")
+	  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
 	  grass.run_command('g.remove', rast='MASK')
 
 	#pa_list_done = np.genfromtxt(csvname1,dtype='string')
@@ -234,6 +244,7 @@ def fsegm(pa):
 	   soptt = spa4+'='+spa0
 	   grass.run_command('r.mask', rast='pre') # new to crop parks to where we have indicators information
 	   grass.run_command('r.mapcalc',expression=soptt,overwrite=True) # opt3
+ 	   grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
 	   grass.run_command('g.remove', rast='MASK') # new
 	   grass.run_command('r.null',map=spa4,null=0)
 	   econame = 'csv/park_'+str(pa)+'_'+str(j)+'.csv'
@@ -250,32 +261,10 @@ def fsegm(pa):
 	   wb.write('\n')
 	   wb.close() 
  grass. message ("Deleting tmp layers")
-# grass.run_command('g.mremove',typ='rast',patt='sv3',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='sv2',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='sv0_*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='sv0_*',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='svv*',flags='f')
-# grass.run_command('g.mremove',typ='rast',patt='spa_*',flags='f')
-# grass.run_command('g.mremove',typ='rast',patt='*b50km',flags='f')
-# grass.run_command('g.mremove',typ='rast',patt='old*',flags='f')
-# grass.run_command('g.mremove',typ='rast',patt='new*',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='*b10km',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='pa*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='pa*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='paa_*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='paa_pca*',flags='f')
-# grass.run_command('g.mremove',typ='rast',patt='*v3',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='*v2',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='v0_*',flags='f') 
-# grass.run_command('g.mremove',typ='vect',patt='v0_*',flags='f') 
-# grass.run_command('g.mremove',typ='rast',patt='vv*',flags='f')
-
  grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
- grass.run_command('g.mremove',typ='rast',patt='*',flags='f')
+ grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
+ grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
+ grass.run_command('g.remove', rast='MASK')
 
  wb = open(csvname1,'a')
  var = str(pa)
@@ -283,17 +272,11 @@ def fsegm(pa):
  wb.write('\n')
  wb.close() 
 
-	  #grass.run_command('v.to.rast', input=pa44,out=pa44,use='cat',overwrite=True)
-	  #os.system('ogr2ogr parks_segmented1_dissolved.shp parks_segmented1.shp -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM parks_segmented1 GROUP BY segm_id"')
-	  #os.system('rm parks_segmented1.*')
-	  #grass.run_command('r.univar',input='pre',zones=pa44,flags='t',separator='space').splitlines()
-	  #r.univar -t map=pre zones=paa_pca_19297 sep=space|cut -f10 -d' '
-#print "Done PA1:"+pa 
 
-pool = Pool(9)
-pool.map(fsegm,pa_list)
-pool.close()
-pool.join()
+#pool = Pool(10)#9
+#pool.map(fsegm,pa_list)
+#pool.close()
+#pool.join()
 
-print str(datetime.now())
-print 'END'
+#print str(datetime.now())
+#print 'END'

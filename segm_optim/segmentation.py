@@ -7,7 +7,7 @@ import os
 import sys
 import csv
 
-GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/local0/majavie/hanksgrass7"
 MYLOC = "global_MW"
 mapset = 'm1'#ehabitat'
@@ -23,8 +23,8 @@ grass. message ("Extracting list of PAs")
 pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
 pa_list2 = np.unique(pa_list0)
 n = len(pa_list2)
-pa_list = pa_list2[0:n-2] # testing 5 first!
-#pa_list = ['2580']#'555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389', '2006','900883','93294','198301','61612','555577555','555556047','555538721','19297'] # ]# '95786'
+#pa_list = pa_list2[0:n-2] # testing 5 first!
+pa_list = ['2580']#'555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389', '2006','900883','93294','198301','61612','555577555','555556047','555538721','19297'] # ]# '95786'
 print pa_list
 
 csvname1 = 'csv/pas_segm_done.csv'
@@ -63,7 +63,7 @@ for px in tqdm(range(0,n2)):
   a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
   if len(a)==0: a = [1, 625]
   #print a
-  minarea = 10#np.sqrt(int(a[1]))/2
+  minarea = np.sqrt(int(a[1]))#/2
   minaream = minarea#*1000
   #print minarea
   #grass. message ("segmenting the park")
