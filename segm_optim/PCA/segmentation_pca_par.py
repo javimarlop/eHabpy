@@ -8,6 +8,7 @@ from tqdm import *
 import os
 import sys
 import csv
+import gc
 
 GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 GRASSDBASE = "/home/majavie/hanksgrass7"
@@ -40,12 +41,14 @@ if os.path.isfile(csvname1) == False:
 
 def fsegm(pa):
 
+ gc.collect()
  pa_list_done = np.genfromtxt(csvname1,dtype='string')
- #current = multiprocessing.current_process()
- mn = 1#current._identity[0]
+ ### mp.current_process().cnt += 1
+ current = multiprocessing.current_process()
+ mn = current._identity[0]
  print 'running:', mn
  #rmk = 'MASK=if(MASK>0,MASK,0)'
- rmk = 'MASK = if( MASK > 0 , MASK , 0)'
+ #rmk = 'MASK = if( MASK > 0 , MASK , 0)'
  if pa not in pa_list_done:
 
   #GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
@@ -54,6 +57,7 @@ def fsegm(pa):
   mapset2 = 'm'+str(mn)#ehabitat'
   print mapset2
   #col= 'wdpaid'
+  #grass.run_command('g.mapset',mapset=mapset2,location='global_MW',dbase='/home/majavie/hanksgrass7',flags='c')
   os.system('rm csv/*'+str(pa)+'*')
   os.system('rm shp/*'+str(pa)+'*')
   #sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
@@ -64,8 +68,8 @@ def fsegm(pa):
   source = 'wdpa_aug14_100km2_moll'
 
   grass.run_command('g.remove',group='segm')
-  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-  grass.run_command('g.remove', rast='MASK')
+  grass.run_command('r.mask',flags='r')
+  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
   grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
   grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
 
@@ -115,8 +119,8 @@ def fsegm(pa):
 	  grass.run_command('r.mask', vector=source, where=opt1)
 	  opt2 = pa3+'='+pa2
 	  grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
-	  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-	  grass.run_command('g.remove', rast='MASK')
+	  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+	  #grass.run_command('g.remove', rast='MASK')
 	  print minarea
 
 	  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
@@ -135,8 +139,8 @@ def fsegm(pa):
 	    grass.run_command('r.buffer',input=c2,output=c22,distances=3,units='kilometers',overwrite=True)
 	    grass.run_command('r.mask', raster=c22,maskc=2)
 	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
-  	    grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-	    grass.run_command('g.remove', rast='MASK')
+ 	    grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+	    #grass.run_command('g.remove', rast='MASK')
 	    if len(buff) > 0:
 	     clean = 'T'
 	     print 'New: '+str(buff[0])
@@ -165,8 +169,8 @@ def fsegm(pa):
 	    grass.run_command('r.buffer',input=c2,output=c22,distances=10,units='kilometers',overwrite=True)
 	    grass.run_command('r.mask', raster=c22,maskc=2)
 	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
-	    grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-	    grass.run_command('g.remove', rast='MASK')
+ 	    grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+	    #grass.run_command('g.remove', rast='MASK')
 	    if len(buff) > 0:
 	     clean = 'T'
 	     print 'New: '+str(buff[0])
@@ -220,8 +224,8 @@ def fsegm(pa):
 	# save it as a csv excluding last item!
 
 	  grass. message("omitting previous masks")
-	  grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-	  grass.run_command('g.remove', rast='MASK')
+	  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+	  #grass.run_command('g.remove', rast='MASK')
 
 	#pa_list_done = np.genfromtxt(csvname1,dtype='string')
 	  sn = len(spa_list)-1 # there is also a segm_id element!
@@ -244,8 +248,8 @@ def fsegm(pa):
 	   soptt = spa4+'='+spa0
 	   grass.run_command('r.mask', rast='pre') # new to crop parks to where we have indicators information
 	   grass.run_command('r.mapcalc',expression=soptt,overwrite=True) # opt3
- 	   grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
-	   grass.run_command('g.remove', rast='MASK') # new
+	   grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+	   #grass.run_command('g.remove', rast='MASK') # new
 	   grass.run_command('r.null',map=spa4,null=0)
 	   econame = 'csv/park_'+str(pa)+'_'+str(j)+'.csv'
 	   eco = str(j)
@@ -263,8 +267,8 @@ def fsegm(pa):
  grass. message ("Deleting tmp layers")
  grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
  grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
- grass.run_command('r.mapcalc',expression=rmk,overwrite=True)
- grass.run_command('g.remove', rast='MASK')
+ grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+ #grass.run_command('g.remove', rast='MASK')
 
  wb = open(csvname1,'a')
  var = str(pa)
@@ -273,10 +277,10 @@ def fsegm(pa):
  wb.close() 
 
 
-#pool = Pool(10)#9
-#pool.map(fsegm,pa_list)
-#pool.close()
-#pool.join()
+pool = Pool(10)#9
+pool.map(fsegm,pa_list)
+pool.close()
+pool.join()
 
 #print str(datetime.now())
 #print 'END'

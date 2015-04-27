@@ -7,7 +7,7 @@ library(reshape2)
 library(rgdal)
 library(RColorBrewer)
 
-kols<-brewer.pal(4,'Set1')
+kols<-brewer.pal(6,'Set1')
 #coord_radar <- function(...) {
 #  structure(coord_polar(...), class = c("radar", "polar", "coord"))
 #}
@@ -33,8 +33,9 @@ for (pmx in 1:mx){
 	df0v<-read.table(namev,sep=' ',header=F)
 	#df1<-df0[!is.nan(df0$V2),]
 
-	#name2 <- paste('csv/',park,'_movar_thresholds.csv',sep='')
-	#df02<-read.table(name2,sep=' ',header=F)
+	name2 <- paste('csv/',park,'_movar_thresholds.csv',sep='')
+	df02<-read.table(name2,sep=' ',header=F)
+	upplim<-ceiling(log10(df02[1,3]))
 	#df11<-merge(df1,df02,by='V1')
 	#df<-df11[!duplicated(df11),]
 	#rang<-max(df$V2.x)-min(df$V2.x)
@@ -115,15 +116,15 @@ for (pmx in 1:mx){
 	hri<-read.table(namef,sep=' ',header=T)
 	#dmh<-NULL
 	skaled <- as.data.frame(lapply(hri[,3:20], ggplot2:::rescale01))
-	try(dmh<-vegdist(skaled,"euclidean",na.rm=T))#"mahalanobis")
+	try(dmh<-vegdist(skaled,"euclidean",na.rm=T))#"")
 	#if(!is.null(dmh)){
-	hclust(dmh,"ward.D2")->hclust_mh
+	hclust(dmh,"ward.D2")->hclust_mh #  # ward.D2
 	cophval<-0
 	try(chcl<-cophenetic(hclust_mh))
 	try(cophval<-cor(chcl,dmh))
 	try(metaMDS(dmh)->mds_mh)
 	q25<-quantile(hclust_mh$height)[2]
-	cutree(hclust_mh,h=q25)->hclust_mean # k=3
+	cutree(hclust_mh,h=q25)->hclust_mean # 
 	ncl<-length(unique(hclust_mean))
 
 	if(ncl==1){
@@ -131,7 +132,7 @@ for (pmx in 1:mx){
 	ncl<-length(unique(hclust_mean))
 	}
 
-	upplim<-4
+	#upplim<-4#3
 	if(ncl>upplim){
 	cutree(hclust_mh,k=upplim)->hclust_mean
 	ncl<-length(unique(hclust_mean))
