@@ -4,35 +4,43 @@ import multiprocessing
 import subprocess
 from datetime import datetime
 import numpy as np
-from tqdm import *
+#from tqdm import *
 import os
 import sys
 import csv
 import gc
 
-GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-GRASSDBASE = "/home/majavie/hanksgrass7"
-MYLOC = "global_MW"
-mapset = 'm'#ehabitat'
-col= 'wdpaid'
+#GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
+#GRASSDBASE = "/home/majavie/hanksgrass7"
+#MYLOC = "global_MW"
+#global mapset
+#mapset = 'm'#ehabitat'
+#col= 'wdpaid'
 
-sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
-import grass.script as grass
-import grass.script.setup as gsetup
+#sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
+#import grass.script as grass
+#import grass.script.setup as gsetup
 
-gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
-source = 'wdpa_aug14_100km2_moll'
-grass. message ("Extracting list of PAs")
-pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list2 = np.unique(pa_list0)
-n = len(pa_list2)
-pa_list = pa_list2[0:n-2] # testing 5 first!
+#gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
+#source = 'wdpa_aug14_100km2_moll'
+print "Extracting list of PAs"
+#pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
+pa_list0 = np.genfromtxt('palist_100km2.csv',dtype='string')
+pa_list = np.unique(pa_list0)
+#n = len(pa_list2)
+#pa_list = pa_list2[0:n-2] # testing 5 first!
 #pa_list_tmp = ['6317','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045','6317','2579','372151','979','2013','983','55557661','555555854','132','19984','35002','10908','1111192','984','9632','1083','801','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045'] # ]# '95786'
 #pa_list = np.unique(pa_list_tmp)
 print pa_list
 
 csvname1 = 'csv/segm_done.csv'
+csvong1 = 'ongoing.csv'
+csvong2 = 'done.csv'
 if os.path.isfile(csvname1) == False:
+ os.system('touch '+str(csvname1))
+if os.path.isfile(csvong1) == False:
+ os.system('touch '+str(csvname1))
+if os.path.isfile(csvong2) == False:
  os.system('touch '+str(csvname1))
  #wb = open(csvname1,'a')
  ##wb.write('None')
@@ -41,37 +49,55 @@ if os.path.isfile(csvname1) == False:
 
 def fsegm(pa):
 
- gc.collect()
+ #gc.collect()
  pa_list_done = np.genfromtxt(csvname1,dtype='string')
  ### mp.current_process().cnt += 1
- current = multiprocessing.current_process()
- mn = current._identity[0]
- print 'running:', mn
+ if pa not in pa_list_done:
+  current = multiprocessing.current_process()
+  mn = current._identity[0]
+  print 'running:', mn
  #rmk = 'MASK=if(MASK>0,MASK,0)'
  #rmk = 'MASK = if( MASK > 0 , MASK , 0)'
- if pa not in pa_list_done:
 
-  #GISBASE = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-  #GRASSDBASE = "/home/majavie/hanksgrass7"
-  #MYLOC = "global_MW"
-  mapset2 = 'm'+str(mn)#ehabitat'
-  print mapset2
-  #col= 'wdpaid'
-  #grass.run_command('g.mapset',mapset=mapset2,location='global_MW',dbase='/home/majavie/hanksgrass7',flags='c')
-  os.system('rm csv/*'+str(pa)+'*')
-  os.system('rm shp/*'+str(pa)+'*')
+
+  GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"
+  GRASSDBASE = "/home/majavie/hanksgrass7"
+  MYLOC = "global_MW"
+  mapset = 'm'
+
+  sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
+  import grass.script as grass
+  import grass.script.setup as gsetup
+  gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
+
   #sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
   #import grass.script as grass
   #import grass.script.setup as gsetup
 
+  mapset2 = 'm'+str(mn)#ehabitat'
+  os.system ('rm -rf /home/majavie/hanksgrass7/global_MW/'+mapset2)
+  #os.system ('grass70 -c -text /home/majavie/hanksgrass7/global_MW/'+mapset2)
+  col= 'wdpaid'
+  grass.run_command('g.mapset',mapset=mapset2,location='global_MW',gisdbase='/home/majavie/hanksgrass7',flags='c')
+  os.system('rm csv/*_'+str(pa)+'_*')
+  os.system('rm shp/*_'+str(pa)+'_*')
+
   gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset2)
+  print pa, mapset2, grass.gisenv()
+  ong = str(pa)+str(mapset2)+str(grass.gisenv())
+  grass.run_command('g.mapsets',mapset='ehabitat,rasterized_parks',operation='add')
   source = 'wdpa_aug14_100km2_moll'
 
-  grass.run_command('g.remove',group='segm')
-  grass.run_command('r.mask',flags='r')
-  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-  grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
-  grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
+  wb = open(csvong1,'a')
+  wb.write(ong)
+  wb.write('\n')
+  wb.close() 
+
+  #grass.run_command('g.remove',group='segm')
+  #grass.run_command('r.mask',flags='r')
+  #grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+  #grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
+  #grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
 
   reps = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
 
@@ -264,20 +290,26 @@ def fsegm(pa):
 	   wb.write(eco)
 	   wb.write('\n')
 	   wb.close() 
- grass. message ("Deleting tmp layers")
- grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
- grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
- grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
+  grass. message ("Deleting tmp layers")
+ #grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
+ #grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
+ #grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
  #grass.run_command('g.remove', rast='MASK')
+  os.system ('rm -rf /home/majavie/hanksgrass7/global_MW/'+mapset2)
 
- wb = open(csvname1,'a')
- var = str(pa)
- wb.write(var)
- wb.write('\n')
- wb.close() 
+  wb = open(csvong2,'a')
+  wb.write(ong)
+  wb.write('\n')
+  wb.close()
+
+  wb = open(csvname1,'a')
+  var = str(pa)
+  wb.write(var)
+  wb.write('\n')
+  wb.close() 
 
 
-pool = Pool(10)#9
+pool = Pool(5)#9
 pool.map(fsegm,pa_list)
 pool.close()
 pool.join()
