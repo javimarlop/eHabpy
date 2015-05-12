@@ -7,7 +7,7 @@ library(reshape2)
 library(rgdal)
 library(RColorBrewer)
 
-kols<-brewer.pal(6,'Set1')
+kols<-brewer.pal(8,'Set1')
 #coord_radar <- function(...) {
 #  structure(coord_polar(...), class = c("radar", "polar", "coord"))
 #}
@@ -132,7 +132,7 @@ for (pmx in 1:mx){
 	ncl<-length(unique(hclust_mean))
 	}
 
-	#upplim<-4#3
+	#upplim<-8#3
 	if(ncl>upplim){
 	cutree(hclust_mh,k=upplim)->hclust_mean
 	ncl<-length(unique(hclust_mean))
@@ -141,7 +141,7 @@ for (pmx in 1:mx){
 	if(ncl>1){
 
 	png(paste('results/hclust_',park,'_',res,'_segms_mean.png',sep=''))
-	try(plot(hclust_mh,hang=-1,main=park,sub=cophval));try(rect.hclust(hclust_mh,k=3))
+	try(plot(hclust_mh,hang=-1,main=park,sub=cophval));try(rect.hclust(hclust_mh,k=ncl))
 	dev.off()
 
 	png(paste('results/NMDS_',park,'_',res,'_segms_mean.png',sep=''))
