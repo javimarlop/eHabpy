@@ -180,7 +180,14 @@ for (pmx in 1:mx){
 
 	merge(segm_pa,hrin[,c(2,12)],by='segm_id')->segm_pa_class
 
-	writeOGR(segm_pa_class,dsn='results',paste('park_segm_',park,'_',res,'_class',sep=''),driver="ESRI Shapefile")
+	scaled0<-scaled2
+	kl<-dim(scaled0)[2]+1
+	scaled0[,kl]<-rep(park,dim(scaled0)[1])
+	names(scaled0)[1]<-'hclust_mean'
+	names(scaled0)[kl]<-'wdpaid'
+	merge(segm_pa_class,scaled0,by='hclust_mean')->segm_pa_class2
+
+	writeOGR(segm_pa_class2,dsn='results',paste('park_segm_',park,'_',res,'_class',sep=''),driver="ESRI Shapefile")
 
 	rpn2=paste('results/map_',park,'_',res,'_segms_hclust.png',sep='')
 	png(paste(rpn2))
