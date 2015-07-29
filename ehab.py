@@ -601,7 +601,7 @@ def	ehabitat(ecor,nw,nwpathout):
 						print 'Max. mh value is nan: '+ str(np.isnan(maxmh))
 						mh = mh2*mh2
 						print "mh ok"
-						pmh = chisqprob(mh,9).reshape((eco.YSize,eco.XSize))
+						pmh = chisqprob(mh,len(cols)).reshape((eco.YSize,eco.XSize)) # 9
 						pmhh = np.where(pmh	<=	0.001,None,	pmh)
 						print "pmh ok"	#	quitar	valores	muy	bajos!
 						pmhhmax = pmhh.max()
