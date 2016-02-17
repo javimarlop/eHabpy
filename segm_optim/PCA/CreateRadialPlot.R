@@ -267,14 +267,14 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   
   # ... + grid-line labels (max; ave; min) [only add min. gridline label if required]
   if (label.gridline.min==TRUE) {
-    base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$min$label,face="bold",size=grid.label.size, hjust=1) }
-  base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$mid$label,face="bold",size=grid.label.size, hjust=1)
-  base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$max$label,face="bold",size=grid.label.size, hjust=1)
+    base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$min$label,fontface="bold",size=grid.label.size, hjust=1) }
+  base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$mid$label,fontface="bold",size=grid.label.size, hjust=1)
+  base <- base + geom_text(aes(x=x,y=y,label=text),data=gridline$max$label,fontface="bold",size=grid.label.size, hjust=1)
   
   # ... + centre.y label if required [i.e. value of y at centre of plot circle]
   if (label.centre.y==TRUE) {
     centre.y.label <- data.frame(x=0, y=0, text=as.character(centre.y))
-    base <- base + geom_text(aes(x=x,y=y,label=text),data=centre.y.label,face="bold",size=grid.label.size, hjust=0.5) }
+    base <- base + geom_text(aes(x=x,y=y,label=text),data=centre.y.label,fontface="bold",size=grid.label.size, hjust=0.5) }
   
   return(base)
   
