@@ -298,7 +298,7 @@ def fsegm(pa):
  #grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
  #grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
  #grass.run_command('g.remove', rast='MASK')
-  os.system ('rm -rf '+GRASSDBASE+'/global_MW/'+mapset2)
+  os.system ('rm -rf /home/javier/ehabgrassdb/global_MW/'+mapset2)
 
   wb = open(csvong2,'a')
   wb.write(ong)
