@@ -7,14 +7,11 @@ eHabitat+
 
 **eHabitat+** GRASS GIS 7 scripts and Python 2.7 library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](https://dopa.jrc.ec.europa.eu/en).
 
-## Notes
-
-* gdal command line utilities must be installed and accessible in order to run some landscape metrics.
-
 ## OS setup
 
 - Install Ubuntu 14.04: http://releases.ubuntu.com/trusty/ 
 - Add the ubuntugis stable repository: https://launchpad.net/~ubuntugis/+archive/ubuntu/ppa
+- Install gdal command line utilities
 - GRASS GIS 7 requirements:
 	- https://askubuntu.com/questions/474767/installing-grass-gis-7-0-on-ubuntu-14-04
 	- https://grasswiki.osgeo.org/wiki/Compile_and_Install_Ubuntu#Current_stable_Ubuntu_version 
@@ -27,7 +24,7 @@ make -j2 # number of processors
 sudo make install
 ```
 
-- Install python-pysal
+- Install python-pysal, scipy, scikit-learn, numpy, gdal
 - Install SAGA-GIS
 - Install R and required libraries:
 	- vegan
