@@ -16,8 +16,8 @@ eHabitat+
 - Install Ubuntu 14.04: http://releases.ubuntu.com/trusty/ 
 - Add the ubuntugis stable repository: https://launchpad.net/~ubuntugis/+archive/ubuntu/ppa
 - GRASS GIS 7 requirements:
- - https://askubuntu.com/questions/474767/installing-grass-gis-7-0-on-ubuntu-14-04
- - https://grasswiki.osgeo.org/wiki/Compile_and_Install_Ubuntu#Current_stable_Ubuntu_version 
+	- https://askubuntu.com/questions/474767/installing-grass-gis-7-0-on-ubuntu-14-04
+	- https://grasswiki.osgeo.org/wiki/Compile_and_Install_Ubuntu#Current_stable_Ubuntu_version 
 - Install GRASS GIS 7.0.6 (compiled from source): https://grass.osgeo.org/grass70/source/
  - Use the conf_grass7eHabplus.sh config file. ('sh conf_grass7eHabplus.sh')
 - Install python-pysal
