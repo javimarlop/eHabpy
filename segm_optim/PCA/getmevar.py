@@ -92,7 +92,7 @@ nwpath = ''
 def initglobalmaps():
 	
 	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
-	indir = os.path.join(os.path.sep, nwpath, 'inVars')
+	indir = os.path.join(os.path.sep, nwpath, '../../inVars')
 	print indir
 	herbf = 'herb.tif'
 	treef = 'tree.tif'

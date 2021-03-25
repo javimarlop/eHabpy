@@ -35,7 +35,8 @@ for	pmx	in	range(0,mx):
 	hriname = 'csv/park_'+str(park)+'_hri_results'+str(k)+'.csv'
 	sumareas = np.genfromtxt(hriname,delimiter=' ',skip_header=1,usecols=(20))
 	if os.path.isfile(shpname2) == False:
-	 os.system('ogr2ogr '+shpname2+' '+shpname+' -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM '+layrname+' GROUP BY segm_id"')
+	 #os.system('ogr2ogr '+shpname2+' '+shpname+' -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM '+layrname+' GROUP BY segm_id"')
+	 os.system('saga_cmd shapes_polygons 5 -POLYGONS '+shpname+' -FIELD_1 "segm_id" -DISSOLVED '+shpname2+' -BND_KEEP:1')
 	w=pysal.rook_from_shapefile(shpname2)
 	print 'w.n is:',w.n
 	wpn = w.n

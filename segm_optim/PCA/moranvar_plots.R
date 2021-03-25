@@ -174,7 +174,7 @@ for (pmx in 1:mx){
 	CreateRadialPlot(scaled2,plot.extent.x = 1.5)
 	rpn=paste('results/radarplot_',park,'_',res,'_segms_mean.png',sep='')
 	ggsave(filename=rpn)
-	dev.off()
+	#dev.off()
 
 	segm_pa<-readOGR(dsn='shp',lay=paste('park_segm_',park,'_',res,'_diss',sep=''))
 

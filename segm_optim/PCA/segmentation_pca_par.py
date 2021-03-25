@@ -25,7 +25,7 @@ import gc
 #source = 'wdpa_aug14_100km2_moll'
 print "Extracting list of PAs"
 #pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list0 = np.genfromtxt('palist.csv',dtype='string')
+pa_list0 = np.genfromtxt('palistest.csv',dtype='string')
 pa_list = np.unique(pa_list0)
 #n = len(pa_list2)
 #pa_list = pa_list2[0:n-2] # testing 5 first!
@@ -60,9 +60,9 @@ def fsegm(pa):
  #rmk = 'MASK = if( MASK > 0 , MASK , 0)'
 
   ##GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"
-  #GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn"
-  GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.0.0beta2"
-  ##GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70"
+  ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn"
+  GISBASE = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04
+  #GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70" # u12.04
   GRASSDBASE = "/home/javier/data_linux/ehabgrassdb"
   MYLOC = "global_MW"
   mapset = 'm'
@@ -89,7 +89,7 @@ def fsegm(pa):
   print pa, mapset2, grass.gisenv()
   ong = str(pa)+str(mapset2)+str(grass.gisenv())
   grass.run_command('g.mapsets',mapset='ehabplus_cs,rasterized_parks,javier',operation='add')
-  source = 'cspas'#'wdpa_aug14_100km2_moll'
+  source = 'cspas' #'wdpa_aug14_100km2_moll'
 
   wb = open(csvong1,'a')
   wb.write(ong)

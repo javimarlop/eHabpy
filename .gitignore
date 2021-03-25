@@ -1,7 +1,9 @@
 *.tif
 *.csv
+*.xlsx
 *.dbf
 *.shp
+*.mshp
 *.prj
 *.qpj
 *.shx
