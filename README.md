@@ -51,6 +51,8 @@ python moranvar.py
 ### Similarity
 
 ```
+python subpas_loop_segm_optim.py # pas folder
+
 python
 from ehab_optim_updated import *
 run_batch()
