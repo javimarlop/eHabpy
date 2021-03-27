@@ -1,4 +1,10 @@
-# Code by Javier Martinez-Lopez (utf-8)
+#### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### License: CC BY-SA 3.0
+#### Control files: 'csv/segm_done.csv'; ongoing.csv; done.csv
+#### Inputs variables: 9 input variables in GRASS GIS; palist.csv; 
+#### Outputs: 9 segmentation shapefiles for each PA in shp folder; raster files based on segments for all PAs in tiffs folder; segmentation (ecoregs) and park segments csv files in csv folder; 
+#### NOtes: configure GRASS GIS environment and database and number of processors (Pool(n) in line 321)
+
 from multiprocessing import cpu_count,Pool,Lock
 import multiprocessing
 import subprocess

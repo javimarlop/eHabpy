@@ -1,3 +1,9 @@
+#### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### License: CC BY-SA 3.0
+#### Control files: 'csv/segm_done.csv'
+#### Notes: At the end it calls the 'Rscript moranvar_plots.R' script
+#### Outputs: moran_... and var... csv files in csv folder; All outputs in results folder
+
 from __future__ import division
 import pysal
 import numpy as np

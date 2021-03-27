@@ -1,4 +1,8 @@
-#### Script by Javier Martinez-Lopez (UTF-8)
+#### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### License: CC BY-SA 3.0
+#### Control files: 'csv/segm_done.csv'
+#### Inputs variables: 9 input variables in inVars folder
+#### Outputs: park.., park_hri_results and ecoregs_done csv files
 
 from __future__ import division
 from datetime import datetime
