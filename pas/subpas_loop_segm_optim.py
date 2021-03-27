@@ -1,3 +1,11 @@
+#### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### License: CC BY-SA 3.0
+#### Reqired parameters: class shapefile name without extension ('python subpas_loop_optim.py shapefilename')
+#### Control files: pas_segm_tiff_done.csv
+#### Inputs variables: ecoregs_moll and pre in GRASS GIS
+#### Outputs: single HFT raster files to be used by ehab_optim_updated.py; single ecoregion csv files that contain the HFTs; ecoregs.csv (list of ecoregions processed)
+#### NOtes: configure GRASS GIS environment and database
+
 import os
 import sys
 import numpy as np
@@ -10,7 +18,7 @@ from tqdm import *
 gisbase = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04
 gisdbase = os.path.join("/home/javier/data_linux/ehabgrassdb")
 location = "global_MW"
-mapset   = "m1"#"rasterized_parks"
+mapset   = "m"#"rasterized_parks"
 
 sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
 
@@ -72,7 +80,7 @@ for px in tqdm(range(0,n)): # 0
   # try to crop PAs shapefile with coastal line or input vars
   grass. message ("setting up the working region")
   grass.run_command('g.region',vect=pa0,res=1000)
-  grass.run_command('v.to.rast',input=pa0,out=pa0,use='val')#use='cat',labelcol='segm_id')
+  grass.run_command('v.to.rast',input=pa0,out=pa0,use='val',val=5)#use='cat',labelcol='segm_id')
   #opt3 = pa2+'= @'+pa0
   #opt4 = pa2+'= round('+pa2+')'
   #grass.run_command('r.mapcalc',expression=opt3,overwrite=True)

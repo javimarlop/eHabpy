@@ -1,4 +1,24 @@
-#### Script by Javier Martinez-Lopez (UTF-8)
+#### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### License: CC BY-SA 3.0
+#### Control files: ecoregs_done.csv
+#### Inputs variables: variables mentioned in the script located in the inVars folder (Mollweide projection); ecoregs.csv; individual ecoreg csv files; individual HFT raster files
+#### NOtes: script runs at 1000 m resolution by default
+#### Outputs: hri_results.csv
+#### 	ecoregion: ecoregion id
+#### 	wdpaid: wdpa id
+#### 	wdpaid_hft: wdpa id + hft id
+#### 	AveHFTSim: Average similarity within HFT
+#### 	NrSimPixEco: Nr of pixels with equal or higher similarity value than the average similarity value in HFT within the ecoregion
+#### 	NrPixHFT: Nr of pizels in HFT (also area of the HFT in km2)
+#### 	NrSimPixHFT: Nr of pixels in HFT with equal or higher similarity value than the average similarity value within the HFT
+#### 	NrSimPixEco_NrPixHFT_ratio: Nr of pixels with equal or higher similarity value than the average similarity value within the ecoregion divided by the number of pixels of the HFT
+#### 	NrSimLcpPatEco: Nr of similar landscape patches found in the ecoregion
+#### 	NrPixLargLcpPat_NrPixHFT_ratio: Nr of pixels of the largest similar patch divided by the nr of pixels of the HFT
+#### 	TotNrPixAllSimLcpPatEqLargArea: Total nr of pixels of all similar patches with an area equal or larger than the HFT divided by the nr of pixels of the HFT
+#### 	NrSimLcpPatEqLargArea: Number of similar lansdcape patches with an area equal or larger than the HFT
+#### 	NrPixLargLcpPat: Number of pixels of the largest similar patch
+#### 	Aggregation: Nr of pixels with equal or higher similarity value than the average similarity value within the ecoregion divided by the nr of similar landscape patches found in the ecoregion (the higher the less fragmented)
+
 
 from __future__ import division
 from datetime import datetime
@@ -223,7 +243,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid averpasim hr2aver pxpa hr1insumaver hriaver nfeatsaver lpratio lpratio2 numpszok lpmaxsize aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
+		wb.write('ecoregion wdpaid wdpaid_hft AveHFTSim NrSimPixEco NrPixHFT NrSimPixHFT NrSimPixEco_NrPixHFT_ratio NrSimLcpPatEco NrPixLargLcpPat_NrPixHFT_ratio TotNrPixAllSimLcpPatEqLargArea NrSimLcpPatEqLargArea NrPixLargLcpPat Aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
 		wb.write('\n')
 		wb.close()
 	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None
@@ -337,7 +357,7 @@ def	ehabitat(ecor,nw,nwpathout):
 
 			pa = pa_list[px]
 			print pa
-
+			txtlist = pa.split('_')
 			outfile = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'.tif')
 			outfile2 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_lp.tif')
 			outfile3 = os.path.join(os.path.sep, outdir, str(ecor)+'_'+str(pa)+'_mask.tif')
@@ -636,25 +656,43 @@ def	ehabitat(ecor,nw,nwpathout):
 							sim2 = src_ds_sim2.GetRasterBand(1)
 							gt_sim2 = src_ds_sim2.GetGeoTransform()
 							hri_pa_bb02 = sim2.ReadAsArray().astype(np.int32)
+							
 							#hri_pa_bb2 = hri_pa_bb02.flatten()
+							#indd2 = hri_pa_bb2 > 0
+							#hri_paa0 = hri_pa_bb2[indd2]
+							#print 'Total number of non-zero pixels in ecoregion (except bb around hft): '+str(len(hri_paa0))
+
+							#indd3 = hri_pa_bb2 == 5
+							#hri_paaa0 = hri_pa_bb2[indd3]
+							#print 'Total number of pixels in HFT: '+str(len(hri_paaa0))
+
+							
 							hri_pa_bb02_max = hri_pa_bb02.max()
 							print 'PA: '+str(pa)
 							print 'PA (= max) value from mask = '+str(hri_pa_bb02_max)
 							if hri_pa_bb02.shape == hri_pa_bb03.shape:
-							 hri_pa02 = np.where(hri_pa_bb02 == pa,0,hri_pa_bb03) # hri_pa_bb02_max
+							 hri_pa02 = np.where(hri_pa_bb02 == 5,0,hri_pa_bb03) # hri_pa_bb02_max
+							 hri_pa_in = np.where(hri_pa_bb02 == 5,hri_pa_bb03,0)
 
+							 #javier if xless < 0: xsize = xsize + xless
+							 #javier if yless < 0: ysize = ysize + yless
+							 #javier hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
+							 #javier hri_pa_bb = hri_pa_bb0.flatten()
+							 #javier indd = hri_pa_bb > 0
+							 #javier hri_pa0 = hri_pa_bb[indd]
+							 #javier print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
 
-							 if xless < 0: xsize = xsize + xless
-							 if yless < 0: ysize = ysize + yless
-							 hri_pa_bb0 = sim.ReadAsArray(xoff,yoff,xsize,ysize).astype(np.float32)
-							 hri_pa_bb = hri_pa_bb0.flatten()
+							 hri_pa_bb = hri_pa_in.flatten()
+							 #print 'Total number of pixels (with similarity values) in HFT: '+str(len(hri_pa_bb))
 							 indd = hri_pa_bb > 0
 							 hri_pa0 = hri_pa_bb[indd]
-							 print 'Total number of pixels with similarity values in PA: '+str(len(hri_pa0))
+							 #print 'Total number of non-zero pixels with similarity values in HFT: '+str(len(hri_pa0))
+
+
 							 hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
 							 #print hr1averpa
 							 #hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
-							 print 'mean similarity in the park is '+str(hr1averpa)
+							 print 'mean similarity in the hft is '+str(hr1averpa)
 							 #hr1insum = sum(np.where(hri_pa0 >= 0.5,	1,0))	#	use	hr1averpa	as	threshold	instead!						
 							 hr1inaver = np.where(hri_pa0 >= hr1averpa,	1,0)
 							 hr1insumaver = sum(hr1inaver)
@@ -662,7 +700,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							 ##labeled_arrayin, num_featuresin = nd.label(hr1inaver,	structure=s)
 							 hr1averr = np.where(hri_pa02 >= hr1averpa,	1,0) # pmhh
 							 hr1aver = hr1averr.flatten()
-							 print 'Total number of pixels with similarity values in ECO: '+str(sum(hr1aver))
+							 print 'Total number of pixels with similarity values above mean in ECO: '+str(sum(hr1aver))
 							 labeled_arrayaver, num_featuresaver = nd.label(hr1averr,	structure=s)
 							 print 'Nr of similar patches found: '+str(num_featuresaver)
 							 if num_featuresaver > 0:
@@ -691,12 +729,12 @@ def	ehabitat(ecor,nw,nwpathout):
 						#hr3 = float(hr2/ind_pa.shape[0])
 						#print hr3
 					wb = open(csvname,'a')
-					var = str(ecor)+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(lpratio2)+' '+str(numpszok)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
+					var = str(ecor)+' '+txtlist[0]+' '+str(pa)+' '+str(hr1averpa)+' '+str(hr2aver)+' '+str(pxpa)+' '+str(hr1insumaver)+' '+str(hr3aver)+' '+str(num_featuresaver)+' '+str(lpratio)+' '+str(lpratio2)+' '+str(numpszok)+' '+str(pszmax)+' '+str(aggregation)+' '+str(treepamin)+' '+str(treepamax)+' '+str(eprpamin)+' '+str(eprpamax)+' '+str(prepamin)+' '+str(prepamax)+' '+str(biopamin)+' '+str(biopamax)+' '+str(slopepamin)+' '+str(slopepamax)+' '+str(ndwipamin)+' '+str(ndwipamax)+' '+str(ndvimaxpamin)+' '+str(ndvimaxpamax)+' '+str(ndviminpamin)+' '+str(ndviminpamax)+' '+str(hpamin)+' '+str(hpamax)+' '+str(treepamean)+' '+str(eprpamean)+' '+str(prepamean)+' '+str(biopamean)+' '+str(slopepamean)+' '+str(ndwipamean)+' '+str(ndvimaxpamean)+' '+str(ndviminpamean)+' '+str(hpamean)#	exclude	PA!	#+' '+str(hr1p25pa)#	'+str(hr3)+'	+' '+str(hr1medianpa)+' '+str(num_features)+' '
 					wb.write(var)
 					wb.write('\n')
 					wb.close()
 					print "results exported"
-					os.system('rm '+str(outfile3)) 
+					#os.system('rm '+str(outfile3)) 
 		wb = open(csvname1,'a')	#	LOCAL	FOLDER
 		var = str(ecor)
 		wb.write(var)
