@@ -11,6 +11,7 @@ eHabitat+
 
 - Install Ubuntu 14.04: http://releases.ubuntu.com/trusty/ 
 - Add the ubuntugis stable repository: https://launchpad.net/~ubuntugis/+archive/ubuntu/ppa
+- Add "deb https://cloud.r-project.org/bin/linux/ubuntu trusty-cran35/" to /etc/apt/sources.list
 - Install gdal command line utilities
 - GRASS GIS 7 requirements:
 	- https://askubuntu.com/questions/474767/installing-grass-gis-7-0-on-ubuntu-14-04
