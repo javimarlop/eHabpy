@@ -31,7 +31,7 @@ import gc
 #source = 'wdpa_aug14_100km2_moll'
 print "Extracting list of PAs"
 #pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list0 = np.genfromtxt('palistest.csv',dtype='string')
+pa_list0 = np.genfromtxt('palist.csv',dtype='string')
 pa_list = np.unique(pa_list0)
 #n = len(pa_list2)
 #pa_list = pa_list2[0:n-2] # testing 5 first!

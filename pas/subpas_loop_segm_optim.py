@@ -11,6 +11,12 @@ import sys
 import numpy as np
 from tqdm import *
 
+#optres = np.genfromtxt('../segm_optim/PCA/results/overall_optim_thresholds.csv', delimiter=" ")
+# unique in R before
+# for loop by row
+#paid<-int(optres[0-(n-1)][0])
+#ot<-int(optres[0-(n-1)][1]*10)
+
 #gisbase = os.environ['GISBASE'] = "/usr/local/grass-7.0.svn"
 #gisbase = os.environ['GISBASE'] = "/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
 #gisdbase = os.path.join("/local0/majavie/hanksgrass7")
@@ -30,6 +36,7 @@ gsetup.init(gisbase,
  
 print grass.gisenv()
 
+# source = 'park_'+...
 source = sys.argv[1]#'parks_segmented_100km2'
 print sys.argv[1]
 grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=source,out=source,overwrite=True)
