@@ -67,8 +67,9 @@ def fsegm(pa):
 
   ##GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"
   ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn"
-  GISBASE = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04
-  #GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70" # u12.04
+  GISBASE = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04OK
+  #GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn" # u14.04OLD
+  ##GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70" # u12.04
   GRASSDBASE = "/home/javier/data_linux/ehabgrassdb"
   MYLOC = "global_MW"
   mapset = 'm'

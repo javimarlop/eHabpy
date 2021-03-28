@@ -26,7 +26,6 @@ sudo make install
 ```
 
 - Install python-pysal, scipy, scikit-learn, numpy, gdal
-- Install SAGA-GIS
 - Install R and required libraries:
 	- vegan
 	- ggplot2

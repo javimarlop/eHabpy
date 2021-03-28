@@ -10,6 +10,10 @@ import numpy as np
 import os
 import sys
 import csv
+from shapely.geometry import shape, mapping
+from shapely.ops import unary_union
+import fiona
+import itertools
 
 #os.system('touch optim_thresholds.csv')
 ecox_list0 = np.genfromtxt('csv/segm_done.csv',dtype='int')	#	crear	este	archivo	en	subpas!
@@ -42,7 +46,20 @@ for	pmx	in	range(0,mx):
 	sumareas = np.genfromtxt(hriname,delimiter=' ',skip_header=1,usecols=(20))
 	if os.path.isfile(shpname2) == False:
 	 #os.system('ogr2ogr '+shpname2+' '+shpname+' -dialect sqlite -sql "SELECT ST_Union(geometry), segm_id FROM '+layrname+' GROUP BY segm_id"')
-	 os.system('saga_cmd shapes_polygons 5 -POLYGONS '+shpname+' -FIELD_1 "segm_id" -DISSOLVED '+shpname2+' -BND_KEEP:1')
+	 #os.system('saga_cmd shapes_polygons 5 -POLYGONS '+shpname+' -FIELD_1 "segm_id" -DISSOLVED '+shpname2+' -BND_KEEP:1')
+
+		with fiona.open(shpname) as input:
+		    # preserve the schema of the original shapefile, including the crs
+		    meta = input.meta
+		    with fiona.open(shpname2, 'w', **meta) as output:
+			# groupby clusters consecutive elements of an iterable which have the same key so you must first sort the features by the 'STATEFP' field
+			e = sorted(input, key=lambda k: k['properties']['segm_id'])
+			# group by the 'STATEFP' field 
+			for key, group in itertools.groupby(e, key=lambda x:x['properties']['segm_id']):
+			    properties, geom = zip(*[(feature['properties'],shape(feature['geometry'])) for feature in group])
+			    # write the feature, computing the unary_union of the elements in the group with the properties of the first element in the group
+			    output.write({'geometry': mapping(unary_union(geom)), 'properties': properties[0]})
+
 	w=pysal.rook_from_shapefile(shpname2)
 	print 'w.n is:',w.n
 	wpn = w.n
