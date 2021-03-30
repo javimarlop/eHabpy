@@ -263,6 +263,9 @@ def	ehabitat(ecor,nw,nwpathout):
 		eco = src_ds_eco.GetRasterBand(1)
 		eco_mask0 = eco.ReadAsArray(0,0,eco.XSize,eco.YSize).astype(np.int32)
 		eco_mask = eco_mask0.flatten()
+		#indeko = eco_mask > 0
+		#ekosize = len(eco_mask[indeko])
+		#print 'Total number of non-zero pixels in ecoregion: '+str(ekosize)
 		gt_eco = src_ds_eco.GetGeoTransform()
 		print 'eco mask'
 		xoff = int((gt_eco[0]-gt_epr_global[0])/1000)
@@ -721,6 +724,8 @@ def	ehabitat(ecor,nw,nwpathout):
 							  sumpszok = sum(pszsok)
 							  lpratio=round(float(pszmax/pxpa),2)
 							  lpratio2=round(float(sumpszok/pxpa),2)
+							  if lpratio2 ==0:
+							   lpratio2 = lpratio
 							  numpszok = len(pszsok)
 							  hr3aver = round(float(hr2aver/pxpa),2)
 							  aggregation = round(float(hr2aver/num_featuresaver),2)
@@ -734,7 +739,7 @@ def	ehabitat(ecor,nw,nwpathout):
 					wb.write('\n')
 					wb.close()
 					print "results exported"
-					#os.system('rm '+str(outfile3)) 
+					os.system('rm '+str(outfile3)) 
 		wb = open(csvname1,'a')	#	LOCAL	FOLDER
 		var = str(ecor)
 		wb.write(var)

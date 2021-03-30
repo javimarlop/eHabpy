@@ -25,7 +25,7 @@ make -j2 # number of processors
 sudo make install
 ```
 
-- Install python-pysal, scipy, scikit-learn, numpy, gdal, python-fiona
+- Install python-pysal, scipy, scikit-learn, numpy, gdal
 - Install R and required libraries:
 	- vegan
 	- ggplot2
@@ -54,7 +54,7 @@ python moranvar.py
 python subpas_loop_segm_optim.py # pas folder
 
 python
-from ehab_optim import *
+from ehab_optim_updated import *
 run_batch()
 ```
 

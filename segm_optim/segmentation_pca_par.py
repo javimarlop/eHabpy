@@ -68,6 +68,7 @@ def fsegm(pa):
   ##GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"
   ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn"
   GISBASE = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04OK
+  ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba723/grass-7.2.3" # test
   #GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn" # u14.04OLD
   ##GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70" # u12.04
   GRASSDBASE = "/home/javier/data_linux/ehabgrassdb"
@@ -124,14 +125,18 @@ def fsegm(pa):
   pa4 = 'paa_'+pa
   pa5 = pa4+'.txt'
   same = pa2+'= const'
+  rndmap =  'rndseed=rand(1,10000000000000000000000000)'
+  rndname = 'tiffs/rndseed_'+str(pa)+'.tif'
   #grass. message ("setting up the working region")
   grass.run_command('g.region',vect=pa0,res=1000)
   grass.run_command('r.mapcalc',expression='const = if(gcmask>=0,1,null())',overwrite=True)
   grass.run_command('r.mapcalc',expression=same,overwrite=True)
+  grass.run_command('r.mapcalc',seed=10,expression=rndmap,overwrite=True)
+  grass.run_command('r.out.gdal',input='rndseed',out=rndname,overwrite=True)
   a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
   if len(a)==0: a = [1, 625]
   #print a
-  minarea = np.sqrt(int(a[1]))#/2 #10
+  minarea = int(np.sqrt(int(a[1])))#/2 #10
   minaream = minarea#*1000
   grass.run_command('i.pca', flags='n', input='pre,eprsqrt,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44x, overwrite=True) # dem
   pca1 = pa44x+'.1'
@@ -148,7 +153,7 @@ def fsegm(pa):
   	  grass.run_command('g.region',vect=pa0,res=1000)
 	  j= j + 1
 	  if thr==0.1:
-	  	grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='100000', iterations='20',overwrite=True) #  ,seed=pa2i minsize=minarea,
+	  	grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='100000', iterations='20',seed='rndseed',overwrite=True) #  ,seed=pa2i minsize=minarea,
 	  else:
 	  	grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='100000', iterations='20',seed=pa2s,overwrite=True) # minsize=minarea
 	  #grass. message ("cropping the segments")
@@ -157,7 +162,7 @@ def fsegm(pa):
 	  grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
 	  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
 	  #grass.run_command('g.remove', rast='MASK')
-	  print minarea
+	  print 'minarea: ',minarea
 
 	  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
 	  print b
