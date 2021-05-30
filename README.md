@@ -21,7 +21,7 @@ eHabitat+
 
 ```
 sh conf_grass7eHabplus.sh # edit target folder
-make -j2 # number of processors
+make -j2 # 2 is the number of available processors
 sudo make install
 ```
 
