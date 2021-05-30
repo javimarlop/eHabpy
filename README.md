@@ -41,9 +41,10 @@ sudo make install
 ```
 python segmentation_pca_par.py
 
-python
+python # opens a python environment
 from getmevar import *
 run_batch_all()
+exit()
 
 python moranvar.py
 ```
@@ -53,8 +54,9 @@ python moranvar.py
 ```
 python subpas_loop_segm_optim.py # pas folder
 
-python
+python # opens a python environment
 from ehab_optim import *
 run_batch()
+exit()
 ```
 
