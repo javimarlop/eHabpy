@@ -4,4 +4,4 @@
 - Updated script to process subpas automatically 
 - Documentation added to each script
 - Readme updated with OS installation instructions and tutorial
-- New fixed seed map for each PA as an input for the first segmentation step to improve consistency of resuts when running it under updated GRASS GIS versions.
+- New fixed seed map for each PA as an input for the first segmentation step to improve consistency of resuts when running it under different GRASS GIS versions.
