@@ -14,5 +14,7 @@
 *.pyc
 *.ovr
 *.png
+*.jpg
 *.tfw
+*.qmd
 pre4root*
