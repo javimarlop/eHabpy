@@ -17,6 +17,7 @@ is.linear.radar <- function(coord) TRUE
 df0<-read.table('csv/segm_done.csv',sep=' ',header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
+optim<-2 # new option
 
 for (pmx in 1:mx){
 	park = ecox_list[pmx]
@@ -69,12 +70,13 @@ for (pmx in 1:mx){
 	legend("top", leg=c('M.I','Var','Aver'), col=c(1,3,4), lt = 1)
 	dev.off()
 
-	res<-5
+	res<-5 # (standard version) 5
 	res0<-as.data.frame(cbind(5,NA))
 	res2<-res0#[1,]
 
 	if(length(x.points)>0){ #>=
-	res<-round(x.points[1])#length(x.points)
+	if(optim==1){res<-round(x.points[1])}#length(x.points)
+	if(optim==2){res<-round(x.points[1]) - 1}#length(x.points)
 	res0<-as.data.frame(cbind(x.points,y.points))
 	res2<-res0[1,]
 	#png(paste(park,'_nsegms.png',sep=''))
