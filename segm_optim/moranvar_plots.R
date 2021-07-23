@@ -17,7 +17,10 @@ is.linear.radar <- function(coord) TRUE
 df0<-read.table('csv/segm_done.csv',sep=' ',header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
-optim<-2 # new option
+optim<-2 # new option: values 0 (fixed threshold of 0.5), 1 (default optimum), 2 (one step higher number of segments than the optimum threshold)
+simil<-2 # new option: values 1 (default value), 2 (correspoding to the number of segments with an upper limit)
+upper<-2 # new option: values 1 (default value), 2 (increased upper limit)
+maxnclas<-8 # get number of variables -1 from file
 
 for (pmx in 1:mx){
 	park = ecox_list[pmx]
@@ -36,7 +39,9 @@ for (pmx in 1:mx){
 
 	name2 <- paste('csv/',park,'_movar_thresholds.csv',sep='')
 	df02<-read.table(name2,sep=' ',header=F)
-	upplim<-ceiling(log10(df02[1,3]))
+	if(upper==1){upplim<-ceiling(log10(df02[1,3]))} # default value
+	if(upper==2){upplim<-ceiling(log(df02[1,3],6))} # new value
+	print(paste('upper limit is ',upplim,sep=''))
 	#df11<-merge(df1,df02,by='V1')
 	#df<-df11[!duplicated(df11),]
 	#rang<-max(df$V2.x)-min(df$V2.x)
@@ -75,8 +80,8 @@ for (pmx in 1:mx){
 	res2<-res0#[1,]
 
 	if(length(x.points)>0){ #>=
-	if(optim==1){res<-round(x.points[1])}#length(x.points)
-	if(optim==2){res<-round(x.points[1]) - 1}#length(x.points)
+	if(optim==1){res<-round(x.points[1])} # default value #length(x.points)
+	if(optim==2){res<-round(x.points[1]) - 1}  #new value #length(x.points)
 	res0<-as.data.frame(cbind(x.points,y.points))
 	res2<-res0[1,]
 	#png(paste(park,'_nsegms.png',sep=''))
@@ -115,6 +120,7 @@ for (pmx in 1:mx){
 
 
 	namef <- paste('csv/','park_',park,'_hri_results',res,'.csv',sep='')
+	print(namef)
 	hri<-read.table(namef,sep=' ',header=T)
 	#dmh<-NULL
 	skaled <- as.data.frame(lapply(hri[,3:20], ggplot2:::rescale01))
@@ -125,9 +131,14 @@ for (pmx in 1:mx){
 	try(chcl<-cophenetic(hclust_mh))
 	try(cophval<-cor(chcl,dmh))
 	try(metaMDS(dmh)->mds_mh)
-	q25<-quantile(hclust_mh$height)[2]
-	cutree(hclust_mh,h=q25)->hclust_mean # 
+	if(simil==1){q25<-quantile(hclust_mh$height)[2]} # default value
+	#q25<-quantile(hclust_mh$height,probs=seq(0,1,0.1))[1] # testing
+	if(simil==2){q25<-min(hclust_mh$height) - 0.1} # new value
+	print(q25)
+	cutree(hclust_mh,h=q25)->hclust_mean #
+	print(hclust_mean) 
 	ncl<-length(unique(hclust_mean))
+	print(paste('Number of HFTs is ',ncl,sep=''))
 
 	if(ncl==1){
 	as.numeric(factor(hri$segm_id))->hclust_mean
@@ -137,6 +148,11 @@ for (pmx in 1:mx){
 	#upplim<-8#3
 	if(ncl>upplim){
 	cutree(hclust_mh,k=upplim)->hclust_mean
+	ncl<-length(unique(hclust_mean))
+	}
+
+	if(ncl>maxnclas){
+	cutree(hclust_mh,k=maxnclas)->hclust_mean
 	ncl<-length(unique(hclust_mean))
 	}
 

@@ -692,7 +692,7 @@ def	ehabitat(ecor,nw,nwpathout):
 							 #print 'Total number of non-zero pixels with similarity values in HFT: '+str(len(hri_pa0))
 
 
-							 hr1averpa = round(np.mean(hri_pa0[~np.isnan(hri_pa0)]),2)
+							 hr1averpa = round(np.median(hri_pa0[~np.isnan(hri_pa0)]),2)
 							 #print hr1averpa
 							 #hr1medianpa = np.median(hri_pa0[~np.isnan(hri_pa0)])
 							 print 'mean similarity in the hft is '+str(hr1averpa)

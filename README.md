@@ -42,7 +42,7 @@ sudo make install
 python segmentation_pca_par.py
 
 python # opens a python environment
-from getmevar import *
+from getmeanvar import *
 run_batch_all()
 exit()
 

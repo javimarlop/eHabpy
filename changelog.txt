@@ -5,3 +5,6 @@
 - Documentation added to each script
 - Readme updated with OS installation instructions and tutorial
 - New fixed seed map for each PA as an input for the first segmentation step to improve consistency of resuts when running it under different GRASS GIS versions.
+- New options in 'moranvar_plots.R' added
+- New script for using the median values to find the optimal segmentation threshold and the final HFTs
+- New script for using the median values of the reference HFTs to find similar landscape patches

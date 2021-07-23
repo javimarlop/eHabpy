@@ -1,6 +1,6 @@
 #### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
 #### License: CC BY-SA 3.0
-#### Control files: 'csv/segm_done.csv'
+#### Control files: 'csv/segm_done.csv', 'csv/park_*_*.csv'
 #### Inputs variables: 9 input variables in inVars folder
 #### Outputs: park.., park_hri_results and ecoregs_done csv files
 
@@ -96,7 +96,7 @@ nwpath = ''
 def initglobalmaps():
 	
 	#	SHARED FOLDER PATH OR LOCAL DIRECTORY
-	indir = os.path.join(os.path.sep, nwpath, '../../inVars')
+	indir = os.path.join(os.path.sep, nwpath, '../inVars')
 	print indir
 	herbf = 'herb.tif'
 	treef = 'tree.tif'
