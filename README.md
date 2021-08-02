@@ -25,7 +25,7 @@ make -j2 # 2 is the number of available processors
 sudo make install
 ```
 
-- Install python-pysal, scipy, scikit-learn, numpy, gdal, python-fiona
+- Install python-pysal, scipy, scikit-learn, numpy, gdal, python-fiona, libudunits2-dev
 - Install R and required libraries:
 	- vegan
 	- ggplot2
@@ -33,6 +33,7 @@ sudo make install
 	- ade4
 	- reshape2
 	- RColorBrewer
+	- sf
 
 ## Running
 

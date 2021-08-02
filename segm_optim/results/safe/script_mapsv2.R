@@ -10,8 +10,8 @@
  
 # set_defaults(map_service = "esri", map_type = "world_physical_map")
 
- hft1<-raster('../../results/10701_2572_1.tif')
- hft1_lp<-raster('../../results/10701_2572_1_lp.tif')
+ hft1<-raster('../../../results/10701_2572_1.tif')
+ hft1_lp<-raster('../../../results/10701_2572_1_lp.tif')
  #base<-st_bbox(hft1)
 
 #ggplot(pa_3857['hclst_m']) + geom_sf(aes(fill=as.factor(hclst_m))) + scale_colour_brewer(palette = 'Set1') + coord_sf() + theme_bw() + labs(title='Kakadu')  #+ scale_fill_identity() #  + scale_colour_brewer(palette = 'Set1') + basemap_gglayer(base)

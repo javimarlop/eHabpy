@@ -9,6 +9,8 @@
 *.shx
 *.xml
 *.cpg
+*.sbn
+*.sbx
 .RData
 .Rhistory
 *.pyc
