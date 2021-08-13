@@ -53,7 +53,7 @@ python moranvar.py
 ### Similarity
 
 ```
-python subpas_loop_segm_optim.py # move to _pas_ folder
+python subpas_loop_segm_optim.py # move to 'pas' folder
 
 python # opens a python environment
 from ehab_optim import * # alternative: from ehab_optim_median import *
