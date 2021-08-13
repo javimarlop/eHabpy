@@ -59,5 +59,7 @@ python # opens a python environment
 from ehab_optim import *
 run_batch()
 exit()
+
+Rscript thdi.R
 ```
 

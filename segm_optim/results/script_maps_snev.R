@@ -4,6 +4,7 @@
  library(raster)
  library(ggplot2)
  library(ggspatial)
+# library(gridExtra)
   
  pa0<-read_sf('park_segm_555538721_6_class.shp')#'park_segm_2572_7_class.shp')
  pa <- pa0 %>% group_by(hclst_m) %>% summarize()
@@ -52,12 +53,12 @@ ggsave('hft_snev.png',hft)
 #ggplot(data = pa) + annotation_map_tile('stamenwatercolor') + geom_sf(fill='transparent') + annotation_scale() + ggtitle(label = "Kakadu", subtitle = "Similar landscape patches to all HFTs") + annotation_north_arrow(location = "br", which_north = "true") + guides(fill=guide_legend("HFT")) + layer_spatial(hft1) + layer_spatial(hft2) + layer_spatial(hft3) + layer_spatial(hft4) + layer_spatial(hft5) + layer_spatial(hft6) + scale_fill_continuous(na.value = "transparent")
 
 # Similarity using sum of hfts
-hfts<-ggplot(data = pa) + annotation_map_tile('stamenwatercolor', zoom=4) + geom_sf(fill='transparent') + annotation_scale() + ggtitle(label = "Sierra Nevada", subtitle = "Similar landscape patches to all HFTs") + annotation_north_arrow(location = "br", which_north = "true") + layer_spatial(trim(hfts)) + scale_fill_continuous(na.value = "transparent") + theme(legend.position = "none") # + guides(fill=guide_legend("HFT"))
+hfts<-ggplot(data = pa) + annotation_map_tile('stamenwatercolor', zoom=6) + geom_sf(fill='transparent') + annotation_scale() + ggtitle(label = "Sierra Nevada", subtitle = "Similar landscape patches to all HFTs") + annotation_north_arrow(location = "br", which_north = "true") + layer_spatial(trim(hfts)) + scale_fill_continuous(na.value = "transparent") + theme(legend.position = "none") # + guides(fill=guide_legend("HFT"))
 
 ggsave('hfts_snev.png',hfts) #.tiff
 
 plot_hfts<-function(name=''){
-hfts<-ggplot(data = pa) + annotation_map_tile('stamenwatercolor', zoom=4) + geom_sf(fill='transparent') + annotation_scale() + ggtitle(label = "Sierra Nevada", subtitle = "Similar landscape patches") + annotation_north_arrow(location = "br", which_north = "true") + layer_spatial(trim(get(name))) + scale_fill_continuous(na.value = "transparent") + theme(legend.position = "none") # + guides(fill=guide_legend("HFT"))
+hfts<-ggplot(data = pa) + annotation_map_tile('stamenwatercolor', zoom=6) + geom_sf(fill='transparent') + annotation_scale() + ggtitle(label = "Sierra Nevada", subtitle = "Similar landscape patches") + annotation_north_arrow(location = "br", which_north = "true") + layer_spatial(trim(get(name))) + scale_fill_continuous(na.value = "transparent") + theme(legend.position = "none") # + guides(fill=guide_legend("HFT"))
 ggsave(paste('snev_',name,'_simil.png',sep=''),hfts) #.tiff
 return(hfts)
 }
@@ -69,9 +70,9 @@ phft4<-plot_hfts('hft4')
 phft5<-plot_hfts('hft5')
 #phft6<-plot_hfts('hft6')
 
-png('snev_simil.png',width=1680,height=1050) 
-grid.arrange(phft1, phft2, phft3, phft4, phft5, ncol=2)
-dev.off()
+#png('snev_simil.png',width=1680,height=1050) 
+#grid.arrange(phft1, phft2, phft3, phft4, phft5, ncol=2)
+#dev.off()
 
 #library(maptiles)
 

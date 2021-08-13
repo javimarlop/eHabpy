@@ -4,6 +4,7 @@
  library(raster)
  library(ggplot2)
  library(ggspatial)
+# library(gridExtra)
   
  pa0<-read_sf('park_segm_19297_5_class.shp')#'park_segm_2572_7_class.shp')
  pa <- pa0 %>% group_by(hclst_m) %>% summarize()
@@ -72,9 +73,9 @@ phft4<-plot_hfts('hft4')
 phft5<-plot_hfts('hft5')
 #phft6<-plot_hfts('hft6')
 
-png('udz_simil.png',width=1680,height=1050) 
-grid.arrange(phft1, phft2, phft3, phft4, phft5, ncol=2)
-dev.off()
+#png('udz_simil.png',width=1680,height=1050) 
+#grid.arrange(phft1, phft2, phft3, phft4, phft5, ncol=2)
+#dev.off()
 
 #library(maptiles)
 
