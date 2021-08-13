@@ -37,13 +37,13 @@ sudo make install
 
 ## Running
 
-### Segmentation
+### Segmentation (_segm_optim_ folder)
 
 ```
-python segmentation_pca_par.py
+python segmentation_pca_par.py # it uses parallel processing
 
 python # opens a python environment
-from getmeanvar import *
+from getmeanvar import * # alternative: from getmedianvar import *
 run_batch_all()
 exit()
 
@@ -53,11 +53,11 @@ python moranvar.py
 ### Similarity
 
 ```
-python subpas_loop_segm_optim.py # pas folder
+python subpas_loop_segm_optim.py # move to _pas_ folder
 
 python # opens a python environment
-from ehab_optim import *
-run_batch()
+from ehab_optim import * # alternative: from ehab_optim_median import *
+run_batch() # it runs using all available processors in parallel
 exit()
 
 Rscript thdi.R
