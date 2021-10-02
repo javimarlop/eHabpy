@@ -7,18 +7,18 @@
 #### 	ecoregion: ecoregion id
 #### 	wdpaid: wdpa id
 #### 	wdpaid_hft: wdpa id + hft id
-#### 	AveHFTSim: Average similarity within HFT
-#### 	NrSimPixEco: Nr of pixels with equal or higher similarity value than the average similarity value in HFT within the ecoregion
+#### 	MedianHFTSim: Median similarity within HFT
+#### 	NrSimPixEco: Nr of pixels with equal or higher similarity value than the median similarity value in HFT within the ecoregion
 #### 	NrPixHFT: Nr of pizels in HFT (also area of the HFT in km2)
-#### 	NrSimPixHFT: Nr of pixels in HFT with equal or higher similarity value than the average similarity value within the HFT
-#### 	NrSimPixEco_NrPixHFT_ratio: Nr of pixels with equal or higher similarity value than the average similarity value within the ecoregion divided by the number of pixels of the HFT
+#### 	NrSimPixHFT: Nr of pixels in HFT with equal or higher similarity value than the median similarity value within the HFT
+#### 	NrSimPixEco_NrPixHFT_ratio: Nr of pixels with equal or higher similarity value than the median similarity value within the ecoregion divided by the number of pixels of the HFT
 #### 	NrSimLcpPatEco: Nr of similar landscape patches found in the ecoregion
 #### 	NrPixLargLcpPat_NrPixHFT_ratio: Nr of pixels of the largest similar patch divided by the nr of pixels of the HFT
-#### 	TotNrPixAllSimLcpPatEqLargArea: Total nr of pixels of all similar patches with an area equal or larger than the HFT divided by the nr of pixels of the HFT
+#### 	HSR: Total number of pixels of all similar patches with an area equal or larger than the HFT (otherwise the largest one) divided by the number of pixels of the HFT
 #### 	NrSimLcpPatEqLargArea: Number of similar lansdcape patches with an area equal or larger than the HFT
 #### 	NrPixLargLcpPat: Number of pixels of the largest similar patch
-#### 	Aggregation: Nr of pixels with equal or higher similarity value than the average similarity value within the ecoregion divided by the nr of similar landscape patches found in the ecoregion (the higher the less fragmented)
-
+#### 	Aggregation: Nr of pixels with equal or higher similarity value than the median similarity value within the ecoregion divided by the nr of similar landscape patches found in the ecoregion (the higher the less fragmented)
+#### 	A series of columns with the maximum, minimum and mean values of all input variables for each HFT
 
 from __future__ import division
 from datetime import datetime
@@ -243,7 +243,7 @@ def	ehabitat(ecor,nw,nwpathout):
 	print csvname
 	if os.path.isfile(csvname) == False:
 		wb = open(csvname,'a')
-		wb.write('ecoregion wdpaid wdpaid_hft AveHFTSim NrSimPixEco NrPixHFT NrSimPixHFT NrSimPixEco_NrPixHFT_ratio NrSimLcpPatEco NrPixLargLcpPat_NrPixHFT_ratio TotNrPixAllSimLcpPatEqLargArea NrSimLcpPatEqLargArea NrPixLargLcpPat Aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
+		wb.write('ecoregion wdpaid wdpaid_hft MedianHFTSim NrSimPixEco NrPixHFT NrSimPixHFT NrSimPixEco_NrPixHFT_ratio NrSimLcpPatEco NrPixLargLcpPat_NrPixHFT_ratio HSR NrSimLcpPatEqLargArea NrPixLargLcpPat Aggregation treepamin treepamax eprpamin eprpamax prepamin prepamax biopamin biopamax slopepamin slopepamax ndwipamin ndwipamax ndvimaxpamin ndvimaxpamax ndviminpamin ndviminpamax hpamin hpamax treepamean eprpamean prepamean biopamean slopepamean ndwipamean ndvimaxpamean ndviminpamean hpamean')
 		wb.write('\n')
 		wb.close()
 	treepamean = eprpamean = prepamean = biopamean = slopepamean = ndwipamean = ndvimaxpamean = ndviminpamean = hpamean = None

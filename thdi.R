@@ -50,7 +50,7 @@ ecohab<-neco*sihft
 
 a[[i]][7]<-ecohab
 
-msim<-median(df$TotNrPixAllSimLcpPatEqLargArea)
+msim<-median(df$HSR) # TotNrPixAllSimLcpPatEqLargArea (old name)
 
 a[[i]][8]<-msim
 
@@ -63,6 +63,6 @@ a[[i]][9]<-thdi
 #print(a)
 
 res <- data.frame(matrix(unlist(a), nrow=length(a), byrow=TRUE))
-names(res)<-c('wdpaid','TerrEco','MarEco','TotEco','NrHFT','SIHFT','EcoHab','MedianSim','THDI')
+names(res)<-c('wdpaid','TerrEco','MarEco','TotEco','NrHFT','SIH','THD','THI','THDI')
 
 write.table(res,'results/thdi_res.csv',sep=' ',row.names=F)
