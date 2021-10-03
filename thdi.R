@@ -63,6 +63,6 @@ a[[i]][9]<-thdi
 #print(a)
 
 res <- data.frame(matrix(unlist(a), nrow=length(a), byrow=TRUE))
-names(res)<-c('wdpaid','TerrEco','MarEco','TotEco','NrHFT','SIH','THD','THI','THDI')
+names(res)<-c('wdpaid','TerrEco','MarEco','TotEco','NrHFT','SIH','THD','THR','THDI')
 
 write.table(res,'results/thdi_res.csv',sep=' ',row.names=F)
