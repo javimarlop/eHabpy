@@ -28,7 +28,9 @@ ggsave('PA_ecoregs.png')
 dfv2<-read.table('thdi_res2.csv',sep=' ',header=T)
 
 #
-ggplot(dfv2, aes(TotEco, THR)) + geom_point()
+ggplot(dfv2, aes(TotEco, THR)) + geom_point() + geom_smooth(method='lm', se = FALSE)
+ggsave('totecoregs_thr.png')
+
 summary(lm(dfv2$THR ~ dfv2$TotEco))
 
 #
