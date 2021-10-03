@@ -28,7 +28,7 @@ CreateRadialPlot <- function(plot.data,
                              background.circle.colour="black",
                              background.circle.transparency=0.2,
                              plot.legend=if (nrow(plot.data)>1) TRUE else FALSE,
-                             legend.title="Cluster",
+                             legend.title="HFT",
                              legend.text.size=grid.label.size ) {
 
   var.names <- colnames(plot.data)[-1]  #'Short version of variable names 
