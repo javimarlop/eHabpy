@@ -45,7 +45,7 @@ class Radar(object):
         for ax, angle, label in zip(self.axes, self.angles, labels):
             ax.set_rgrids(range(1, 6), angle=angle, labels=label)
             ax.spines['polar'].set_visible(False)
-            ax.set_ylim(0, 5)
+            ax.set_ylim(0, 5.5)
 
     def plot(self, values, *args, **kw):
         angle = np.deg2rad(np.r_[self.angles, self.angles[0]])
@@ -66,9 +66,13 @@ if __name__ == '__main__':
         ['0.15','0.30','0.45','0.60','0.75']
     ]
 
-    radar = Radar(fig, tit, lab)
-    radar.plot([1, 3, 2, 1, 2],  '-', lw=2, color='b', alpha=0.4, label='first')
+    df = np.genfromtxt('thdi_res.csv',delimiter=' ', names=True, usecols=(3,4,5,6,7,8))
+  
+# Kakadu
+radar2 = Radar(fig, tit, lab)
+n = 1
+radar2.plot([df[n,][5]*5/75, df[n,][0], df[n,][2]*5/1.5, df[n,][3]*5/7.5, df[n,][4]*5/0.75],  '-', lw=2, color='b', alpha=0.4, label='first')
 
-    fig.suptitle('Main title', size=16, y = 1)
+fig.suptitle('Kakadu', size=16, y = 1, ha = 'right')
 
-    fig.savefig('results_pa.png', bbox_inches='tight')
+fig.savefig('rdplot_kaka.png', bbox_inches='tight')
