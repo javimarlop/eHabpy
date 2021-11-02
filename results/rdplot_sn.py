@@ -45,7 +45,7 @@ class Radar(object):
         for ax, angle, label in zip(self.axes, self.angles, labels):
             ax.set_rgrids(range(1, 6), angle=angle, labels=label)
             ax.spines['polar'].set_visible(False)
-            ax.set_ylim(0, 5.5)
+            ax.set_ylim(0, 5.6)
 
     def plot(self, values, *args, **kw):
         angle = np.deg2rad(np.r_[self.angles, self.angles[0]])
@@ -59,19 +59,19 @@ if __name__ == '__main__':
     tit = ['THDI','TotEco','SIH','THD','THR']
 
     lab = [
-        ['15','30','45','60','75'],
+        ['30','60','90','120','150'],
         list('12345'),
         ['0.3','0.6','0.9','1.2','1.5'],
         ['1.5', '3.0', '4.5', '6.0', '7.5'],
-        ['0.15','0.30','0.45','0.60','0.75']
+        ['0.03','0.06','0.09','0.12','0.15']
     ]
 
-    df = np.genfromtxt('thdi_res2.csv',delimiter=' ', names=True, usecols=(3,4,5,6,7,8))
+    df = np.genfromtxt('thdi_res.csv',delimiter=' ', names=True, usecols=(3,4,5,6,7,8))
   
-# Kakadu
+# Sierra Nevada
 radar2 = Radar(fig, tit, lab)
-n = 4
-radar2.plot([df[n,][5]*5/75, df[n,][0], df[n,][2]*5/1.5, df[n,][3]*5/7.5, df[n,][4]*5/0.75],  '-', lw=2, color='b', alpha=0.4, label='first')
+n = 1
+radar2.plot([df[n,][5]*5/150, df[n,][0], df[n,][2]*5/1.5, df[n,][3]*5/7.5, df[n,][4]*5/0.15],  '-', lw=2, color='b', alpha=0.4, label='first')
 
 fig.suptitle('Sierra Nevada', size=16, y = 1, ha = 'right')
 

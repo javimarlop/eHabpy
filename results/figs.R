@@ -25,7 +25,7 @@ ggsave('PA_ecoregs.png')
 
 ###
 
-dfv2<-read.table('thdi_res2.csv',sep=' ',header=T)
+dfv2<-read.table('thdi_res_names.csv',sep=',',header=T)
 
 #
 ggplot(dfv2, aes(TotEco, THR)) + geom_point() + geom_smooth(method='lm', se = FALSE)
@@ -40,5 +40,5 @@ summary(lm(dfv2$TotSimEco ~ dfv2$TotEco))
 summary(lm(dfv2$TotSimEco ~ dfv2$TotEco + I(dfv2$TotEco^2)))
 
 ggplot(dfv2, aes(x=TotEco, y=TotSimEco)) + geom_point()+stat_smooth(se=F, method='lm', formula=y~poly(x,2))
-
+ggsave('totecoregs_totsimeco.png')
 

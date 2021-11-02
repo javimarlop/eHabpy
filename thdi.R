@@ -50,7 +50,7 @@ ecohab<-neco*sihft
 
 a[[i]][7]<-ecohab
 
-msim<-median(df$HSR) # TotNrPixAllSimLcpPatEqLargArea (old name)
+msim<-median(df$HSR) / nteow # TotNrPixAllSimLcpPatEqLargArea (old name)
 
 a[[i]][8]<-msim
 
