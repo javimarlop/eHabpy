@@ -42,3 +42,17 @@ summary(lm(dfv2$TotSimEco ~ dfv2$TotEco + I(dfv2$TotEco^2)))
 ggplot(dfv2, aes(x=TotEco, y=TotSimEco)) + geom_point()+stat_smooth(se=F, method='lm', formula=y~poly(x,2))
 ggsave('totecoregs_totsimeco.png')
 
+#
+
+#ggplot(dfv2, aes(THR, THDI)) + geom_point() + geom_smooth(method='lm', se = FALSE)
+ggplot(dfv2, aes(THR, THDI,label=wdpaid)) + geom_text() + geom_smooth(method='lm', se = FALSE)
+ggsave('thdi_thr_lm.png')
+
+summary(lm(dfv2$THDI ~ dfv2$THR))
+
+#
+
+ggplot(dfv2, aes(THD, THDI,label=wdpaid)) + geom_text() + geom_smooth(method='lm', se = FALSE)
+ggsave('thdi_thd_lm.png')
+
+summary(lm(dfv2$THDI ~ dfv2$THD))
