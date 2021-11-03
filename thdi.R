@@ -44,6 +44,8 @@ sihftx<-sapply(perc, function(x) x*log(x))
 
 sihft<-(-1)*sum(sihftx)
 
+if(sihft==0){sihft<-1}
+
 a[[i]][6]<-sihft
 
 ecohab<-neco*sihft
