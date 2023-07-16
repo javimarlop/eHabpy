@@ -5,7 +5,7 @@ eHabitat+
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5643271.svg)](https://doi.org/10.5281/zenodo.5643271)
 
-**eHabitat+** GRASS GIS 7 scripts and Python 2.7 library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](https://dopa.jrc.ec.europa.eu/en).
+[**eHabitat+**](https://www.sciencedirect.com/science/article/pii/S157495412300119X) GRASS GIS 7 scripts and Python 2.7 library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](https://dopa.jrc.ec.europa.eu/en).
 
 ## OS setup
 
