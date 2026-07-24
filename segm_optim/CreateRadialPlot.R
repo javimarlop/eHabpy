@@ -249,7 +249,7 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   
   # ... + group (cluster) 'paths'
   base <- base + geom_path(data=group$path,aes(x=x,y=y,group=group,colour=group),
-                           size=group.line.width) + scale_colour_brewer(palette='Set1')
+                           linewidth=group.line.width) + scale_colour_brewer(palette='Set1')
   
   # ... + group points (cluster data)
   base <- base + geom_point(data=group$path,aes(x=x,y=y,group=group,colour=group),size=group.point.size) + scale_colour_brewer(palette='Set1')
@@ -259,11 +259,11 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   
   # ... + circular grid-lines at 'min', 'mid' and 'max' y-axis values
   base <- base +  geom_path(data=gridline$min$path,aes(x=x,y=y),
-                            lty=gridline.min.linetype,colour=gridline.min.colour,size=grid.line.width)
+                            lty=gridline.min.linetype,colour=gridline.min.colour,linewidth=grid.line.width)
   base <- base +  geom_path(data=gridline$mid$path,aes(x=x,y=y),
-                            lty=gridline.mid.linetype,colour=gridline.mid.colour,size=grid.line.width)
+                            lty=gridline.mid.linetype,colour=gridline.mid.colour,linewidth=grid.line.width)
   base <- base +  geom_path(data=gridline$max$path,aes(x=x,y=y),
-                            lty=gridline.max.linetype,colour=gridline.max.colour,size=grid.line.width)
+                            lty=gridline.max.linetype,colour=gridline.max.colour,linewidth=grid.line.width)
   
   # ... + grid-line labels (max; ave; min) [only add min. gridline label if required]
   if (label.gridline.min==TRUE) {

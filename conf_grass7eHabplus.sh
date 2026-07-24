@@ -1,3 +1,13 @@
+# =====================================================================
+# OBSOLETE / REFERENCE ONLY (kept for historical purposes).
+#
+# This script compiled GRASS GIS 7.0.6 from source on Ubuntu 14.04.
+# The modernized pipeline targets GRASS GIS 8, which you should install
+# from your distribution's packages or from conda-forge:
+#     conda install -c conda-forge grass
+# See README.md / MODERNIZATION.md.
+# =====================================================================
+
 # sh conf_grass7eHabplus.sh
 # make distclean
 # make -j2

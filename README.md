@@ -5,57 +5,67 @@ eHabitat+
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5643271.svg)](https://doi.org/10.5281/zenodo.5643271)
 
-[**eHabitat+**](https://www.sciencedirect.com/science/article/pii/S157495412300119X) GRASS GIS 7 scripts and Python 2.7 library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](https://dopa.jrc.ec.europa.eu/en).
+[**eHabitat+**](https://www.sciencedirect.com/science/article/pii/S157495412300119X) GRASS GIS scripts and Python library for automatic delineation of habitats within protected areas (PA) and calculation of maps of probabilities to find areas presenting similar ecological characteristics to those found in PA within the corresponding ecoregion. A habitat similarity index (HSI) is computed based on the ratio between the extent of similar areas around the PA and the PA extent, as well as some  landscape metrics and indices to characterize similar areas to PA. Processed results are being updated and can be accessed through the [DOPA Explorer](https://dopa.jrc.ec.europa.eu/en).
+
+> **Modernized (2024):** the code now runs on **Python 3.10–3.12**, **GRASS GIS 8**,
+> **GDAL 3**, and a current **R** stack (`sf` instead of the retired `rgdal`,
+> `libpysal`/`esda` instead of PySAL 1.x). See [`MODERNIZATION.md`](MODERNIZATION.md)
+> for the full list of changes. The old Python 2.7 / GRASS 7 sources remain in
+> the git history.
 
 ## OS setup
 
-- Install Ubuntu 14.04: http://releases.ubuntu.com/trusty/ 
-- Add the ubuntugis stable repository: https://launchpad.net/~ubuntugis/+archive/ubuntu/ppa
-- Add "deb https://cloud.r-project.org/bin/linux/ubuntu trusty-cran35/" to /etc/apt/sources.list
-- Install gdal command line utilities
-- GRASS GIS 7 requirements:
-	- https://askubuntu.com/questions/474767/installing-grass-gis-7-0-on-ubuntu-14-04
-	- https://grasswiki.osgeo.org/wiki/Compile_and_Install_Ubuntu#Current_stable_Ubuntu_version 
-- Install GRASS GIS 7.0.6 (compiled from source): https://grass.osgeo.org/grass70/source/
-	- Use the conf_grass7eHabplus.sh config file:
+The recommended way to get the full geospatial stack (GDAL, GRASS, R and all
+Python packages) is **conda / mamba**:
 
 ```
-sh conf_grass7eHabplus.sh # edit target folder
-make -j2 # 2 is the number of available processors
-sudo make install
+conda env create -f environment.yml
+conda activate ehabpy
 ```
 
-- Install python-pysal, scipy, scikit-learn, numpy, gdal, python-fiona, libudunits2-dev
-- Install R and required libraries:
-	- vegan
-	- ggplot2
-	- rgdal
-	- ade4
-	- reshape2
-	- RColorBrewer
-	- sf
+Alternatively, install the pieces yourself:
+
+- **GRASS GIS 8** (8.3+) — from your distribution's packages, from
+  https://grass.osgeo.org/download/ , or `conda install -c conda-forge grass`.
+- **GDAL 3** command-line utilities and Python bindings (`osgeo`).
+- **Python 3.10–3.12** packages (see `requirements.txt`):
+  `pip install -r requirements.txt`
+  (numpy, scipy, joblib, tqdm, geopandas, libpysal, esda; GDAL via conda/system).
+- **R 4.x** with: `sf`, `terra`, `vegan`, `ade4`, `ggplot2`, `reshape2`,
+  `RColorBrewer`.
+
+Before running the GRASS steps, point the scripts at your GRASS database, e.g.:
+
+```
+export GISBASE=$(grass --config path)
+export GRASSDBASE=/path/to/grassdata     # your GISDBASE
+export GRASSLOC=global_MW                # the Mollweide location
+```
+
+(The obsolete `conf_grass7eHabplus.sh`, which compiled GRASS 7.0.6 from source
+on Ubuntu 14.04, is no longer needed and is kept only for reference.)
 
 ## Running
 
 ### Segmentation (_segm_optim_ folder)
 
 ```
-python segmentation_pca_par.py # it uses parallel processing
+python3 segmentation_pca_par.py # it uses parallel processing
 
-python # opens a python environment
+python3 # opens a python environment
 from getmeanvar import * # alternative: from getmedianvar import *
 run_batch_all()
 exit()
 
-python moranvar.py
+python3 moranvar.py    # calls Rscript moranvar_plots.R at the end
 ```
 
 ### Similarity
 
 ```
-python subpas_loop_segm_optim.py # move to 'pas' folder
+python3 subpas_loop_segm_optim.py # move to 'pas' folder
 
-python # opens a python environment
+python3 # opens a python environment
 from ehab_optim import * # alternative: from ehab_optim_median import *
 run_batch() # it runs using all available processors in parallel
 exit()

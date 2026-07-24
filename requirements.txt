@@ -1,0 +1,26 @@
+# eHabitat+ (eHabpy) — Python 3 dependencies (modernized 2024)
+#
+# Tested target: Python 3.10 - 3.12
+#
+# NOTE on GDAL: the `osgeo` package (GDAL Python bindings) is NOT reliably
+# pip-installable. Install GDAL through your system package manager or, more
+# easily, use the provided conda environment (environment.yml). GRASS GIS 8 is
+# a SYSTEM install (see README), not a pip package.
+#
+# NOTE on NumPy: libpysal/esda pull in numba (used by moranvar.py). numba lags
+# the newest NumPy by a few months, hence the upper bound below. The rest of
+# the code (ehab_optim*.py, getmean/medianvar) works with newer NumPy too.
+
+numpy>=1.24,<2.3
+scipy>=1.10
+joblib>=1.2          # replaces the removed sklearn.externals.joblib
+tqdm>=4.60
+
+# Vector I/O and spatial statistics (segmentation-optimization step)
+geopandas>=0.13      # polygon dissolve in moranvar.py (replaces fiona+shapely+itertools)
+libpysal>=4.7        # spatial weights  (was: pysal.rook_from_shapefile)
+esda>=2.4            # Moran's I        (was: pysal.Moran)
+
+# GDAL Python bindings — install via conda or system packages, e.g.:
+#   conda install -c conda-forge gdal
+# gdal>=3.4

@@ -1,0 +1,33 @@
+# eHabitat+ (eHabpy) — conda environment (modernized 2024)
+#
+# Create with:
+#   conda env create -f environment.yml
+#   conda activate ehabpy
+#
+# This installs the full geospatial Python stack (GDAL bindings included).
+# GRASS GIS 8 is also available on conda-forge and is included here; if you
+# prefer a system GRASS install, remove the `grass` line below.
+name: ehabpy
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=1.24,<2.3
+  - scipy>=1.10
+  - joblib>=1.2
+  - tqdm>=4.60
+  - gdal>=3.6
+  - geopandas>=0.13
+  - libpysal>=4.7
+  - esda>=2.4
+  - numba>=0.59          # required by libpysal/esda; keep in sync with numpy
+  - grass>=8.3           # GRASS GIS 8 (remove if using a system install)
+  # --- R + packages for the plotting / classification / THDI steps ---
+  - r-base>=4.2
+  - r-sf
+  - r-terra
+  - r-vegan
+  - r-ade4
+  - r-ggplot2
+  - r-reshape2
+  - r-rcolorbrewer
