@@ -27,9 +27,9 @@ import gc
 #   GRASSDBASE -> GRASS database (GISDBASE) directory
 #   GRASSLOC   -> location/project name (Mollweide global location)
 # ----------------------------------------------------------------------------
-GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser('~/grassdata/ehabgrassdb'))
+GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser('/Users/javier/grassdata')) #'~/grassdata/ehabgrassdb'))
 MYLOC = os.environ.get('GRASSLOC', 'global_MW')
-NPROC = int(os.environ.get('EHAB_NPROC', '2'))  # was Pool(2); 9 in production
+NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1))) # '12' # was Pool(2); 9 in production
 
 
 def find_gisbase():
@@ -97,7 +97,7 @@ def fsegm(pa):
 		mapset2 = 'm' + str(mn)  # ehabitat'
 		os.system('rm -rf ' + os.path.join(GRASSDBASE, MYLOC, mapset2))
 		col = 'wdpaid'
-		grass.run_command('g.mapset', mapset=mapset2, location=MYLOC, dbase=GRASSDBASE, flags='c')
+		grass.run_command('g.mapset', mapset=mapset2, project=MYLOC, dbase=GRASSDBASE, flags='c')
 		os.system('rm csv/*_' + str(pa) + '_*')
 		os.system('rm shp/*_' + str(pa) + '_*')
 
@@ -108,8 +108,8 @@ def fsegm(pa):
 			gsetup.init(os.environ['GISBASE'], GRASSDBASE, MYLOC, mapset2)
 		print(pa, mapset2, grass.gisenv())
 		ong = str(pa) + str(mapset2) + str(grass.gisenv())
-		grass.run_command('g.mapsets', mapset='ehabplus_cs,rasterized_parks,javier', operation='add')
-		source = 'cspas'  # 'wdpa_aug14_100km2_moll'
+		grass.run_command('g.mapsets', mapset='rasterized_parks', operation='add') # ehabplus_cs,javier
+		source = 'wdpa_snapshot_mollweide' # 'cspas'  # 'wdpa_aug14_100km2_moll'
 
 		wb = open(csvong1, 'a')
 		wb.write(ong)
@@ -140,7 +140,7 @@ def fsegm(pa):
 		if len(a) == 0: a = [1, 625]
 		minarea = int(np.sqrt(int(a[1])))  # /2 #10
 		minaream = minarea  # *1000
-		grass.run_command('i.pca', flags='n', input='pre,eprsqrt,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44x, overwrite=True)  # dem
+		grass.run_command('i.pca', flags='n', input='pre,epr,slope,tree,herb,ndwi,ndvi,ndvi_range,bio', output=pa44x, overwrite=True)  # dem
 		pca1 = pa44x + '.1'
 		pca2 = pa44x + '.2'
 		pca3 = pa44x + '.3'
@@ -155,13 +155,17 @@ def fsegm(pa):
 			grass.run_command('g.region', vector=pa0, res=1000)
 			j = j + 1
 			if thr == 0.1:
-				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='100000', iterations='20', seeds='rndseed', overwrite=True)  # ,seed=pa2i minsize=minarea,
+				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='10000', iterations='20', seeds='rndseed', overwrite=True)  # ,seed=pa2i minsize=minarea,
 			else:
-				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='100000', iterations='20', seeds=pa2s, overwrite=True)  # minsize=minarea
+				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='10000', iterations='20', seeds=pa2s, overwrite=True)  # minsize=minarea
 			grass.run_command('r.mask', vector=source, where=opt1)
 			opt2 = pa3 + '=' + pa2
 			grass.run_command('r.mapcalc', expression=opt2, overwrite=True)  # usar const como mapa para crear plantilla de PA con unos y ceros
-			grass.run_command('r.mask', flags='r')  # drop the mask (was: g.rename MASK,masc)
+			#grass.run_command('r.mask', flags='r')  # drop the mask (was: g.rename MASK,masc)
+			try:
+			    grass.run_command('r.mask', flags='r')
+			except Exception:
+			    pass  
 			print('minarea: ', minarea)
 
 			b = grass.read_command('r.stats', input=pa3, flags='nc', separator='\n').splitlines()
@@ -180,7 +184,11 @@ def fsegm(pa):
 					grass.run_command('r.buffer', input=c2, output=c22, distances=3, units='kilometers', overwrite=True)
 					grass.run_command('r.mask', raster=c22, maskcats='2')
 					buff = grass.read_command('r.stats', input=pa3, flags='nc', sort='desc', separator='\n').splitlines()
-					grass.run_command('r.mask', flags='r')
+					#grass.run_command('r.mask', flags='r')
+					try:
+					    grass.run_command('r.mask', flags='r')
+					except Exception:
+					    pass  
 					if len(buff) > 0:
 						clean = 'T'
 						print('New: ' + str(buff[0]))
@@ -209,7 +217,11 @@ def fsegm(pa):
 					grass.run_command('r.buffer', input=c2, output=c22, distances=10, units='kilometers', overwrite=True)
 					grass.run_command('r.mask', raster=c22, maskcats='2')
 					buff = grass.read_command('r.stats', input=pa3, flags='nc', sort='desc', separator='\n').splitlines()
-					grass.run_command('r.mask', flags='r')
+					#grass.run_command('r.mask', flags='r')
+					try:
+					    grass.run_command('r.mask', flags='r')
+					except Exception:
+					    pass  
 					if len(buff) > 0:
 						clean = 'T'
 						print('New: ' + str(buff[0]))
@@ -255,8 +267,11 @@ def fsegm(pa):
 			# save it as a csv excluding last item!
 
 			grass.message("omitting previous masks")
-			grass.run_command('r.mask', flags='r')
-
+			#grass.run_command('r.mask', flags='r')
+			try:
+			    grass.run_command('r.mask', flags='r')
+			except Exception:
+			    pass  
 			sn = len(spa_list) - 1  # there is also a segm_id element!
 			for spx in range(0, sn):  # 0
 				spa = spa_list[spx]
@@ -275,7 +290,11 @@ def fsegm(pa):
 				soptt = spa4 + '=' + spa0
 				grass.run_command('r.mask', raster='pre')  # new to crop parks to where we have indicators information
 				grass.run_command('r.mapcalc', expression=soptt, overwrite=True)  # opt3
-				grass.run_command('r.mask', flags='r')
+				#grass.run_command('r.mask', flags='r')
+				try:
+				    grass.run_command('r.mask', flags='r')
+				except Exception:
+				    pass  
 				grass.run_command('r.null', map=spa4, null=0)
 				econame = 'csv/park_' + str(pa) + '_' + str(j) + '.csv'
 				eco = str(j)
