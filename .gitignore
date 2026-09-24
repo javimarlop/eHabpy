@@ -23,3 +23,5 @@ pre4root*
 *.zip
 *.rar
 *.pdf
+.DS_Store
+*.ini
