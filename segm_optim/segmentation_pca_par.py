@@ -18,6 +18,13 @@ import sys
 import csv
 import gc
 
+# Importar configuración global de variables
+try:
+    from config import ENV_VARS0
+except ImportError:
+    print("ERROR: No se encuentra config.py. Asegúrate de crearlo en el mismo directorio.")
+    sys.exit(1)
+
 # ----------------------------------------------------------------------------
 # GRASS GIS 8 configuration.
 #
@@ -28,7 +35,7 @@ import gc
 #   GRASSLOC   -> location/project name (Mollweide global location)
 # ----------------------------------------------------------------------------
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser('/Users/javier/grassdata')) #'~/grassdata/ehabgrassdb'))
-MYLOC = os.environ.get('GRASSLOC', 'global_MW')
+MYLOC = os.environ.get('GRASSLOC', 'ehab_guajares') # global_MW
 NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1))) # '12' # was Pool(2); 9 in production
 
 
@@ -96,7 +103,7 @@ def fsegm(pa):
 
 		mapset2 = 'm' + str(mn)  # ehabitat'
 		os.system('rm -rf ' + os.path.join(GRASSDBASE, MYLOC, mapset2))
-		col = 'wdpaid'
+		col = 'cat'
 		grass.run_command('g.mapset', mapset=mapset2, project=MYLOC, dbase=GRASSDBASE, flags='c')
 		os.system('rm csv/*_' + str(pa) + '_*')
 		os.system('rm shp/*_' + str(pa) + '_*')
@@ -108,8 +115,8 @@ def fsegm(pa):
 			gsetup.init(os.environ['GISBASE'], GRASSDBASE, MYLOC, mapset2)
 		print(pa, mapset2, grass.gisenv())
 		ong = str(pa) + str(mapset2) + str(grass.gisenv())
-		grass.run_command('g.mapsets', mapset='rasterized_parks', operation='add') # ehabplus_cs,javier
-		source = 'wdpa_snapshot_mollweide' # 'cspas'  # 'wdpa_aug14_100km2_moll'
+		# grass.run_command('g.mapsets', mapset='rasterized_parks', operation='add') # ehabplus_cs,javier
+		source = 'perimetro_incendio' # 'wdpa_snapshot_mollweide' 'cspas'  # 'wdpa_aug14_100km2_moll'
 
 		wb = open(csvong1, 'a')
 		wb.write(ong)
@@ -131,16 +138,17 @@ def fsegm(pa):
 		same = pa2 + '= const'
 		rndmap = 'rndseed=rand(1,10000000000000000000000000)'
 		rndname = 'tiffs/rndseed_' + str(pa) + '.tif'
-		grass.run_command('g.region', vector=pa0, res=1000)
-		grass.run_command('r.mapcalc', expression='const = if(gcmask>=0,1,null())', overwrite=True)
+		grass.run_command('g.region', vector=pa0, res=10) #change
+		grass.run_command('r.mapcalc', expression='const = if(precip>=0,1,null())', overwrite=True) # first create gcmask
 		grass.run_command('r.mapcalc', expression=same, overwrite=True)
 		grass.run_command('r.mapcalc', seed=10, expression=rndmap, overwrite=True)
 		grass.run_command('r.out.gdal', input='rndseed', output=rndname, overwrite=True)
 		a = grass.read_command('r.stats', input='const', flags='nc', separator='\n').splitlines()
 		if len(a) == 0: a = [1, 625]
-		minarea = int(np.sqrt(int(a[1])))  # /2 #10
+		minarea = int(np.sqrt(int(a[1])))  # /2 #10 # make it customizable
 		minaream = minarea  # *1000
-		grass.run_command('i.pca', flags='n', input='pre,epr,slope,tree,herb,ndwi,ndvi,ndvi_range,bio', output=pa44x, overwrite=True)  # dem
+		#grass.run_command('i.pca', flags='n', input='precip,slope,ndwi,ndvimin,ndvimax,temp', output=pa44x, overwrite=True)  # dem
+		grass.run_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
 		pca1 = pa44x + '.1'
 		pca2 = pa44x + '.2'
 		pca3 = pa44x + '.3'
@@ -152,7 +160,7 @@ def fsegm(pa):
 			pa2 = pa + 'v2_' + str(j)
 			pa2s = pa + 'v2_' + str(j - 1)
 			aleat = np.random.randint(1, 1001)
-			grass.run_command('g.region', vector=pa0, res=1000)
+			grass.run_command('g.region', vector=pa0, res=10) # change
 			j = j + 1
 			if thr == 0.1:
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='10000', iterations='20', seeds='rndseed', overwrite=True)  # ,seed=pa2i minsize=minarea,
@@ -246,14 +254,14 @@ def fsegm(pa):
 					print(bv)
 
 			grass.run_command('r.to.vect', input=pa3, output=pa4, type='area', flags='v', overwrite=True)
-			grass.run_command('v.db.addcolumn', map=pa4, columns='wdpaid_pa VARCHAR')
-			grass.run_command('v.db.update', map=pa4, column='wdpaid_pa', value=pa)
+			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR')
+			grass.run_command('v.db.update', map=pa4, column='cat_pa', value=pa)
 			grass.run_command('v.db.addcolumn', map=pa4, columns='aleat VARCHAR')
 			grass.run_command('v.db.update', map=pa4, column='aleat', value=aleat)
 			pa44 = pa4
 			pa442 = pa44 + '_diss'
 			grass.run_command('v.db.addcolumn', map=pa44, columns='segm_id numeric')  # VARCHAR')
-			grass.run_command('v.db.update', map=pa44, column='segm_id', query_column='wdpaid_pa || cat || aleat')
+			grass.run_command('v.db.update', map=pa44, column='segm_id', query_column='cat_pa || cat || aleat')
 			name = 'shp/park_segm_' + str(pa) + '_' + str(j)
 			if os.path.isfile(name + '.shp') == False:
 				grass.run_command('v.out.ogr', input=pa44, output=name + '.shp', output_layer=os.path.basename(name), format='ESRI_Shapefile', type='area')
@@ -285,10 +293,10 @@ def fsegm(pa):
 				grass.run_command('v.extract', input=pa44, output=spa0, where=sopt1, overwrite=True)
 				# try to crop PAs shapefile with coastal line or input vars
 				grass.message("setting up the working region")
-				grass.run_command('g.region', vector=spa0, res=1000)
+				grass.run_command('g.region', vector=spa0, res=10) # change to mapset resolution
 				grass.run_command('v.to.rast', input=spa0, output=spa0, use='val')  # use='cat',labelcol='segm_id')
 				soptt = spa4 + '=' + spa0
-				grass.run_command('r.mask', raster='pre')  # new to crop parks to where we have indicators information
+				grass.run_command('r.mask', raster='precip')  # new to crop parks to where we have indicators information
 				grass.run_command('r.mapcalc', expression=soptt, overwrite=True)  # opt3
 				#grass.run_command('r.mask', flags='r')
 				try:

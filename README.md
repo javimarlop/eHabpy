@@ -20,7 +20,7 @@ Python packages) is **conda / mamba**:
 
 ```
 conda env create -f environment.yml
-conda activate ehabpy
+# conda activate ehabpy
 ```
 
 Alternatively, install the pieces yourself:
@@ -36,10 +36,16 @@ Alternatively, install the pieces yourself:
 
 Before running the GRASS steps, point the scripts at your GRASS database, e.g.:
 
+First, open the terminal and change to your `segm_optim` folder using `cd`.
+
 ```
+conda activate ehabpy
+
 export GISBASE=$(grass --config path)
-export GRASSDBASE=/path/to/grassdata     # your GISDBASE
-export GRASSLOC=global_MW                # the Mollweide location
+export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
+
+# export GRASSDBASE=/path/to/grassdata     # your GISDBASE
+# export GRASSLOC=global_MW                # the Mollweide location
 ```
 
 (The obsolete `conf_grass7eHabplus.sh`, which compiled GRASS 7.0.6 from source
@@ -47,10 +53,27 @@ on Ubuntu 14.04, is no longer needed and is kept only for reference.)
 
 ## Running
 
+1. You need to create the following folders within the `segm_optim` folder:
+
+- csv
+- shp
+- tiffs
+
+2. Point the script to the GRASS GIS database and location.
+
+3. Create a `palist.csv` file with the list of IDs that you will process.
+
+4. Edit the list of input variables in `segmentation_pca_par.py`, if necessary.
+
+
 ### Segmentation (_segm_optim_ folder)
 
 ```
+ulimit -n 8192
+
 python3 segmentation_pca_par.py # it uses parallel processing
+
+export PYTHONNOUSERSITE=1
 
 python3 # opens a python environment
 from getmeanvar import * # alternative: from getmedianvar import *
@@ -60,7 +83,7 @@ exit()
 python3 moranvar.py    # calls Rscript moranvar_plots.R at the end
 ```
 
-### Similarity
+### Similarity (to be tested)
 
 ```
 python3 subpas_loop_segm_optim.py # move to 'pas' folder
