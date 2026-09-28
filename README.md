@@ -20,6 +20,7 @@ Python packages) is **conda / mamba**:
 
 ```
 conda env create -f environment.yml
+conda env create -f environment_win.yml # Windows users
 # conda activate ehabpy
 ```
 
