@@ -12,7 +12,7 @@ import shutil
 
 # Importar configuración global de variables y opciones
 try:
-    from config import ENV_VARS0, RESOLUTION, COL_ID
+    from config import ENV_VARS0, RESOLUTION, COL_ID, GRASSDB, GRASSLOC, STUDY_AREA
 except ImportError:
     print("ERROR: No se encuentra config.py. Asegúrate de crearlo en el mismo directorio.")
     sys.exit(1)
@@ -22,8 +22,8 @@ CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 
-GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser('/Users/javier/grassdata'))
-MYLOC = os.environ.get('GRASSLOC', 'ehab_guajares')
+GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
+MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
 NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1)))
 
 
@@ -109,7 +109,7 @@ def fsegm(pa):
 		except TypeError:
 			gsetup.init(os.environ['GISBASE'], GRASSDBASE, MYLOC, mapset2)
 
-		source = 'perimetro_incendio'
+		source = STUDY_AREA
 		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 		pa44x = 'pax_' + str(pa)

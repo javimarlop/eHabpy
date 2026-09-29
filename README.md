@@ -65,7 +65,7 @@ on Ubuntu 14.04, is no longer needed and is kept only for reference.)
 
 3. Locate all input variables under the `../inVars` folder.
 
-4. Import all input variables into a GRASS GIS location (PERMANENT mapset).
+4. Import all input variables plus the vector file of the study area into a GRASS GIS location (PERMANENT mapset).
 
 5. Point the script to the GRASS GIS database and location.
 

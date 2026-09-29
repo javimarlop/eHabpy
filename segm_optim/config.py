@@ -6,10 +6,11 @@ GRASSDB = '/Users/javier/grassdata' # REQUIRED
 GRASSLOC = 'ehab_guajares' # REQUIRED
 
 ENV_VARS0 = ['precip,slope,ndwi,ndvimin,ndvimax,temp'] # REQUIRED
+STUDY_AREA = 'perimetro_incendio' # REQUIRED
+COL_ID = 'cat' # REQUIRED
 
 RESOLUTION = 10 # REQUIRED
 CLIP_TO_PA = False
-COL_ID = 'cat' # REQUIRED
 
 ENV_VARS = { # REQUIRED
     'precip': {'file': 'precip.tif', 'nodata': -9999}
