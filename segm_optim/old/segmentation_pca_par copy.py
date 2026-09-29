@@ -20,7 +20,6 @@ except ImportError:
 # OPCIONES DE CONFIGURACIÓN
 CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
-PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser('/Users/javier/grassdata'))
 MYLOC = os.environ.get('GRASSLOC', 'ehab_guajares')
@@ -59,6 +58,7 @@ def clean_previous_results():
 	"""Borra archivos de control y limpia el contenido de las carpetas de salida."""
 	print("\n⚠️ FORCE_RESTART activado: Limpiando resultados anteriores para empezar desde cero...")
 	
+	# Archivos de control de ejecuciones previas
 	control_files = ['csv/segm_done.csv', 'ongoing.csv', 'done.csv']
 	for f in control_files:
 		if os.path.exists(f):
@@ -67,6 +67,7 @@ def clean_previous_results():
 			except Exception as e:
 				print(f"No se pudo eliminar {f}: {e}")
 
+	# Vaciar carpetas de salida
 	directories = ['csv', 'shp', 'tiffs', 'results']
 	for folder in directories:
 		if os.path.exists(folder):
@@ -117,17 +118,12 @@ def fsegm(pa):
 		opt1 = col + '=' + pa
 		grass.run_command('v.extract', input=source, output=pa0, where=opt1, overwrite=True)
 
-		# Configuración de región con buffer opcional alrededor del Bounding Box
-		region_kwargs = {'vector': pa0, 'res': RESOLUTION}
-		if PA_BUFFER > 0:
-			region_kwargs['grow'] = PA_BUFFER
-		
-		grass.run_command('g.region', **region_kwargs)
+		grass.run_command('g.region', vector=pa0, res=RESOLUTION)
 
 		same = pa + 'v2_= const'
 		rndmap = 'rndseed=rand(1,10000000000000000000000000)'
 		rndname = 'tiffs/rndseed_' + str(pa) + '.tif'
-		grass.run_command('r.mapcalc', expression='const = if(precip>=0,1,null())', overwrite=True) # change to first variable used
+		grass.run_command('r.mapcalc', expression='const = if(precip>=0,1,null())', overwrite=True)
 		grass.run_command('r.mapcalc', expression=same, overwrite=True)
 		grass.run_command('r.mapcalc', seed=10, expression=rndmap, overwrite=True)
 		grass.run_command('r.out.gdal', input='rndseed', output=rndname, overwrite=True)
@@ -148,7 +144,7 @@ def fsegm(pa):
 			pa4 = 'paa_' + pa
 			aleat = np.random.randint(1, 1001)
 
-			grass.run_command('g.region', **region_kwargs)
+			grass.run_command('g.region', vector=pa0, res=RESOLUTION)
 			j += 1
 
 			if thr == 0.1:
@@ -259,9 +255,11 @@ def fsegm(pa):
 
 
 if __name__ == '__main__':
+	# Si FORCE_RESTART es True, se ejecuta la limpieza previa antes de arrancar los procesos
 	if FORCE_RESTART:
 		clean_previous_results()
 
+	# Recrear los archivos de control iniciales si no existen
 	for f in [csvname1, csvong1, csvong2]:
 		if not os.path.isfile(f):
 			open(f, 'a').close()

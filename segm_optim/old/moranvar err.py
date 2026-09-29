@@ -1,6 +1,6 @@
 #### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
 #### Modernized for Python 3 / PySAL 2.x (libpysal + esda) / GeoPandas (2024-2026)
-#### Robust alignment for segm_id matching (fixes disappearing polygons)
+#### Refactored for dynamic variables, PA support and Shapefile-CSV alignment
 #### License: CC BY-SA 3.0
 
 import numpy as np
@@ -25,13 +25,6 @@ idx_sumareas = 2 + (num_vars * 2)
 ecox_list0 = np.genfromtxt('csv/segm_done.csv', dtype=int)
 ecox_list = np.unique(np.atleast_1d(ecox_list0))
 mx = len(ecox_list)
-
-def clean_id_str(val):
-    """Limpia cadenas e IDs numéricos quitando sufijos .0 sobrantes."""
-    s = str(val).strip()
-    if s.endswith('.0'):
-        s = s[:-2]
-    return s
 
 for pmx in range(0, mx):
     park = ecox_list[pmx]
@@ -60,47 +53,27 @@ for pmx in range(0, mx):
             if not os.path.isfile(hriname) or not os.path.isfile(shpname):
                 continue
 
-            # 1. Cargar datos del CSV asegurando IDs formateados como string limpio
-            raw_hri_ids = np.genfromtxt(hriname, skip_header=1, usecols=1, dtype=str)
+            # 1. Cargar IDs de segmentos presentes en el CSV
+            raw_hri_ids = np.genfromtxt(hriname, skip_header=1, usecols=1)
             raw_hri_ids = np.atleast_1d(raw_hri_ids)
-            hri_ids_all = [clean_id_str(x) for x in raw_hri_ids if str(x) != 'nan']
+            hri_ids = [str(int(x)) for x in raw_hri_ids if not np.isnan(x)]
             
-            sumareas_all = np.genfromtxt(hriname, skip_header=1, usecols=(idx_sumareas))
-            sumareas_all = np.atleast_1d(sumareas_all)
+            sumareas = np.genfromtxt(hriname, skip_header=1, usecols=(idx_sumareas))
+            sumareas = np.atleast_1d(sumareas)
 
-            y30_all = np.genfromtxt(hriname, skip_header=1, usecols=(i))
-            y30_all = np.atleast_1d(y30_all)
-
-            i2 = i + (num_vars * 2) + 1
-            y330_all = np.genfromtxt(hriname, skip_header=1, usecols=(i2))
-            y330_all = np.atleast_1d(y330_all)
-
-            # 2. Cargar Shapefile y disolver geometrías por segm_id estandarizado
+            # 2. Cargar Shapefile, estandarizar segm_id y disolver
             gdf = gpd.read_file(shpname)
-            gdf['segm_id'] = gdf['segm_id'].apply(clean_id_str)
+            gdf['segm_id'] = gdf['segm_id'].apply(lambda x: str(int(float(x))) if str(x).replace('.','',1).isdigit() else str(x))
             dissolved = gdf.dissolve(by='segm_id', as_index=False, aggfunc='first')
 
-            # 3. Emparejamiento seguro: Filtrar solo las coincidencias reales en ambos datos
-            shp_ids_set = set(dissolved['segm_id'])
-            valid_idx = [idx for idx, hid in enumerate(hri_ids_all) if hid in shp_ids_set]
+            # 3. Alineación exacta: Filtrar y reordenar el GeoDataFrame según los IDs del CSV
+            dissolved = dissolved.set_index('segm_id').reindex(hri_ids).reset_index()
+            dissolved = dissolved.dropna(subset=['geometry'])
 
-            if len(valid_idx) == 0:
-                print(f"⚠️ Sin coincidencias entre {hriname} y {shpname}")
-                continue
-
-            hri_ids = [hri_ids_all[idx] for idx in valid_idx]
-            y30 = y30_all[valid_idx]
-            sumareas = sumareas_all[valid_idx]
-            y330 = y330_all[valid_idx]
-
-            # Reordenar GeoDataFrame exactamente igual que las filas filtradas del CSV
-            dissolved = dissolved.set_index('segm_id').loc[hri_ids].reset_index()
-
-            # Guardar el shapefile disuelto completo
             if not os.path.isfile(shpname2):
                 dissolved.to_file(shpname2)
 
-            # 4. Crear matriz espacial directamente desde las geometrías emparejadas
+            # 4. Crear matriz espacial directamente desde el GeoDataFrame alineado
             w = libpysal.weights.Rook.from_dataframe(dissolved, use_index=False)
             print('w.n es:', w.n)
             wpn = w.n
@@ -110,9 +83,17 @@ for pmx in range(0, mx):
                 sareas = np.sum(sumareas)
                 thr.append(k)
                 
+                y30 = np.genfromtxt(hriname, skip_header=1, usecols=(i))
+                y30 = np.atleast_1d(y30)
+                
+                # El cálculo de Moran ahora no falla por desajuste numérico
                 mi = esda.Moran(y30, w)
                 mm = abs(mi.I)
                 print('M.I. is:', mm)
+                
+                i2 = i + (num_vars * 2) + 1
+                y330 = np.genfromtxt(hriname, skip_header=1, usecols=(i2))
+                y330 = np.atleast_1d(y330)
                 
                 wv = np.sum(y330) / sareas
                 print('Sum of the variance is:', wv)
@@ -147,7 +128,7 @@ for pmx in range(0, mx):
             with open(csvname, 'a') as wb:
                 wb.write(','.join(map(str, tot)) + ',\n')
 
-    # Consolidación final de resultados
+    # Consolidación final
     if os.path.isfile(csvname2):
         thrs = np.genfromtxt(csvname2, skip_header=0, usecols=(0))
         thrs = np.atleast_1d(thrs)

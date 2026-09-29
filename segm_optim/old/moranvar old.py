@@ -1,37 +1,32 @@
 #### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
-#### Modernized for Python 3 / PySAL 2.x (libpysal + esda) / GeoPandas (2024-2026)
-#### Robust alignment for segm_id matching (fixes disappearing polygons)
+#### Modernized for Python 3 / PySAL 2.x (libpysal + esda) / GeoPandas (2024)
+#### Refactored for dynamic variables
 #### License: CC BY-SA 3.0
 
 import numpy as np
 import os
 import sys
+import csv
+import itertools
+
 import libpysal
 import esda
 import geopandas as gpd
 
-# Configuración dinámica desde config.py
+# Configuración dinámica de variables
 try:
-    from config import ENV_VARS, CLIP_TO_PA
+    from config import ENV_VARS
     num_vars = len(ENV_VARS)
 except ImportError:
     print("ERROR: No se encuentra config.py.")
     sys.exit(1)
 
-print(f"Modo de análisis espacial: {'Estricto a PA (CLIP_TO_PA=True)' if CLIP_TO_PA else 'Bounding Box completo (CLIP_TO_PA=False)'}")
-
+# Cálculo dinámico de la columna sumareas
 idx_sumareas = 2 + (num_vars * 2)
 
 ecox_list0 = np.genfromtxt('csv/segm_done.csv', dtype=int)
 ecox_list = np.unique(np.atleast_1d(ecox_list0))
 mx = len(ecox_list)
-
-def clean_id_str(val):
-    """Limpia cadenas e IDs numéricos quitando sufijos .0 sobrantes."""
-    s = str(val).strip()
-    if s.endswith('.0'):
-        s = s[:-2]
-    return s
 
 for pmx in range(0, mx):
     park = ecox_list[pmx]
@@ -45,6 +40,7 @@ for pmx in range(0, mx):
     csvname2 = 'csv/' + str(park) + '_movar_thresholds.csv'
     csvname5 = 'csv/' + str(park) + '_movar_results.csv'
 
+    # Bucle adaptado a la cantidad de capas ambientales
     for i in range(2, 2 + num_vars):
         print('variable is:', i)
         mors = []
@@ -53,56 +49,24 @@ for pmx in range(0, mx):
         
         for k in range(1, 10):
             wpn = 0
+            layrname = 'park_segm_' + str(park) + '_' + str(k)
             shpname = 'shp/park_segm_' + str(park) + '_' + str(k) + '.shp'
             shpname2 = 'shp/park_segm_' + str(park) + '_' + str(k) + '_diss.shp'
             hriname = 'csv/park_' + str(park) + '_hri_results' + str(k) + '.csv'
             
-            if not os.path.isfile(hriname) or not os.path.isfile(shpname):
+            if not os.path.isfile(hriname):
                 continue
 
-            # 1. Cargar datos del CSV asegurando IDs formateados como string limpio
-            raw_hri_ids = np.genfromtxt(hriname, skip_header=1, usecols=1, dtype=str)
-            raw_hri_ids = np.atleast_1d(raw_hri_ids)
-            hri_ids_all = [clean_id_str(x) for x in raw_hri_ids if str(x) != 'nan']
+            sumareas = np.genfromtxt(hriname, skip_header=1, usecols=(idx_sumareas))
+            sumareas = np.atleast_1d(sumareas)
             
-            sumareas_all = np.genfromtxt(hriname, skip_header=1, usecols=(idx_sumareas))
-            sumareas_all = np.atleast_1d(sumareas_all)
-
-            y30_all = np.genfromtxt(hriname, skip_header=1, usecols=(i))
-            y30_all = np.atleast_1d(y30_all)
-
-            i2 = i + (num_vars * 2) + 1
-            y330_all = np.genfromtxt(hriname, skip_header=1, usecols=(i2))
-            y330_all = np.atleast_1d(y330_all)
-
-            # 2. Cargar Shapefile y disolver geometrías por segm_id estandarizado
-            gdf = gpd.read_file(shpname)
-            gdf['segm_id'] = gdf['segm_id'].apply(clean_id_str)
-            dissolved = gdf.dissolve(by='segm_id', as_index=False, aggfunc='first')
-
-            # 3. Emparejamiento seguro: Filtrar solo las coincidencias reales en ambos datos
-            shp_ids_set = set(dissolved['segm_id'])
-            valid_idx = [idx for idx, hid in enumerate(hri_ids_all) if hid in shp_ids_set]
-
-            if len(valid_idx) == 0:
-                print(f"⚠️ Sin coincidencias entre {hriname} y {shpname}")
-                continue
-
-            hri_ids = [hri_ids_all[idx] for idx in valid_idx]
-            y30 = y30_all[valid_idx]
-            sumareas = sumareas_all[valid_idx]
-            y330 = y330_all[valid_idx]
-
-            # Reordenar GeoDataFrame exactamente igual que las filas filtradas del CSV
-            dissolved = dissolved.set_index('segm_id').loc[hri_ids].reset_index()
-
-            # Guardar el shapefile disuelto completo
             if not os.path.isfile(shpname2):
+                gdf = gpd.read_file(shpname)
+                dissolved = gdf.dissolve(by='segm_id', as_index=False, aggfunc='first')
                 dissolved.to_file(shpname2)
 
-            # 4. Crear matriz espacial directamente desde las geometrías emparejadas
-            w = libpysal.weights.Rook.from_dataframe(dissolved, use_index=False)
-            print('w.n es:', w.n)
+            w = libpysal.weights.Rook.from_shapefile(shpname2)
+            print('w.n is:', w.n)
             wpn = w.n
             
             if wpn > 1:
@@ -110,9 +74,16 @@ for pmx in range(0, mx):
                 sareas = np.sum(sumareas)
                 thr.append(k)
                 
+                y30 = np.genfromtxt(hriname, skip_header=1, usecols=(i))
+                y30 = np.atleast_1d(y30)
+                
                 mi = esda.Moran(y30, w)
                 mm = abs(mi.I)
                 print('M.I. is:', mm)
+                
+                i2 = i + (num_vars * 2) + 1
+                y330 = np.genfromtxt(hriname, skip_header=1, usecols=(i2))
+                y330 = np.atleast_1d(y330)
                 
                 wv = np.sum(y330) / sareas
                 print('Sum of the variance is:', wv)
@@ -127,6 +98,7 @@ for pmx in range(0, mx):
         print('list of MIs:', mors)
         print('list of variances:', varis)
         
+        # Procesamiento final de las métricas para esta variable
         if len(mors) > 0:
             mors = np.asarray(mors, dtype=float)
             varis = np.asarray(varis, dtype=float)
@@ -134,6 +106,7 @@ for pmx in range(0, mx):
             mors_range = max(mors) - min(mors)
             varis_range = max(varis) - min(varis)
             
+            # Protección contra división por cero si max == min
             m3 = (mors - min(mors)) / mors_range if mors_range > 0 else np.zeros_like(mors)
             v3 = (max(varis) - varis) / varis_range if varis_range > 0 else np.zeros_like(varis)
             tot = (m3 + v3) / 2
@@ -147,7 +120,7 @@ for pmx in range(0, mx):
             with open(csvname, 'a') as wb:
                 wb.write(','.join(map(str, tot)) + ',\n')
 
-    # Consolidación final de resultados
+    # Bloque de consolidación de resultados (Fuera del bucle de variables)
     if os.path.isfile(csvname2):
         thrs = np.genfromtxt(csvname2, skip_header=0, usecols=(0))
         thrs = np.atleast_1d(thrs)
@@ -171,6 +144,8 @@ for pmx in range(0, mx):
                     wb.write(f"{segs[d]} {v3m}\n")
             except Exception as e:
                 print(f"Error procesando columna {d} en resultados finales: {e}")
+    else:
+        print(f"Error: {csvname2} no se creó. Probablemente ningún w.n superó el valor de 1.")
 
 os.system('Rscript moranvar_plots.R')
 print("BATCH END")

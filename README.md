@@ -57,16 +57,21 @@ on Ubuntu 14.04, is no longer needed and is kept only for reference.)
 ## Running
 
 1. You need to create the following folders within the `segm_optim` folder:
+	- csv
+	- shp
+	- tiffs
+	- pa
+2. Locate the vector file with the study area under the `pa` folder.
 
-- csv
-- shp
-- tiffs
+3. Locate all input variables under the `../inVars` folder.
 
-2. Point the script to the GRASS GIS database and location.
+4. Import all input variables into a GRASS GIS location (PERMANENT mapset).
 
-3. Create a `palist.csv` file with the list of IDs that you will process.
+5. Point the script to the GRASS GIS database and location.
 
-4. Edit the list of input variables in `segmentation_pca_par.py`, if necessary.
+6. Create a `palist.csv` file with the list of IDs that you will process.
+
+7. Edit the `config.py` file with the required and optional parameters.
 
 
 ### Segmentation (_segm_optim_ folder)
@@ -79,7 +84,7 @@ python3 segmentation_pca_par.py # it uses parallel processing
 export PYTHONNOUSERSITE=1
 
 python3 # opens a python environment
-from getmeanvar import * # alternative: from getmedianvar import *
+from get_mean_median_var import * 
 run_batch_all()
 exit()
 
