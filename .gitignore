@@ -25,3 +25,4 @@ pre4root*
 *.pdf
 .DS_Store
 *.ini
+*.gpkg

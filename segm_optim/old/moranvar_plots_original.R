@@ -1,4 +1,4 @@
-# Modernized for R 4.x & Refactored for Dynamic Variables and PA Outline Overlays
+# Modernized for R 4.x & Refactored for Dynamic Variables
 library(vegan)
 library(ade4)
 library(ggplot2)
@@ -10,41 +10,6 @@ rescale01 <- function(x) {
 	rng <- range(x, na.rm = TRUE)
 	if (diff(rng) == 0) return(rep(0, length(x)))
 	(x - rng[1]) / (rng[2] - rng[1])
-}
-
-# Función para buscar y leer dinámicamente cualquier formato vectorial en la carpeta 'pa'
-find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL) {
-	if (!dir.exists(pa_dir)) return(NULL)
-	
-	files <- list.files(pa_dir, full.names = TRUE)
-	if (length(files) == 0) return(NULL)
-	
-	# Filtro de extensiones vectoriales soportadas por GDAL / sf
-	vec_exts <- "\\.(shp|gpkg|geojson|json|kml|gml|sqlite|tab)$"
-	valid_files <- files[grep(vec_exts, files, ignore.case = TRUE)]
-	
-	if (length(valid_files) == 0) return(NULL)
-	
-	selected_file <- NULL
-	if (!is.null(park_id)) {
-		match_file <- valid_files[grep(as.character(park_id), valid_files)]
-		if (length(match_file) > 0) {
-			selected_file <- match_file[1]
-		}
-	}
-	
-	if (is.null(selected_file)) {
-		selected_file <- valid_files[1]
-	}
-	
-	pa_sf <- tryCatch({
-		st_read(selected_file, quiet = TRUE)
-	}, error = function(e) {
-		warning(paste("No se pudo cargar la capa vectorial de área de estudio:", selected_file, "-", e$message))
-		return(NULL)
-	})
-	
-	return(pa_sf)
 }
 
 kols <- brewer.pal(8, 'Set1')
@@ -127,9 +92,13 @@ for (pmx in 1:mx) {
 	
 	hri <- read.table(namef, sep=' ', header=T)
 
+	# --- CÁLCULO DINÁMICO DE VARIABLES ---
+	# Estructura de columnas en hri: ecoregion, segm_id, [N medias], [N varianzas], sumpamask, [N var2]
+	# Total columnas = 3*N + 3 => N = (ncol - 3) / 3
 	num_vars <- (ncol(hri) - 3) / 3
-	maxnclas <- num_vars - 1
+	maxnclas <- num_vars - 1  # Número máximo de clases dinámico
 
+	# Escalar las medias y varianzas de las variables (cols 3 a 2 + 2*N)
 	skaled <- as.data.frame(lapply(hri[, 3:(2 + 2 * num_vars)], rescale01))
 	
 	try(dmh <- vegdist(skaled, "euclidean", na.rm=T))
@@ -171,11 +140,15 @@ for (pmx in 1:mx) {
 		try(s.class(mds_mh$points, as.factor(hclust_mean), col=1:length(unique(hclust_mean))))
 		dev.off()
 
+		# Construir tabla hrin con las N variables de media y hclust_mean al final
 		hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
+		
+		# Extraer y limpiar nombres de variables desde las cabeceras del CSV
 		raw_names <- names(hri)[3:(2 + num_vars)]
 		clean_names <- sub("pamean$", "", raw_names)
 		names(hrin)[3:(2 + num_vars)] <- clean_names
 
+		# Reshape para el Radarplot
 		hri3 <- melt(hrin[, 3:(3 + num_vars)], id.vars='hclust_mean')
 		hri4 <- dcast(hri3, hclust_mean ~ variable, mean)
 
@@ -189,11 +162,12 @@ for (pmx in 1:mx) {
 		rpn <- paste('results/radarplot_', park, '_', res, '_segms_mean.png', sep='')
 		ggsave(filename=rpn)
 
-		# Integración en Shapefile y Mapa final
+		# Integración en Shapefile
 		shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
 		if (file.exists(file.path('shp', paste0(shp_layer, '.shp')))) {
 			segm_pa <- st_read('shp', layer=shp_layer, quiet=TRUE)
 
+			# Merge segm_id y la columna de clase (posición 2 + num_vars + 1)
 			merge(segm_pa, hrin[, c(2, 2 + num_vars + 1)], by='segm_id') -> segm_pa_class
 
 			scaled0 <- scaled2
@@ -207,22 +181,9 @@ for (pmx in 1:mx) {
 					 file.path('results', paste('park_segm_', park, '_', res, '_class.shp', sep='')),
 					 delete_layer=TRUE, quiet=TRUE)
 
-			# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO ---
 			rpn2 <- paste('results/map_', park, '_', res, '_segms_hclust.png', sep='')
 			png(rpn2)
 			plot(st_geometry(segm_pa_class), col=kols[segm_pa_class$hclust_mean], main=park)
-			
-			# Cargar y dibujar la capa del área de estudio en negro
-			pa_outline <- find_and_read_pa_vector("pa", park)
-			if (!is.null(pa_outline)) {
-				# Reproyectar al CRS del mapa si difieren
-				if (!is.na(st_crs(segm_pa_class)) && !is.na(st_crs(pa_outline)) && st_crs(segm_pa_class) != st_crs(pa_outline)) {
-					pa_outline <- st_transform(pa_outline, st_crs(segm_pa_class))
-				}
-				# Dibujar el contorno del polígono sobre la clasificación
-				plot(st_geometry(pa_outline), add = TRUE, border = "yellow", lwd = 2, col = NA)
-			}
-			
 			legend("bottomright", leg=unique(segm_pa_class$hclust_mean), col=unique(kols[segm_pa_class$hclust_mean]), pch = 19, title = "Legend")
 			dev.off()
 		}

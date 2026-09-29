@@ -18,6 +18,8 @@ eHabitat+
 The recommended way to get the full geospatial stack (GDAL, GRASS, R and all
 Python packages) is **conda / mamba**:
 
+You need to install [Anaconda](https://www.anaconda.com/download) in your system.
+
 ```
 conda env create -f environment.yml
 conda env create -f environment_win.yml # Windows users
