@@ -32,7 +32,7 @@ FORCE_RESTART = True
 # DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros):
 # 0 = Bounding box ajustado exactamente al área de estudio.
 # > 0 = Extiende el bounding box de la región de trabajo en la distancia especificada.
-PA_BUFFER = 0
+PA_BUFFER = 500
 
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:
 # 'mean'   = Utiliza la media (numpy.mean)
