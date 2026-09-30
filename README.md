@@ -67,7 +67,7 @@ export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
 7. Edit the `config.py` file with the required and optional parameters.
 
 
-### HFTs (_segm_optim_ folder)
+### Habitat Functional Types (HFTs) (_segm_optim_ folder)
 
 ```
 ulimit -n 8192
@@ -84,7 +84,7 @@ exit()
 python3 moranvar.py    # calls Rscript moranvar_plots.R at the end
 ```
 
-### Similarity (to be tested under the new environment)
+### HFTs similarity and landscape metrics (to be tested under the new environment)
 
 ```
 python3 subpas_loop_segm_optim.py # move to 'pas' folder
