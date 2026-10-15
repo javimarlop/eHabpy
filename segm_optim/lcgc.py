@@ -10,6 +10,7 @@ import numpy as np
 import os
 import sys
 import csv
+import glob
 from tqdm import tqdm
 
 gdal.UseExceptions()
@@ -176,8 +177,8 @@ def lcgc(bhcat='', cluster=''):
 						wb.write('\n')
 						wb.close()
 						target_ds = dataraster = array = outShapefile = outFeature = outDataSource = vector_fn = outLayer = source_ds = opt = ola = source_layer = inDataSource = None
-		dele = 'rm results/*tmpfs*'  # '_'+str(idd)+
-		os.system(dele)
+		for tmpf in glob.glob('results/*tmpfs*'):
+			os.remove(tmpf)
 		wb = open(csvname1, 'a')
 		varx = str(idd)
 		wb.write(varx)

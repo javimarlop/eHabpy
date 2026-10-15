@@ -22,7 +22,10 @@ def find_gisbase():
 		return gb
 	for exe in ('grass', 'grass84', 'grass83', 'grass82', 'grass80'):
 		try:
-			return subprocess.check_output([exe, '--config', 'path'], text=True).strip()
+			# shell=True on Windows so that grass84.bat & co. are found
+			out = subprocess.check_output([exe, '--config', 'path'], text=True,
+			                              shell=(os.name == 'nt'), stderr=subprocess.DEVNULL)
+			return out.strip().splitlines()[-1]
 		except Exception:
 			continue
 	return None

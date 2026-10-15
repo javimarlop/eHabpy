@@ -33,7 +33,10 @@ def find_gisbase():
 		return gb
 	for exe in ('grass', 'grass84', 'grass83', 'grass82', 'grass80'):
 		try:
-			return subprocess.check_output([exe, '--config', 'path'], text=True).strip()
+			# shell=True on Windows so that grass84.bat & co. are found
+			out = subprocess.check_output([exe, '--config', 'path'], text=True,
+			                              shell=(os.name == 'nt'), stderr=subprocess.DEVNULL)
+			return out.strip().splitlines()[-1]
 		except Exception:
 			continue
 	return None
@@ -100,7 +103,7 @@ def fsegm(pa):
 		grass, gsetup = init_grass(GRASSDBASE, MYLOC, mapset)
 
 		mapset2 = 'm' + str(mn)
-		os.system('rm -rf ' + os.path.join(GRASSDBASE, MYLOC, mapset2))
+		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
 		col = COL_ID
 		grass.run_command('g.mapset', mapset=mapset2, project=MYLOC, dbase=GRASSDBASE, flags='c')
 
@@ -252,7 +255,7 @@ def fsegm(pa):
 				with open(econ, 'a') as wb:
 					wb.write(eco + '\n')
 
-		os.system('rm -rf ' + os.path.join(GRASSDBASE, MYLOC, mapset2))
+		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
 
 		with open(csvname1, 'a') as wb:
 			wb.write(str(pa) + '\n')
