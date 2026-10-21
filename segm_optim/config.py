@@ -2,7 +2,7 @@
 # Diccionario centralizado de configuración
 
 
-GRASSDB = '/Users/javier/grassdata' # REQUIRED
+GRASSDB = '~/grassdata' # REQUIRED: GRASS database folder (not the GRASS install folder)
 GRASSLOC = 'ehab_guajares' # REQUIRED
 
 ENV_VARS0 = ['precip,slope,ndwi,ndvimin,ndvimax,temp'] # REQUIRED
@@ -26,7 +26,8 @@ ENV_VARS = { # REQUIRED
 
 # REINICIAR DESDE CERO:
 # True  = Borra los archivos de control y resultados anteriores para empezar desde el principio.
-# False = Continúa el procesamiento omitiendo las áreas ya completadas en csv/segm_done.csv.
+# False = Continúa el procesamiento omitiendo las áreas ya completadas en csv/segm_done.csv
+#         (un área interrumpida a medias se rehace desde cero, borrando antes sus restos).
 FORCE_RESTART = True
 
 # DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros):

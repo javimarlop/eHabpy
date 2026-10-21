@@ -9,3 +9,6 @@
 - New script for using the median values to find the optimal segmentation threshold and the final HFTs
 - New script for using the median values of the reference HFTs to find similar landscape patches
 - New script for computing the THDI
+- Segment IDs (segm_id) are now area ID + threshold index + zero-padded segment number, so they no longer collide between thresholds or areas and are the same on reruns (previously area ID + segment number + random number).
+- Resuming with FORCE_RESTART = False removes the leftovers of an interrupted area before processing it again.
+- segmentation_pca_par.py starts from the PERMANENT mapset, creates its output folders and stops with an error (instead of hanging) when a GRASS command fails.

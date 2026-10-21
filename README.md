@@ -60,7 +60,8 @@ Linux environment (including GRASS GIS) works unchanged.
 
 4. Get the code into your Linux home folder, either cloning the repository or
    copying an existing Windows folder (Windows drives are under `/mnt/c`,
-   `/mnt/d`, ...):
+   `/mnt/d`, ...). Do **not** use `sudo` for `git clone`, `cp` or `conda`:
+   files created with `sudo` belong to `root` and you cannot edit them later.
 
    ```
    sudo apt update && sudo apt install -y git
@@ -72,10 +73,35 @@ Linux environment (including GRASS GIS) works unchanged.
 
 5. Keep the code, input data and GRASS database inside the Linux file system
    (e.g. `~/eHabpy`, `~/grassdata`): working on `/mnt/c/...` is much slower.
-   Set `GRASSDB` in `config.py` to a Linux path, e.g. `'~/grassdata'`.
-   You can browse these files from the Windows Explorer at
-   `\\wsl$\Ubuntu\home\<your_linux_user>` (e.g. to open results in QGIS).
+   The GRASS database is just an empty folder that will hold your GRASS
+   projects; it does not exist until you create it:
+
+   ```
+   mkdir -p ~/grassdata
+   ```
+
+   This is the folder `GRASSDB` in `config.py` points to (`'~/grassdata'`).
+   Do not confuse it with the GRASS *installation* folder printed by
+   `grass --config path` (e.g. `~/miniforge3/envs/ehabpy/lib/grass85`), which
+   the scripts find by themselves.
+
+6. To open these files from Windows (e.g. to copy input data or to open the
+   results in QGIS), run `explorer.exe .` in the Ubuntu terminal from inside
+   `~/eHabpy`, or browse to `\\wsl$\Ubuntu\home\<your_linux_user>`.
+   Do not use the copy under `\\wsl$\Ubuntu\mnt\wslg\distro\...`: it is a
+   read-only view of the same files used internally by WSL, and there is no
+   need to remount it read-write or change its owner with `chown`.
    On Windows 11 the GRASS GIS GUI also runs from Ubuntu with `grass`.
+
+**"Permission denied" or "Read-only file system" when creating or editing
+files:** check with `pwd` that you are working in
+`/home/<your_linux_user>/eHabpy` and not under `/mnt/wslg/distro/...`. If
+`ls -l ~` shows `root` as the owner of `eHabpy` (something was run with
+`sudo`), take ownership back with (the same for `~/grassdata` if needed):
+
+```
+sudo chown -R $USER:$USER ~/eHabpy
+```
 
 From here on, follow the same steps as Linux users.
 
@@ -94,36 +120,57 @@ Alternatively, install the pieces yourself:
 
 ### Before running
 
-Before running the GRASS steps, point the scripts at your GRASS database, e.g.:
-
-First, open the terminal (the Ubuntu terminal on Windows) and change to your
-`segm_optim` folder using `cd`.
+Open the terminal (the Ubuntu terminal on Windows), change to your
+`segm_optim` folder using `cd` and activate the environment:
 
 ```
 conda activate ehabpy
+```
 
+The scripts find the GRASS GIS *installation* by themselves. Only if they fail
+with `No module named 'grass'`, also run (this is not your GRASS database):
+
+```
 export GISBASE=$(grass --config path)
 export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
 ```
 
 ## Running
 
-1. You need to create the following folders within the `segm_optim` folder:
-	- csv
-	- shp
-	- tiffs
-	- pa
-2. Locate the vector file with the study area under the `pa` folder.
+1. The output folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are
+   created automatically by `segmentation_pca_par.py`.
 
-3. Locate all input variables under the `../inVars` folder.
+2. Locate the vector file with the study area under the `segm_optim/pa` folder.
 
-4. Import all input variables plus the vector file of the study area into a GRASS GIS location (PERMANENT mapset).
+3. Locate all input variables (GeoTIFF) under an `inVars` folder next to
+   `segm_optim` (`../inVars` seen from `segm_optim`).
 
-5. Point the script to the GRASS GIS database and location.
+4. Create a GRASS GIS project (called *location* before GRASS 8.4) in your
+   GRASS database and import all input variables plus the vector file of the
+   study area into its `PERMANENT` mapset. Files just copied into the
+   `PERMANENT` folder are not seen by GRASS: they must be imported. For
+   example, for a project called `ehab_guajares` (use your own names):
 
-6. Create a `palist.csv` file with the list of IDs that you will process.
+   ```
+   mkdir -p ~/grassdata
+   grass -c ../inVars/precip.tif -e ~/grassdata/ehab_guajares   # uses the CRS of precip.tif
+   for f in ../inVars/*.tif; do
+     grass ~/grassdata/ehab_guajares/PERMANENT --exec r.import input="$f" output="$(basename "$f" .tif)"
+   done
+   grass ~/grassdata/ehab_guajares/PERMANENT --exec v.import input=pa/perimetro_incendio.shp output=perimetro_incendio
+   ```
 
-7. Edit the `config.py` file with the required and optional parameters.
+   If you were given a ready-made GRASS project instead, just copy its whole
+   folder (e.g. `ehab_guajares`) into your GRASS database
+   (`~/grassdata/ehab_guajares`) and skip the import.
+
+5. Create a `palist.csv` file with the list of IDs (values of `COL_ID` in the
+   study area) that you will process.
+
+6. Edit the `config.py` file with the required and optional parameters:
+   `GRASSDB` is the GRASS database folder (e.g. `'~/grassdata'`), `GRASSLOC`
+   the project name (e.g. `'ehab_guajares'`) and `STUDY_AREA`/`ENV_VARS` the
+   names of the imported maps.
 
 
 ### Habitat Functional Types (HFTs) (_segm_optim_ folder)

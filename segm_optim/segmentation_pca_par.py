@@ -31,7 +31,7 @@ def find_gisbase():
 	gb = os.environ.get('GISBASE')
 	if gb:
 		return gb
-	for exe in ('grass', 'grass84', 'grass83', 'grass82', 'grass80'):
+	for exe in ('grass', 'grass85', 'grass84', 'grass83', 'grass82', 'grass80'):
 		try:
 			# shell=True on Windows so that grass84.bat & co. are found
 			out = subprocess.check_output([exe, '--config', 'path'], text=True,
@@ -42,13 +42,18 @@ def find_gisbase():
 	return None
 
 
-def init_grass(gisdbase, location, mapset):
+def add_grass_to_path():
 	gisbase = find_gisbase()
 	if gisbase:
 		os.environ['GISBASE'] = gisbase
 		py = os.path.join(gisbase, 'etc', 'python')
 		if py not in sys.path:
 			sys.path.append(py)
+	return gisbase
+
+
+def init_grass(gisdbase, location, mapset):
+	gisbase = add_grass_to_path()
 	import grass.script as grass
 	import grass.script.setup as gsetup
 	try:
@@ -99,13 +104,13 @@ def fsegm(pa):
 		current = multiprocessing.current_process()
 		mn = current._identity[0]
 
-		mapset = 'm'
-		grass, gsetup = init_grass(GRASSDBASE, MYLOC, mapset)
+		# PERMANENT always exists in a GRASS project; each worker then works in its own mapset
+		grass, gsetup = init_grass(GRASSDBASE, MYLOC, 'PERMANENT')
 
 		mapset2 = 'm' + str(mn)
 		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
 		col = COL_ID
-		grass.run_command('g.mapset', mapset=mapset2, project=MYLOC, dbase=GRASSDBASE, flags='c')
+		grass.run_command('g.mapset', mapset=mapset2, flags='c')
 
 		try:
 			gsetup.init(GRASSDBASE, MYLOC, mapset2)
@@ -114,6 +119,17 @@ def fsegm(pa):
 
 		source = STUDY_AREA
 		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
+		# Remove leftovers of a previous interrupted run of this area (csv files are appended to)
+		for k in range(1, len(reps) + 1):
+			leftover = 'csv/park_' + str(pa) + '_' + str(k) + '.csv'
+			if os.path.exists(leftover):
+				with open(leftover) as f:
+					for spa in f.read().split():
+						tif = 'tiffs/pa_' + spa + '.tif'
+						if os.path.exists(tif):
+							os.remove(tif)
+				os.remove(leftover)
 
 		pa44x = 'pax_' + str(pa)
 		pa0 = 'v0_' + pa
@@ -149,7 +165,6 @@ def fsegm(pa):
 			pa2s = pa + 'v2_' + str(j - 1)
 			pa3 = pa + 'v3'
 			pa4 = 'paa_' + pa
-			aleat = np.random.randint(1, 1001)
 
 			grass.run_command('g.region', **region_kwargs)
 			j += 1
@@ -198,10 +213,14 @@ def fsegm(pa):
 				grass.run_command('r.patch', input=c, output=pa3, overwrite=True)
 
 			grass.run_command('r.to.vect', input=pa3, output=pa4, type='area', flags='v', overwrite=True)
-			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR, aleat VARCHAR, segm_id numeric')
+			# segm_id = area ID + threshold index (1 digit) + segment cat (5 digits, zero-padded):
+			# fixed-width suffix so IDs never collide between thresholds or areas, and are the same on reruns
+			maxcat = int(grass.read_command('v.db.select', map=pa4, columns='max(cat)', flags='c').strip() or 0)
+			if maxcat > 99999:
+				raise ValueError(f"Area {pa}: {maxcat} segments at threshold {thr}, segm_id allows at most 99999")
+			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR, segm_id numeric')
 			grass.run_command('v.db.update', map=pa4, column='cat_pa', value=pa)
-			grass.run_command('v.db.update', map=pa4, column='aleat', value=aleat)
-			grass.run_command('v.db.update', map=pa4, column='segm_id', query_column='cat_pa || cat || aleat')
+			grass.run_command('v.db.update', map=pa4, column='segm_id', query_column=f"cat_pa || '{j}' || printf('%05d', cat)")
 
 			name = 'shp/park_segm_' + str(pa) + '_' + str(j)
 			grass.run_command('v.out.ogr', input=pa4, output=name + '.shp', output_layer=os.path.basename(name), format='ESRI_Shapefile', type='area', overwrite=True)
@@ -262,8 +281,17 @@ def fsegm(pa):
 
 
 if __name__ == '__main__':
+	if not os.path.isdir(os.path.join(GRASSDBASE, MYLOC, 'PERMANENT')):
+		print(f"ERROR: GRASS project not found: {os.path.join(GRASSDBASE, MYLOC, 'PERMANENT')}")
+		print("GRASSDB in config.py must be the GRASS database folder that contains your project")
+		print("(e.g. '~/grassdata'), not the GRASS installation folder given by 'grass --config path'.")
+		sys.exit(1)
+
 	if FORCE_RESTART:
 		clean_previous_results()
+
+	for folder in ['csv', 'shp', 'tiffs', 'results']:
+		os.makedirs(folder, exist_ok=True)
 
 	for f in [csvname1, csvong1, csvong2]:
 		if not os.path.isfile(f):
@@ -273,6 +301,8 @@ if __name__ == '__main__':
 	pa_list0 = np.genfromtxt('palist.csv', dtype=str)
 	pa_list = np.unique(pa_list0)
 
+	# Without the grass package here, a GRASS error in a worker cannot be passed back and the pool hangs
+	add_grass_to_path()
 	pool = Pool(NPROC)
 	pool.map(fsegm, pa_list)
 	pool.close()
