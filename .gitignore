@@ -26,3 +26,4 @@ pre4root*
 .DS_Store
 *.ini
 *.gpkg
+processing_metadata.txt

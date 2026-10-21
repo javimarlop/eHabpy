@@ -12,3 +12,7 @@
 - Segment IDs (segm_id) are now area ID + threshold index + zero-padded segment number, so they no longer collide between thresholds or areas and are the same on reruns (previously area ID + segment number + random number).
 - Resuming with FORCE_RESTART = False removes the leftovers of an interrupted area before processing it again.
 - segmentation_pca_par.py starts from the PERMANENT mapset, creates its output folders and stops with an error (instead of hanging) when a GRASS command fails.
+- moranvar_plots.R: the optimal threshold is interpolated on the evaluated threshold values (not row positions), always maps to an evaluated threshold (optim = 2 could give 0) and overall_optim_thresholds.csv keeps one row per area instead of appending duplicates.
+- New SIMIL option in config.py (read by moranvar_plots.R): SIMIL = 3 cuts the HFT dendrogram at 25, 50 and 75 % of its maximum height without an upper limit and writes each classification to results/p25, results/p50 and results/p75.
+- Radar plots draw every HFT in numeric order with the same colours as the HFT map (previously at most 9 HFTs, ordered as text); the map legend is also in numeric order.
+- With SIMIL = 3 the HFT output files also carry the cut in their name (e.g. park_segm_1_5_p25_class.shp), and moranvar_plots.R writes results/processing_metadata.txt with the config.py options and its own options (optim, upper) used for the run.

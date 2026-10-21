@@ -55,9 +55,45 @@ df0 <- read.table('csv/segm_done.csv', sep=' ', header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
 
+# Lee una opción numérica sencilla (NOMBRE = valor) de config.py
+read_config_num <- function(name, default) {
+	if (!file.exists('config.py')) return(default)
+	hit <- grep(paste0('^\\s*', name, '\\s*='), readLines('config.py', warn=FALSE), value=TRUE)
+	if (length(hit) == 0) return(default)
+	val <- suppressWarnings(as.numeric(sub('#.*$', '', sub('^[^=]*=', '', hit[length(hit)]))))
+	if (is.na(val)) default else val
+}
+
 optim <- 2 # 0: fijo, 1: óptimo, 2: un paso superior
-simil <- 2 # 1: default, 2: límite inferior
+simil <- read_config_num('SIMIL', 2) # ver SIMIL en config.py
 upper <- 2 # 1: default, 2: límite superior incrementado
+
+if (!simil %in% 1:3) stop("SIMIL en config.py debe ser 1, 2 o 3")
+
+# Cortes del árbol: simil = 3 genera una clasificación por corte (25, 50 y 75 % de la altura máxima), cada una en su subcarpeta
+if (simil == 3) {
+	cuts <- c(p25=0.25, p50=0.50, p75=0.75)
+} else {
+	cuts <- c(results=NA)
+}
+
+# Metadatos de la ejecución: opciones de config.py (sin comentarios) y de este script
+cfg <- if (file.exists('config.py')) readLines('config.py', warn=FALSE) else character(0)
+cfg <- sub('\\s+#.*$', '', cfg)
+cfg <- cfg[!grepl('^\\s*(#|$)', cfg)]
+dir.create('results', showWarnings = FALSE)
+writeLines(c(
+	'eHabitat+ processing metadata: options used to produce the files in this folder',
+	paste('Date:', format(Sys.time(), '%Y-%m-%d %H:%M:%S')),
+	paste('Study areas (csv/segm_done.csv):', paste(ecox_list, collapse=', ')),
+	'',
+	'## config.py',
+	cfg,
+	'',
+	'## moranvar_plots.R',
+	paste('optim =', optim, '# 0: fixed threshold 0.5, 1: first Moran/variance crossing, 2: first crossing - 1'),
+	paste('upper =', upper, '# max. HFTs (SIMIL 1 and 2): 1: log10(n. pixels), 2: log6(n. pixels)')
+), 'results/processing_metadata.txt')
 
 for (pmx in 1:mx) {
 	park = ecox_list[pmx]
@@ -76,6 +112,14 @@ for (pmx in 1:mx) {
 	namev <- paste('csv/', park, '_var_mean.csv', sep='')
 	df0v <- read.table(namev, sep=' ', header=F)
 
+	# moranvar.py appends to these files on every run: keep one row per threshold (the latest)
+	df0 <- df0[!duplicated(df0$V1, fromLast=TRUE), ]
+	df0m <- df0m[!duplicated(df0m$V1, fromLast=TRUE), ]
+	df0v <- df0v[!duplicated(df0v$V1, fromLast=TRUE), ]
+	df0 <- df0[order(df0$V1), ]
+	df0m <- df0m[order(df0m$V1), ]
+	df0v <- df0v[order(df0v$V1), ]
+
 	name2 <- paste('csv/', park, '_movar_thresholds.csv', sep='')
 	df02 <- read.table(name2, sep=' ', header=F)
 	if (upper == 1) { upplim <- ceiling(log10(df02[1,3])) }
@@ -84,13 +128,16 @@ for (pmx in 1:mx) {
 
 	x1 <- df0m$V2
 	x2 <- df0v$V2
+	thr <- df0m$V1 # thresholds actually evaluated (some may be missing)
 
+	# Crossing points, interpolated on the threshold values (not on row positions)
 	above <- x1 > x2
 	intersect.points <- which(diff(above) != 0)
 	x1.slopes <- x1[intersect.points + 1] - x1[intersect.points]
 	x2.slopes <- x2[intersect.points + 1] - x2[intersect.points]
-	x.points <- intersect.points + ((x2[intersect.points] - x1[intersect.points]) / (x1.slopes - x2.slopes))
-	y.points <- x1[intersect.points] + (x1.slopes * (x.points - intersect.points))
+	t.points <- (x2[intersect.points] - x1[intersect.points]) / (x1.slopes - x2.slopes)
+	x.points <- thr[intersect.points] + t.points * (thr[intersect.points + 1] - thr[intersect.points])
+	y.points <- x1[intersect.points] + (x1.slopes * t.points)
 
 	newtot <- df0$V2
 	uppv <- 1
@@ -106,24 +153,30 @@ for (pmx in 1:mx) {
 
 	res <- 5
 	res0 <- as.data.frame(cbind(5, NA))
-	res2 <- res0
 
 	if (length(x.points) > 0) {
 		if (optim == 1) { res <- round(x.points[1]) }
 		if (optim == 2) { res <- round(x.points[1]) - 1 }
+		# Use the closest evaluated threshold (optim = 2 can give 0 when the curves cross near 1)
+		res <- thr[which.min(abs(thr - res))]
 		res0 <- as.data.frame(cbind(x.points, y.points))
-		res2 <- res0[1,]
 	}
 
 	k <- paste('0.', res, sep='')
-	res2[1,2] <- as.numeric(k)
-	res2[1,1] <- park
 	write.table(res0, paste('results/', park, '_optim_thresholds.csv', sep=''), sep=' ', col.names=F, row.names=F)
-	write.table(res2, 'results/overall_optim_thresholds.csv', append=T, sep=' ', col.names=F, row.names=F)
+
+	# One row per park: replace the previous row of this park instead of appending a duplicate
+	overall <- 'results/overall_optim_thresholds.csv'
+	res2 <- data.frame(V1 = park, V2 = as.numeric(k))
+	if (file.exists(overall) && file.size(overall) > 0) {
+		prev <- read.table(overall, sep=' ', header=F)
+		res2 <- rbind(prev[prev$V1 != park, ], res2)
+	}
+	write.table(res2, overall, sep=' ', col.names=F, row.names=F)
 
 	namef <- paste('csv/park_', park, '_hri_results', res, '.csv', sep='')
 	print(paste("Reading HRI file:", namef))
-	if (!file.exists(namef)) next
+	if (!file.exists(namef)) { print(paste("WARNING: HRI file not found, park skipped:", namef)); next }
 	
 	hri <- read.table(namef, sep=' ', header=T)
 
@@ -139,92 +192,105 @@ for (pmx in 1:mx) {
 	try(cophval <- cor(chcl, dmh))
 	try(metaMDS(dmh) -> mds_mh)
 	
-	if (simil == 1) { q25 <- quantile(hclust_mh$height)[2] }
-	if (simil == 2) { q25 <- min(hclust_mh$height) - 0.1 }
-	
-	cutree(hclust_mh, h=q25) -> hclust_mean
-	ncl <- length(unique(hclust_mean))
-	print(paste('Number of HFTs is ', ncl, sep=''))
+	for (cn in names(cuts)) {
+		outdir <- if (simil == 3) file.path('results', cn) else 'results'
+		tag <- if (simil == 3) paste0('_', cn) else '' # el corte también va en el nombre de cada fichero
+		dir.create(outdir, showWarnings = FALSE)
 
-	if (ncl == 1) {
-		as.numeric(factor(hri$segm_id)) -> hclust_mean
+		if (simil == 1) { hcut <- quantile(hclust_mh$height)[2] }
+		if (simil == 2) { hcut <- min(hclust_mh$height) - 0.1 }
+		if (simil == 3) { hcut <- cuts[[cn]] * max(hclust_mh$height) } # fracción de la altura máxima del árbol
+
+		cutree(hclust_mh, h=hcut) -> hclust_mean
 		ncl <- length(unique(hclust_mean))
-	}
+		print(paste('Number of HFTs is ', ncl, if (simil == 3) paste0(' (', cn, ')'), sep=''))
 
-	if (ncl > upplim) {
-		cutree(hclust_mh, k=upplim) -> hclust_mean
-		ncl <- length(unique(hclust_mean))
-	}
+		if (ncl == 1) {
+			as.numeric(factor(hri$segm_id)) -> hclust_mean
+			ncl <- length(unique(hclust_mean))
+		}
 
-	if (ncl > maxnclas) {
-		cutree(hclust_mh, k=maxnclas) -> hclust_mean
-		ncl <- length(unique(hclust_mean))
-	}
+		# simil = 3 no impone límite superior al número de HFTs
+		if (simil != 3 && ncl > upplim) {
+			cutree(hclust_mh, k=upplim) -> hclust_mean
+			ncl <- length(unique(hclust_mean))
+		}
 
-	if (ncl > 1) {
-		png(paste('results/hclust_', park, '_', res, '_segms_mean.png', sep=''))
-		try(plot(hclust_mh, hang=-1, main=park, sub=cophval)); try(rect.hclust(hclust_mh, k=ncl))
-		dev.off()
+		if (simil != 3 && ncl > maxnclas) {
+			cutree(hclust_mh, k=maxnclas) -> hclust_mean
+			ncl <- length(unique(hclust_mean))
+		}
 
-		png(paste('results/NMDS_', park, '_', res, '_segms_mean.png', sep=''))
-		try(plot(mds_mh))
-		try(s.class(mds_mh$points, as.factor(hclust_mean), col=1:length(unique(hclust_mean))))
-		dev.off()
+		# Colores del mapa: Set1 hasta 8 HFTs, interpolados si hay más
+		kolsn <- if (ncl <= length(kols)) kols else colorRampPalette(kols)(ncl)
 
-		hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
-		raw_names <- names(hri)[3:(2 + num_vars)]
-		clean_names <- sub("pamean$", "", raw_names)
-		names(hrin)[3:(2 + num_vars)] <- clean_names
-
-		hri3 <- melt(hrin[, 3:(3 + num_vars)], id.vars='hclust_mean')
-		hri4 <- dcast(hri3, hclust_mean ~ variable, mean)
-
-		scaled <- as.data.frame(lapply(hri4[, 2:(num_vars + 1), drop=FALSE], rescale01))
-		scaled$model <- hri4[, 1]
-
-		scaled2 <- cbind(group = scaled$model, scaled[, 1:num_vars, drop=FALSE])
-		
-		source('CreateRadialPlot.R')
-		CreateRadialPlot(scaled2, plot.extent.x = 1.5)
-		rpn <- paste('results/radarplot_', park, '_', res, '_segms_mean.png', sep='')
-		ggsave(filename=rpn)
-
-		# Integración en Shapefile y Mapa final
-		shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
-		if (file.exists(file.path('shp', paste0(shp_layer, '.shp')))) {
-			segm_pa <- st_read('shp', layer=shp_layer, quiet=TRUE)
-
-			merge(segm_pa, hrin[, c(2, 2 + num_vars + 1)], by='segm_id') -> segm_pa_class
-
-			scaled0 <- scaled2
-			kl <- dim(scaled0)[2] + 1
-			scaled0[, kl] <- rep(park, dim(scaled0)[1])
-			names(scaled0)[1] <- 'hclust_mean'
-			names(scaled0)[kl] <- 'wdpaid'
-			merge(segm_pa_class, scaled0, by='hclust_mean') -> segm_pa_class2
-
-			st_write(segm_pa_class2,
-					 file.path('results', paste('park_segm_', park, '_', res, '_class.shp', sep='')),
-					 delete_layer=TRUE, quiet=TRUE)
-
-			# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO ---
-			rpn2 <- paste('results/map_', park, '_', res, '_segms_hclust.png', sep='')
-			png(rpn2)
-			plot(st_geometry(segm_pa_class), col=kols[segm_pa_class$hclust_mean], main=park)
-			
-			# Cargar y dibujar la capa del área de estudio en negro
-			pa_outline <- find_and_read_pa_vector("pa", park)
-			if (!is.null(pa_outline)) {
-				# Reproyectar al CRS del mapa si difieren
-				if (!is.na(st_crs(segm_pa_class)) && !is.na(st_crs(pa_outline)) && st_crs(segm_pa_class) != st_crs(pa_outline)) {
-					pa_outline <- st_transform(pa_outline, st_crs(segm_pa_class))
-				}
-				# Dibujar el contorno del polígono sobre la clasificación
-				plot(st_geometry(pa_outline), add = TRUE, border = "yellow", lwd = 2, col = NA)
-			}
-			
-			legend("bottomright", leg=unique(segm_pa_class$hclust_mean), col=unique(kols[segm_pa_class$hclust_mean]), pch = 19, title = "Legend")
+		if (ncl > 1) {
+			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
+			try(plot(hclust_mh, hang=-1, main=park, sub=cophval)); try(rect.hclust(hclust_mh, k=ncl))
 			dev.off()
+
+			png(file.path(outdir, paste('NMDS_', park, '_', res, tag, '_segms_mean.png', sep='')))
+			try(plot(mds_mh))
+			try(s.class(mds_mh$points, as.factor(hclust_mean), col=1:length(unique(hclust_mean))))
+			dev.off()
+
+			hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
+			raw_names <- names(hri)[3:(2 + num_vars)]
+			clean_names <- sub("pamean$", "", raw_names)
+			names(hrin)[3:(2 + num_vars)] <- clean_names
+
+			hri3 <- melt(hrin[, 3:(3 + num_vars)], id.vars='hclust_mean')
+			hri4 <- dcast(hri3, hclust_mean ~ variable, mean)
+
+			scaled <- as.data.frame(lapply(hri4[, 2:(num_vars + 1), drop=FALSE], rescale01))
+			scaled$model <- hri4[, 1]
+
+			scaled2 <- cbind(group = scaled$model, scaled[, 1:num_vars, drop=FALSE])
+			
+			source('CreateRadialPlot.R')
+			# Mismos colores que el mapa (kolsn indexado por nº de HFT)
+			CreateRadialPlot(scaled2, plot.extent.x = 1.5, group.colours = setNames(kolsn[scaled2$group], scaled2$group))
+			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
+			ggsave(filename=rpn)
+
+			# Integración en Shapefile y Mapa final
+			shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
+			if (file.exists(file.path('shp', paste0(shp_layer, '.shp')))) {
+				segm_pa <- st_read('shp', layer=shp_layer, quiet=TRUE)
+
+				merge(segm_pa, hrin[, c(2, 2 + num_vars + 1)], by='segm_id') -> segm_pa_class
+
+				scaled0 <- scaled2
+				kl <- dim(scaled0)[2] + 1
+				scaled0[, kl] <- rep(park, dim(scaled0)[1])
+				names(scaled0)[1] <- 'hclust_mean'
+				names(scaled0)[kl] <- 'wdpaid'
+				merge(segm_pa_class, scaled0, by='hclust_mean') -> segm_pa_class2
+
+				st_write(segm_pa_class2,
+						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
+						 delete_layer=TRUE, quiet=TRUE)
+
+				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO ---
+				rpn2 <- file.path(outdir, paste('map_', park, '_', res, tag, '_segms_hclust.png', sep=''))
+				png(rpn2)
+				plot(st_geometry(segm_pa_class), col=kolsn[segm_pa_class$hclust_mean], main=park)
+				
+				# Cargar y dibujar la capa del área de estudio en negro
+				pa_outline <- find_and_read_pa_vector("pa", park)
+				if (!is.null(pa_outline)) {
+					# Reproyectar al CRS del mapa si difieren
+					if (!is.na(st_crs(segm_pa_class)) && !is.na(st_crs(pa_outline)) && st_crs(segm_pa_class) != st_crs(pa_outline)) {
+						pa_outline <- st_transform(pa_outline, st_crs(segm_pa_class))
+					}
+					# Dibujar el contorno del polígono sobre la clasificación
+					plot(st_geometry(pa_outline), add = TRUE, border = "yellow", lwd = 2, col = NA)
+				}
+				
+				hfts <- sort(unique(segm_pa_class$hclust_mean))
+				legend("bottomright", leg=hfts, col=kolsn[hfts], pch = 19, title = "Legend")
+				dev.off()
+			}
 		}
 	}
 }

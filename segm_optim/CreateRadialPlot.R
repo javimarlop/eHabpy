@@ -29,7 +29,9 @@ CreateRadialPlot <- function(plot.data,
                              background.circle.transparency=0.2,
                              plot.legend=if (nrow(plot.data)>1) TRUE else FALSE,
                              legend.title="HFT",
-                             legend.text.size=grid.label.size ) {
+                             legend.text.size=grid.label.size,
+                             group.colours=NULL ) {
+  #group.colours: optional colours named by group ID (default: Set1 palette, max. 9 groups)
 
   var.names <- colnames(plot.data)[-1]  #'Short version of variable names 
   #axis.labels [if supplied] is designed to hold 'long version' of variable names
@@ -58,7 +60,8 @@ CalculateGroupPath <- function(df) {
   #  df: Col 1 -  group ('unique' cluster / group ID of entity)
   #      Col 2-n:  v1.value to vn.value - values (e.g. group/cluser mean or median) of variables v1 to v.n
 
-  path <- as.factor(as.character(df[,1]))
+  #groups in the order of their IDs (numeric order for numeric IDs, not 1, 10, 11, 2...)
+  path <- factor(as.character(df[,1]), levels=unique(as.character(df[order(df[,1]),1])))
   
   ##find increment
   angles = seq(from=0, to=2*pi, by=(2*pi)/(ncol(df)-1))
@@ -86,6 +89,8 @@ CalculateGroupPath <- function(df) {
     
   }
   
+  graphData$group <- factor(graphData$group, levels=levels(path))
+
   #Make sure that name of first column matches that of input data (in case !="group")
   colnames(graphData)[1] <- colnames(df)[1]
   
@@ -249,10 +254,17 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   
   # ... + group (cluster) 'paths'
   base <- base + geom_path(data=group$path,aes(x=x,y=y,group=group,colour=group),
-                           linewidth=group.line.width) + scale_colour_brewer(palette='Set1')
-  
+                           linewidth=group.line.width)
+
   # ... + group points (cluster data)
-  base <- base + geom_point(data=group$path,aes(x=x,y=y,group=group,colour=group),size=group.point.size) + scale_colour_brewer(palette='Set1')
+  base <- base + geom_point(data=group$path,aes(x=x,y=y,group=group,colour=group),size=group.point.size)
+
+  # ... + group colours
+  if (is.null(group.colours)) {
+    base <- base + scale_colour_brewer(palette='Set1')
+  } else {
+    base <- base + scale_colour_manual(values=group.colours)
+  }
   
   #... + amend Legend title
   if (plot.legend==TRUE) base  <- base + labs(colour=legend.title,size=legend.text.size)

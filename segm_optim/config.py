@@ -35,6 +35,14 @@ FORCE_RESTART = True
 # > 0 = Extiende el bounding box de la región de trabajo en la distancia especificada.
 PA_BUFFER = 500
 
+# NÚMERO DE HFTs (corte del árbol de clasificación jerárquica en moranvar_plots.R):
+# 1 = Corta en el percentil 25 de las alturas de fusión, con límite superior de HFTs.
+# 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores
+#     (por superficie del área y nº de variables - 1).
+# 3 = Corta el árbol al 25, 50 y 75 % de su altura máxima, sin límite superior; los
+#     resultados de cada corte se guardan en results/p25, results/p50 y results/p75.
+SIMIL = 3
+
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:
 # 'mean'   = Utiliza la media (numpy.mean)
 # 'median' = Utiliza la mediana (numpy.median)
