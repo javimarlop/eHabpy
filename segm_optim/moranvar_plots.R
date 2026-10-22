@@ -13,7 +13,8 @@ rescale01 <- function(x) {
 }
 
 # Función para buscar y leer dinámicamente cualquier formato vectorial en la carpeta 'pa'
-find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL) {
+# (con varios, el que tiene el nombre del área de estudio, como en setup.py)
+find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL, area = NULL) {
 	if (!dir.exists(pa_dir)) return(NULL)
 	
 	files <- list.files(pa_dir, full.names = TRUE)
@@ -26,7 +27,16 @@ find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL) {
 	if (length(valid_files) == 0) return(NULL)
 	
 	selected_file <- NULL
-	if (!is.null(park_id)) {
+	if (!is.null(area)) {
+		# setup.py cambia los caracteres que no son letras ASCII, números o _ por _ (y añade v_ si empieza por número)
+		key <- function(x) gsub('[^A-Za-z0-9]', '', x)
+		stems <- key(sub('\\.[^.]*$', '', basename(valid_files)))
+		match_file <- valid_files[stems %in% key(c(area, sub('^v_', '', area)))]
+		if (length(match_file) > 0) {
+			selected_file <- match_file[1]
+		}
+	}
+	if (is.null(selected_file) && !is.null(park_id)) {
 		match_file <- valid_files[grep(as.character(park_id), valid_files)]
 		if (length(match_file) > 0) {
 			selected_file <- match_file[1]
@@ -55,12 +65,16 @@ df0 <- read.table('csv/segm_done.csv', sep=' ', header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
 
-# Lee una opción numérica sencilla (NOMBRE = valor) de config.py
-read_config_num <- function(name, default) {
-	if (!file.exists('config.py')) return(default)
+# Lee el valor (sin comentario ni comillas) de una opción sencilla (NOMBRE = valor) de config.py
+read_config <- function(name) {
+	if (!file.exists('config.py')) return(NA)
 	hit <- grep(paste0('^\\s*', name, '\\s*='), readLines('config.py', warn=FALSE), value=TRUE)
-	if (length(hit) == 0) return(default)
-	val <- suppressWarnings(as.numeric(sub('#.*$', '', sub('^[^=]*=', '', hit[length(hit)]))))
+	if (length(hit) == 0) return(NA)
+	gsub("^\\s*['\"]?|['\"]?\\s*$", '', sub('#.*$', '', sub('^[^=]*=', '', hit[length(hit)])))
+}
+
+read_config_num <- function(name, default) {
+	val <- suppressWarnings(as.numeric(read_config(name)))
 	if (is.na(val)) default else val
 }
 
@@ -69,6 +83,11 @@ simil <- read_config_num('SIMIL', 2) # ver SIMIL en config.py
 upper <- 2 # 1: default, 2: límite superior incrementado
 
 if (!simil %in% 1:3) stop("SIMIL en config.py debe ser 1, 2 o 3")
+
+# Resultados en results/<área de estudio>: la de los csv (anotada por segmentation_pca_par.py) o STUDY_AREA de config.py
+area <- if (file.exists('csv/study_area.csv')) readLines('csv/study_area.csv', n=1, warn=FALSE) else read_config('STUDY_AREA')
+if (is.na(area) || area == '') stop("No se encuentra el área de estudio: falta STUDY_AREA en config.py")
+outroot <- file.path('results', area)
 
 # Cortes del árbol: simil = 3 genera una clasificación por corte (25, 50 y 75 % de la altura máxima), cada una en su subcarpeta
 if (simil == 3) {
@@ -81,11 +100,12 @@ if (simil == 3) {
 cfg <- if (file.exists('config.py')) readLines('config.py', warn=FALSE) else character(0)
 cfg <- sub('\\s+#.*$', '', cfg)
 cfg <- cfg[!grepl('^\\s*(#|$)', cfg)]
-dir.create('results', showWarnings = FALSE)
+dir.create(outroot, recursive = TRUE, showWarnings = FALSE)
 writeLines(c(
 	'eHabitat+ processing metadata: options used to produce the files in this folder',
 	paste('Date:', format(Sys.time(), '%Y-%m-%d %H:%M:%S')),
-	paste('Study areas (csv/segm_done.csv):', paste(ecox_list, collapse=', ')),
+	paste('Study area:', area),
+	paste('IDs processed (csv/segm_done.csv):', paste(ecox_list, collapse=', ')),
 	'',
 	'## config.py',
 	cfg,
@@ -93,7 +113,7 @@ writeLines(c(
 	'## moranvar_plots.R',
 	paste('optim =', optim, '# 0: fixed threshold 0.5, 1: first Moran/variance crossing, 2: first crossing - 1'),
 	paste('upper =', upper, '# max. HFTs (SIMIL 1 and 2): 1: log10(n. pixels), 2: log6(n. pixels)')
-), 'results/processing_metadata.txt')
+), file.path(outroot, 'processing_metadata.txt'))
 
 for (pmx in 1:mx) {
 	park = ecox_list[pmx]
@@ -142,8 +162,7 @@ for (pmx in 1:mx) {
 	newtot <- df0$V2
 	uppv <- 1
 	
-	dir.create('results', showWarnings = FALSE)
-	png(paste('results/', park, '_moran_var_mean.png', sep=''))
+	png(file.path(outroot, paste(park, '_moran_var_mean.png', sep='')))
 	plot(df0m$V1, df0m$V2, ylim=c(0, uppv), col=1, typ='o', ylab='Moran I. and Variance', xlab='Similarity threshold (x 0.1)', main=park)
 	lines(df0v$V1, df0v$V2, col=3, typ='o')
 	lines(df0$V1, newtot, col=4, typ='o')
@@ -163,10 +182,10 @@ for (pmx in 1:mx) {
 	}
 
 	k <- paste('0.', res, sep='')
-	write.table(res0, paste('results/', park, '_optim_thresholds.csv', sep=''), sep=' ', col.names=F, row.names=F)
+	write.table(res0, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', col.names=F, row.names=F)
 
 	# One row per park: replace the previous row of this park instead of appending a duplicate
-	overall <- 'results/overall_optim_thresholds.csv'
+	overall <- file.path(outroot, 'overall_optim_thresholds.csv')
 	res2 <- data.frame(V1 = park, V2 = as.numeric(k))
 	if (file.exists(overall) && file.size(overall) > 0) {
 		prev <- read.table(overall, sep=' ', header=F)
@@ -193,7 +212,7 @@ for (pmx in 1:mx) {
 	try(metaMDS(dmh) -> mds_mh)
 	
 	for (cn in names(cuts)) {
-		outdir <- if (simil == 3) file.path('results', cn) else 'results'
+		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
 		tag <- if (simil == 3) paste0('_', cn) else '' # el corte también va en el nombre de cada fichero
 		dir.create(outdir, showWarnings = FALSE)
 
@@ -277,7 +296,7 @@ for (pmx in 1:mx) {
 				plot(st_geometry(segm_pa_class), col=kolsn[segm_pa_class$hclust_mean], main=park)
 				
 				# Cargar y dibujar la capa del área de estudio en negro
-				pa_outline <- find_and_read_pa_vector("pa", park)
+				pa_outline <- find_and_read_pa_vector("pa", park, area)
 				if (!is.null(pa_outline)) {
 					# Reproyectar al CRS del mapa si difieren
 					if (!is.na(st_crs(segm_pa_class)) && !is.na(st_crs(pa_outline)) && st_crs(segm_pa_class) != st_crs(pa_outline)) {

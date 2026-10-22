@@ -26,9 +26,12 @@ ENV_VARS = { # REQUIRED
 }
 
 # REINICIAR DESDE CERO:
-# True  = Borra los archivos de control y resultados anteriores para empezar desde el principio.
+# True  = Borra los archivos de control, csv/shp/tiffs y los resultados anteriores de esta área
+#         de estudio (results/<STUDY_AREA>) para empezar desde el principio.
 # False = Continúa el procesamiento omitiendo las áreas ya completadas en csv/segm_done.csv
 #         (un área interrumpida a medias se rehace desde cero, borrando antes sus restos).
+#         Si csv/shp/tiffs son de otra área de estudio se empieza también desde cero.
+# Los resultados de otras áreas de estudio (results/<otra área>) nunca se borran.
 FORCE_RESTART = True
 
 # DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros):
@@ -41,7 +44,7 @@ PA_BUFFER = 500
 # 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores
 #     (por superficie del área y nº de variables - 1).
 # 3 = Corta el árbol al 25, 50 y 75 % de su altura máxima, sin límite superior; los
-#     resultados de cada corte se guardan en results/p25, results/p50 y results/p75.
+#     resultados de cada corte se guardan en results/<STUDY_AREA>/p25, p50 y p75.
 SIMIL = 3
 
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:

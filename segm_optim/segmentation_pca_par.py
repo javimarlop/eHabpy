@@ -66,9 +66,7 @@ def init_grass(gisdbase, location, mapset):
 
 
 def clean_previous_results():
-	"""Borra archivos de control y limpia el contenido de las carpetas de salida."""
-	print("\n⚠️ FORCE_RESTART activado: Limpiando resultados anteriores para empezar desde cero...")
-	
+	"""Borra archivos de control, csv/shp/tiffs y los resultados de esta área de estudio (no los de otras)."""
 	control_files = ['csv/segm_done.csv', 'ongoing.csv', 'done.csv']
 	for f in control_files:
 		if os.path.exists(f):
@@ -77,7 +75,7 @@ def clean_previous_results():
 			except Exception as e:
 				print(f"No se pudo eliminar {f}: {e}")
 
-	directories = ['csv', 'shp', 'tiffs', 'results']
+	directories = ['csv', 'shp', 'tiffs', RESULTS]
 	for folder in directories:
 		if os.path.exists(folder):
 			for filename in os.listdir(folder):
@@ -98,6 +96,9 @@ def clean_previous_results():
 csvname1 = 'csv/segm_done.csv'
 csvong1 = 'ongoing.csv'
 csvong2 = 'done.csv'
+# csv, shp y tiffs los comparten todas las áreas de estudio: este archivo dice de cuál son
+csvarea = 'csv/study_area.csv'
+RESULTS = os.path.join('results', STUDY_AREA)  # moranvar_plots.R guarda aquí los resultados
 
 
 def fsegm(pa):
@@ -289,11 +290,18 @@ if __name__ == '__main__':
 		print("(e.g. '~/grassdata'), not the GRASS installation folder given by 'grass --config path'.")
 		sys.exit(1)
 
+	previous_area = open(csvarea).read().strip() if os.path.isfile(csvarea) else STUDY_AREA
 	if FORCE_RESTART:
+		print("\n⚠️ FORCE_RESTART activado: Limpiando resultados anteriores para empezar desde cero...")
+		clean_previous_results()
+	elif previous_area != STUDY_AREA:
+		print(f"\n⚠️ csv, shp y tiffs son del área de estudio {previous_area}: se empieza desde cero con {STUDY_AREA}...")
 		clean_previous_results()
 
-	for folder in ['csv', 'shp', 'tiffs', 'results']:
+	for folder in ['csv', 'shp', 'tiffs', RESULTS]:
 		os.makedirs(folder, exist_ok=True)
+	with open(csvarea, 'w') as wb:
+		wb.write(STUDY_AREA + '\n')
 
 	for f in [csvname1, csvong1, csvong2]:
 		if not os.path.isfile(f):
