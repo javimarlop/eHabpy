@@ -286,6 +286,9 @@ for (pmx in 1:mx) {
 			radar <- CreateRadialPlot(scaled2, axis.labels = short_labels(clean_names), axis.label.size = 3.5, axis.label.offset = 1.25,
 			                          plot.extent.x.sf = 1.9, plot.extent.y.sf = 1.35,
 			                          group.colours = setNames(kolsn[scaled2$group], scaled2$group))
+			# Título del radar y del mapa: área de estudio, umbral, corte del árbol y nº de HFTs
+			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')
+			radar <- radar + labs(title=area, subtitle=plot_subtitle) + theme(plot.title=element_text(size=16), plot.subtitle=element_text(size=14))
 			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
 			ggsave(filename=rpn, plot=radar, width=10, height=7.5, dpi=300)
 
@@ -316,7 +319,7 @@ for (pmx in 1:mx) {
 				hftmap <- ggplot() +
 					geom_sf(data=segm_pa_class, aes(fill=HFT), colour='grey50', linewidth=0.05) +
 					scale_fill_manual(values=setNames(kolsn[hfts], hfts)) +
-					labs(title=area, subtitle=paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')) +
+					labs(title=area, subtitle=plot_subtitle) +
 					theme_bw(base_size=14) +
 					theme(axis.title=element_blank())
 

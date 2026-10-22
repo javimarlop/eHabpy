@@ -26,3 +26,4 @@
 - HFT maps (moranvar_plots.R): the study area outline is drawn in black (it was yellow, like one of the HFT colours) and the segment borders in thin grey, so the outline stands out.
 - HFT maps (moranvar_plots.R) are drawn with ggplot2 (geom_sf), 12 inches wide at 300 dpi, with the legend outside the map, coordinates and a title with the study area, threshold, cut and number of HFTs.
 - Radar plots (moranvar_plots.R): the variable labels leave out the parts of the name shared by all variables (e.g. the study area prefix and the mask suffix) and are split into several lines, with more room around the radar and a fixed size (10 x 7.5 inches at 300 dpi), so long variable names are no longer cut.
+- Radar plots have the same title as the HFT maps: study area, ID, threshold, cut (p25, p50 or p75 with SIMIL = 3) and number of HFTs.
