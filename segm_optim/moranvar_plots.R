@@ -26,6 +26,25 @@ short_labels <- function(x, width = 18) {
 	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
 }
 
+# Archivo (en ../inVars) y NoData de cada variable, de ENV_VARS en config.py
+read_env_vars <- function() {
+	lines <- readLines('config.py', warn = FALSE)
+	lines <- lines[!grepl('^\\s*#', lines)]
+	m <- regmatches(lines, regexec("'([^']+)'\\s*:\\s*\\{\\s*'file'\\s*:\\s*'([^']+)'\\s*,\\s*'nodata'\\s*:\\s*([^,}]+)", lines))
+	m <- m[lengths(m) == 4]
+	data.frame(var = sapply(m, `[`, 2), file = sapply(m, `[`, 3),
+	           nodata = suppressWarnings(as.numeric(trimws(sapply(m, `[`, 4)))))
+}
+
+# Estadísticos de un boxplot (como geom_boxplot): cuartiles y bigotes hasta 1.5 x IQR
+box_stats <- function(x) {
+	x <- x[!is.na(x)]
+	if (length(x) == 0) return(c(ymin = NA, lower = NA, middle = NA, upper = NA, ymax = NA))
+	q <- quantile(x, c(0.25, 0.5, 0.75), names = FALSE)
+	iqr <- q[3] - q[1]
+	c(ymin = min(x[x >= q[1] - 1.5 * iqr]), lower = q[1], middle = q[2], upper = q[3], ymax = max(x[x <= q[3] + 1.5 * iqr]))
+}
+
 # Función para buscar y leer dinámicamente cualquier formato vectorial en la carpeta 'pa'
 # (con varios, el que tiene el nombre del área de estudio, como en setup.py)
 find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL, area = NULL) {
@@ -224,7 +243,28 @@ for (pmx in 1:mx) {
 	try(chcl <- cophenetic(hclust_mh))
 	try(cophval <- cor(chcl, dmh))
 	try(metaMDS(dmh) -> mds_mh)
-	
+
+	# Valores de las variables en cada píxel (../inVars), para los boxplots por HFT
+	var_names <- sub("pamean$", "", names(hri)[3:(2 + num_vars)])
+	ev <- read_env_vars()
+	ev <- ev[match(var_names, ev$var), ]
+	pixvals <- NULL
+	if (anyNA(ev$var) || !all(file.exists(file.path('..', 'inVars', ev$file)))) {
+		print("WARNING: variable files of config.py (ENV_VARS) not found in ../inVars, boxplots skipped")
+	} else {
+		rs <- lapply(file.path('..', 'inVars', ev$file), terra::rast, lyrs = 1)
+		pixgrid <- rs[[1]]
+		# Todas en la malla de la primera variable
+		pixvals <- sapply(rs, function(r) {
+			if (!terra::compareGeom(r, pixgrid, stopOnError = FALSE)) r <- terra::resample(r, pixgrid, method = 'near')
+			terra::values(r, mat = FALSE)
+		})
+		for (i in seq_len(nrow(ev))) {
+			if (!is.na(ev$nodata[i])) pixvals[which(pixvals[, i] == ev$nodata[i]), i] <- NA
+		}
+		pixarea <- terra::values(terra::cellSize(pixgrid, unit = 'ha', mask = FALSE), mat = FALSE)
+	}
+
 	for (cn in names(cuts)) {
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
 		tag <- if (simil == 3) paste0('_', cn) else '' # el corte también va en el nombre de cada fichero
@@ -338,6 +378,38 @@ for (pmx in 1:mx) {
 				bb <- st_bbox(segm_pa_class)
 				asp <- as.numeric((bb['ymax'] - bb['ymin']) / (bb['xmax'] - bb['xmin']))
 				ggsave(rpn2, hftmap, width=12, height=min(max(10 * asp + 1.5, 5), 16), dpi=300)
+
+				# --- BOXPLOTS DE CADA VARIABLE POR HFT CON LOS VALORES DE LOS PÍXELES ---
+				if (!is.null(pixvals)) {
+					cls <- terra::values(terra::rasterize(terra::vect(segm_pa_class), pixgrid, field='hclust_mean'), mat=FALSE)
+					inhft <- !is.na(cls)
+					hftcls <- factor(cls[inhft], levels=hfts)
+
+					# Superficie de cada HFT (ha y % de la superficie clasificada) en la leyenda
+					ha <- tapply(pixarea[inhft], hftcls, sum)
+					ha[is.na(ha)] <- 0
+					hft_labels <- paste0(hfts, ': ', format(round(ha), big.mark=',', trim=TRUE), ' ha (', round(100 * ha / sum(ha), 1), ' %)')
+
+					var_labels <- short_labels(var_names)
+					bstats <- do.call(rbind, lapply(seq_along(var_names), function(i) {
+						s <- sapply(split(pixvals[inhft, i], hftcls), box_stats)
+						data.frame(var=var_labels[i], HFT=hfts, t(s))
+					}))
+					bstats$var <- factor(bstats$var, levels=var_labels)
+					bstats$HFT <- factor(bstats$HFT, levels=hfts)
+
+					# Un panel por variable con su propia escala (valores originales)
+					ncolf <- ceiling(sqrt(length(var_names)))
+					nrowf <- ceiling(length(var_names) / ncolf)
+					boxp <- ggplot(bstats, aes(x=HFT, ymin=ymin, lower=lower, middle=middle, upper=upper, ymax=ymax, fill=HFT)) +
+						geom_boxplot(stat='identity', linewidth=0.3, width=0.7) +
+						facet_wrap(~ var, ncol=ncolf, scales='free_y') +
+						scale_fill_manual(values=setNames(kolsn[hfts], hfts), labels=hft_labels, name='HFT (area)') +
+						labs(title=area, subtitle=paste0(plot_subtitle, ' | pixel values, whiskers to 1.5 x IQR'), x='HFT', y=NULL) +
+						theme_bw(base_size=13)
+					rpn3 <- file.path(outdir, paste('boxplot_', park, '_', res, tag, '_hft_pixels.png', sep=''))
+					ggsave(rpn3, boxp, width=4.5 * ncolf + 3.5, height=3.5 * nrowf + 1.5, dpi=300)
+				}
 			}
 		}
 	}

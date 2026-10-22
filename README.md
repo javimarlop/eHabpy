@@ -181,7 +181,8 @@ export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
    folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are created
    automatically by `segmentation_pca_par.py`.
 
-5. The results of each study area (HFT maps and shapefiles, plots,
+5. The results of each study area (HFT maps and shapefiles, radar plots,
+   boxplots of the pixel values of each variable by HFT, the other plots,
    `overall_optim_thresholds.csv` and `processing_metadata.txt`) are saved in
    their own folder, `results/<study area>` (e.g. `results/guajares`), and are
    kept when another study area is processed. The intermediate folders `csv`,
