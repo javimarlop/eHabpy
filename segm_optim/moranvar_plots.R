@@ -12,6 +12,20 @@ rescale01 <- function(x) {
 	(x - rng[1]) / (rng[2] - rng[1])
 }
 
+# Etiquetas del radar: sin las partes (separadas por '_') que comparten al principio y al
+# final todos los nombres de variable, y en líneas de 'width' caracteres como máximo
+short_labels <- function(x, width = 18) {
+	parts <- strsplit(x, '_', fixed = TRUE)
+	n <- min(lengths(parts))
+	pre <- 0
+	suf <- 0
+	if (length(x) > 1) {
+		while (pre < n - 1 && length(unique(sapply(parts, function(p) p[pre + 1]))) == 1) pre <- pre + 1
+		while (suf < n - 1 - pre && length(unique(sapply(parts, function(p) p[length(p) - suf]))) == 1) suf <- suf + 1
+	}
+	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
+}
+
 # Función para buscar y leer dinámicamente cualquier formato vectorial en la carpeta 'pa'
 # (con varios, el que tiene el nombre del área de estudio, como en setup.py)
 find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL, area = NULL) {
@@ -268,9 +282,12 @@ for (pmx in 1:mx) {
 			
 			source('CreateRadialPlot.R')
 			# Mismos colores que el mapa (kolsn indexado por nº de HFT)
-			CreateRadialPlot(scaled2, plot.extent.x = 1.5, group.colours = setNames(kolsn[scaled2$group], scaled2$group))
+			# Etiquetas cortas y en varias líneas, con margen a los lados para que no se corten
+			radar <- CreateRadialPlot(scaled2, axis.labels = short_labels(clean_names), axis.label.size = 3.5, axis.label.offset = 1.25,
+			                          plot.extent.x.sf = 1.9, plot.extent.y.sf = 1.35,
+			                          group.colours = setNames(kolsn[scaled2$group], scaled2$group))
 			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
-			ggsave(filename=rpn)
+			ggsave(filename=rpn, plot=radar, width=10, height=7.5, dpi=300)
 
 			# Integración en Shapefile y Mapa final
 			shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
