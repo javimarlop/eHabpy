@@ -1,5 +1,6 @@
 # config.py
 # Diccionario centralizado de configuración
+# Las opciones REQUIRED las rellena 'python3 setup.py' a partir de ../inVars y pa/
 
 
 GRASSDB = '~/grassdata' # REQUIRED: GRASS database folder (not the GRASS install folder)

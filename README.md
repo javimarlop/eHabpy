@@ -137,40 +137,48 @@ export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
 
 ## Running
 
-1. The output folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are
-   created automatically by `segmentation_pca_par.py`.
+1. Copy all input variables (GeoTIFF, all with the same CRS and pixel size)
+   to an `inVars` folder next to `segm_optim` (`../inVars` seen from
+   `segm_optim`). The map name of each variable is its file name
+   (`precip.tif` → `precip`).
 
-2. Locate the vector file with the study area under the `segm_optim/pa` folder.
+2. Copy the vector file of the study area (`.gpkg`, `.shp` or `.geojson`) to
+   the `segm_optim/pa` folder. Its file name is also the name of the GRASS
+   project and of the study area map (`pa/guajares.gpkg` → `guajares`), so
+   rename the file if you want another name.
 
-3. Locate all input variables (GeoTIFF) under an `inVars` folder next to
-   `segm_optim` (`../inVars` seen from `segm_optim`).
-
-4. Create a GRASS GIS project (called *location* before GRASS 8.4) in your
-   GRASS database and import all input variables plus the vector file of the
-   study area into its `PERMANENT` mapset. Files just copied into the
-   `PERMANENT` folder are not seen by GRASS: they must be imported. For
-   example, for a project called `ehab_guajares` (use your own names):
+3. From the `segm_optim` folder run the setup script:
 
    ```
-   mkdir -p ~/grassdata
-   grass -c ../inVars/precip.tif -e ~/grassdata/ehab_guajares   # uses the CRS of precip.tif
-   for f in ../inVars/*.tif; do
-     grass ~/grassdata/ehab_guajares/PERMANENT --exec r.import input="$f" output="$(basename "$f" .tif)"
-   done
-   grass ~/grassdata/ehab_guajares/PERMANENT --exec v.import input=pa/perimetro_incendio.shp output=perimetro_incendio
+   python3 setup.py
    ```
 
-   If you were given a ready-made GRASS project instead, just copy its whole
-   folder (e.g. `ehab_guajares`) into your GRASS database
-   (`~/grassdata/ehab_guajares`) and skip the import.
+   It creates the GRASS GIS project (called *location* before GRASS 8.4)
+   named after the study area in the GRASS database folder `GRASSDB` of
+   `config.py` (by default `~/grassdata`), with the CRS of the variables,
+   imports the variables and the study area into its `PERMANENT` mapset,
+   writes `palist.csv` with all the IDs of the study area and fills the
+   required options of `config.py` (`GRASSDB`, `GRASSLOC`, `ENV_VARS0`,
+   `STUDY_AREA`, `COL_ID`, `RESOLUTION` and `ENV_VARS`) from the data. Use
+   another GRASS database folder with, e.g.:
 
-5. Create a `palist.csv` file with the list of IDs (values of `COL_ID` in the
-   study area) that you will process.
+   ```
+   python3 setup.py --grassdb ~/grassdata
+   ```
 
-6. Edit the `config.py` file with the required and optional parameters:
-   `GRASSDB` is the GRASS database folder (e.g. `'~/grassdata'`), `GRASSLOC`
-   the project name (e.g. `'ehab_guajares'`) and `STUDY_AREA`/`ENV_VARS` the
-   names of the imported maps.
+   `python3 setup.py --help` lists the other options: `--study-area` when
+   there are several vector files in `pa`, `--col-id` for the column with the
+   IDs of the study areas (default `cat`, one ID per polygon) and
+   `--overwrite` to import the maps again after replacing a file. Running it
+   again only imports what is not in the project yet and keeps an existing
+   `palist.csv`. If you were given a ready-made GRASS project, copy its whole
+   folder into your GRASS database (e.g. `~/grassdata/guajares`): it is used
+   when its name is that of the study area file.
+
+4. Edit `palist.csv` to process only some of the IDs, and check the other
+   options in `config.py` (`PA_BUFFER`, `SIMIL`, `STAT_AGG`, ...). The output
+   folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are created
+   automatically by `segmentation_pca_par.py`.
 
 
 ### Habitat Functional Types (HFTs) (_segm_optim_ folder)

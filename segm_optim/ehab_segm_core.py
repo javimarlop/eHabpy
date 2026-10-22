@@ -17,7 +17,7 @@ from osgeo import ogr, gdal
 
 # Importar configuración global de variables
 try:
-    from config import ENV_VARS
+    from config import ENV_VARS, RESOLUTION
 except ImportError:
     print("ERROR: No se encuentra config.py. Asegúrate de crearlo en el mismo directorio.")
     sys.exit(1)
@@ -25,7 +25,7 @@ except ImportError:
 gdal.UseExceptions()
 ogr.UseExceptions()
 
-res = 10 
+res = RESOLUTION # tamaño de píxel de las variables de ../inVars (rellenado por setup.py)
 gmaps = 0
 nwpath = ''
 park = ''

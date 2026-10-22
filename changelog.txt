@@ -16,3 +16,6 @@
 - New SIMIL option in config.py (read by moranvar_plots.R): SIMIL = 3 cuts the HFT dendrogram at 25, 50 and 75 % of its maximum height without an upper limit and writes each classification to results/p25, results/p50 and results/p75.
 - Radar plots draw every HFT in numeric order with the same colours as the HFT map (previously at most 9 HFTs, ordered as text); the map legend is also in numeric order.
 - With SIMIL = 3 the HFT output files also carry the cut in their name (e.g. park_segm_1_5_p25_class.shp), and moranvar_plots.R writes results/processing_metadata.txt with the config.py options and its own options (optim, upper) used for the run.
+- New segm_optim/setup.py: creates the GRASS GIS project, named after the study area file in pa/, from the GeoTIFFs in ../inVars (with their CRS), imports them and the study area in pa/ into PERMANENT, writes palist.csv and fills the REQUIRED options of config.py (including RESOLUTION and the NoData values) from the data.
+- segmentation_pca_par.py uses the first variable of ENV_VARS0 (instead of a fixed 'precip') to delimit the valid pixels, which now are those with data (previously those >= 0).
+- ehab_segm_core.py takes the pixel size from RESOLUTION in config.py instead of a fixed 10 m.

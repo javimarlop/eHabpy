@@ -22,6 +22,8 @@ CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 
+FIRST_VAR = ','.join(ENV_VARS0).split(',')[0].strip()  # its valid pixels define the analysed area
+
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
 MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
 NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1)))
@@ -146,7 +148,7 @@ def fsegm(pa):
 		same = pa + 'v2_= const'
 		rndmap = 'rndseed=rand(1,10000000000000000000000000)'
 		rndname = 'tiffs/rndseed_' + str(pa) + '.tif'
-		grass.run_command('r.mapcalc', expression='const = if(precip>=0,1,null())', overwrite=True) # change to first variable used
+		grass.run_command('r.mapcalc', expression=f'const = if(isnull({FIRST_VAR}),null(),1)', overwrite=True)
 		grass.run_command('r.mapcalc', expression=same, overwrite=True)
 		grass.run_command('r.mapcalc', seed=10, expression=rndmap, overwrite=True)
 		grass.run_command('r.out.gdal', input='rndseed', output=rndname, overwrite=True)
@@ -252,7 +254,7 @@ def fsegm(pa):
 				soptt = spa4 + '=' + spa0
 
 				if CLIP_TO_PA:
-					grass.run_command('r.mask', raster='precip')
+					grass.run_command('r.mask', raster=FIRST_VAR)
 				
 				grass.run_command('r.mapcalc', expression=soptt, overwrite=True)
 
