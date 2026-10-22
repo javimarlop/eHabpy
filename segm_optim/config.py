@@ -4,22 +4,23 @@
 
 
 GRASSDB = '~/grassdata' # REQUIRED: GRASS database folder (not the GRASS install folder)
-GRASSLOC = 'ehab_guajares' # REQUIRED
+GRASSLOC = 'Guajares_zona_quemada_dNBR2022_10m' # REQUIRED
 
-ENV_VARS0 = ['precip,slope,ndwi,ndvimin,ndvimax,temp'] # REQUIRED
-STUDY_AREA = 'perimetro_incendio' # REQUIRED
+ENV_VARS0 = ['Guajares_1_NDVImax_P95_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_2_NDVImin_P05_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_5_TempMediaAnual_gradosC_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_6_PrecipAnual_mm_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m'] # REQUIRED
+STUDY_AREA = 'Guajares_zona_quemada_dNBR2022_10m' # REQUIRED
 COL_ID = 'cat' # REQUIRED
 
 RESOLUTION = 10 # REQUIRED
 CLIP_TO_PA = False
 
 ENV_VARS = { # REQUIRED
-    'precip': {'file': 'precip.tif', 'nodata': -9999}
-    ,'slope': {'file': 'slope.tif', 'nodata': -9999}
-    ,'ndwi': {'file': 'ndwi.tif', 'nodata': -9999}
-    ,'ndvimin': {'file': 'ndvimin.tif', 'nodata': -9999}
-    ,'ndvimax': {'file': 'ndvimax.tif', 'nodata': -9999}
-    ,'temp': {'file': 'temp.tif', 'nodata': -9999}
+    'Guajares_1_NDVImax_P95_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_1_NDVImax_P95_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_2_NDVImin_P05_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_2_NDVImin_P05_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_5_TempMediaAnual_gradosC_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_5_TempMediaAnual_gradosC_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_6_PrecipAnual_mm_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_6_PrecipAnual_mm_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
 #    ,'ndvimax': {'file': 'ndvimax.tif', 'nodata': 65535.0}
 #    ,'ndvimin': {'file': 'ndvimin.tif', 'nodata': 65535.0}
 #    ,'herb': {'file': 'herb.tif', 'nodata': 255.0}

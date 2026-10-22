@@ -6,6 +6,7 @@ from multiprocessing import cpu_count, Pool
 import multiprocessing
 import subprocess
 import numpy as np
+from scipy import ndimage
 import os
 import sys
 import shutil
@@ -23,6 +24,7 @@ FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 
 FIRST_VAR = ','.join(ENV_VARS0).split(',')[0].strip()  # its valid pixels define the analysed area
+SMALL_BUFFER = 3000  # m: segments smaller than minarea join the most frequent segment within this distance
 
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
 MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
@@ -99,6 +101,41 @@ csvong2 = 'done.csv'
 # csv, shp y tiffs los comparten todas las áreas de estudio: este archivo dice de cuál son
 csvarea = 'csv/study_area.csv'
 RESULTS = os.path.join('results', STUDY_AREA)  # moranvar_plots.R guarda aquí los resultados
+
+
+def merge_small_segments(grass, pa3, minarea):
+	"""Asigna a cada segmento de pa3 con menos de minarea celdas el segmento más frecuente a
+	SMALL_BUFFER m o menos de él (fuera de él). Da el mismo resultado que r.buffer + r.mask +
+	r.stats por segmento y un r.patch final, pero sin crear un mapa por segmento: con datos
+	enmascarados hay miles de fragmentos aislados y r.patch agota los archivos abiertos."""
+	import grass.script.array as garray
+
+	proj = grass.parse_command('g.proj', flags='g')
+	if proj.get('proj') == 'll':
+		raise ValueError('The GRASS project must have a projected CRS in meters (e.g. UTM), not degrees')
+	dist = SMALL_BUFFER / float(proj.get('meters', 1))  # in map units
+
+	data = np.asarray(garray.array(mapname=pa3, null=0, dtype=np.int32))
+	ids, counts = np.unique(data[data > 0], return_counts=True)
+	small = ids[counts < minarea]
+	if len(small) == 0:
+		return
+	lut = np.arange(data.max() + 1, dtype=np.int32)
+	boxes = ndimage.find_objects(data)
+	margin = int(dist // RESOLUTION) + 1  # cells around the segment that can be within dist
+	for s in small:
+		rows, cols = boxes[s - 1]
+		sub = data[max(rows.start - margin, 0):rows.stop + margin, max(cols.start - margin, 0):cols.stop + margin]
+		inside = sub == s
+		# Distances between cell centres, as r.buffer does in projected CRS
+		near = sub[(ndimage.distance_transform_edt(~inside, sampling=RESOLUTION) <= dist) & ~inside]
+		near = near[near > 0]
+		if near.size:
+			ids_near, n = np.unique(near, return_counts=True)
+			lut[s] = ids_near[np.argmax(n)]
+	out = garray.array(dtype=np.int32)
+	out[...] = lut[data]
+	out.write(mapname=pa3, null=0, overwrite=True)
 
 
 def fsegm(pa):
@@ -189,31 +226,7 @@ def fsegm(pa):
 				except Exception:
 					pass
 
-			b = grass.read_command('r.stats', input=pa3, flags='nc', separator='\n').splitlines()
-			clean = None
-			c = pa3
-			for g in np.arange(1, len(b), 2):
-				if int(b[g]) < minarea:
-					c2 = 'old' + str(b[g - 1])
-					c22 = c2 + 'b10km'
-					c3 = 'new' + str(b[g - 1])
-					oper1 = c2 + '=' + 'if(' + pa3 + '==' + str(b[g - 1]) + ',1,null())'
-					grass.run_command('r.mapcalc', expression=oper1, overwrite=True)
-					grass.run_command('r.buffer', input=c2, output=c22, distances=3, units='kilometers', overwrite=True)
-					grass.run_command('r.mask', raster=c22, maskcats='2')
-					buff = grass.read_command('r.stats', input=pa3, flags='nc', sort='desc', separator='\n').splitlines()
-					try:
-						grass.run_command('r.mask', flags='r')
-					except Exception:
-						pass
-					if len(buff) > 0:
-						clean = 'T'
-						oper1 = c3 + '=' + 'if(' + c2 + '==1,' + str(buff[0]) + ',null())'
-						c = c3 + ',' + c
-						grass.run_command('r.mapcalc', expression=oper1, overwrite=True)
-
-			if clean == 'T':
-				grass.run_command('r.patch', input=c, output=pa3, overwrite=True)
+			merge_small_segments(grass, pa3, minarea)
 
 			grass.run_command('r.to.vect', input=pa3, output=pa4, type='area', flags='v', overwrite=True)
 			# segm_id = area ID + threshold index (1 digit) + segment cat (5 digits, zero-padded):

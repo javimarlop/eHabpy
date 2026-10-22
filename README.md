@@ -191,10 +191,9 @@ export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
 
 ```
 ulimit -n 8192
+export PYTHONNOUSERSITE=1 # ignore Python packages installed in ~/.local
 
 python3 segmentation_pca_par.py # it uses parallel processing
-
-export PYTHONNOUSERSITE=1
 
 python3 # opens a python environment
 from get_mean_median_var import * 
