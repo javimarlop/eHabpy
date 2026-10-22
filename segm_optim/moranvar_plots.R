@@ -290,12 +290,19 @@ for (pmx in 1:mx) {
 						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
 						 delete_layer=TRUE, quiet=TRUE)
 
-				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO ---
+				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO (ggplot2) ---
 				rpn2 <- file.path(outdir, paste('map_', park, '_', res, tag, '_segms_hclust.png', sep=''))
-				png(rpn2)
+				hfts <- sort(unique(segm_pa_class$hclust_mean))
+				segm_pa_class$HFT <- factor(segm_pa_class$hclust_mean, levels=hfts)
+
 				# Bordes de los segmentos en gris fino para que destaque el contorno negro del área de estudio
-				plot(st_geometry(segm_pa_class), col=kolsn[segm_pa_class$hclust_mean], border='grey50', lwd=0.3, main=park)
-				
+				hftmap <- ggplot() +
+					geom_sf(data=segm_pa_class, aes(fill=HFT), colour='grey50', linewidth=0.05) +
+					scale_fill_manual(values=setNames(kolsn[hfts], hfts)) +
+					labs(title=area, subtitle=paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')) +
+					theme_bw(base_size=14) +
+					theme(axis.title=element_blank())
+
 				# Cargar y dibujar la capa del área de estudio en negro
 				pa_outline <- find_and_read_pa_vector("pa", park, area)
 				if (!is.null(pa_outline)) {
@@ -303,13 +310,14 @@ for (pmx in 1:mx) {
 					if (!is.na(st_crs(segm_pa_class)) && !is.na(st_crs(pa_outline)) && st_crs(segm_pa_class) != st_crs(pa_outline)) {
 						pa_outline <- st_transform(pa_outline, st_crs(segm_pa_class))
 					}
-					# Dibujar el contorno del polígono sobre la clasificación
-					plot(st_geometry(pa_outline), add = TRUE, border = "black", lwd = 2, col = NA)
+					hftmap <- hftmap + geom_sf(data=pa_outline, fill=NA, colour='black', linewidth=0.8)
 				}
-				
-				hfts <- sort(unique(segm_pa_class$hclust_mean))
-				legend("bottomright", leg=hfts, col=kolsn[hfts], pch = 19, title = "Legend")
-				dev.off()
+				hftmap <- hftmap + coord_sf(expand=FALSE)
+
+				# 12 pulgadas de ancho a 300 dpi; el alto sigue la proporción del área (más título)
+				bb <- st_bbox(segm_pa_class)
+				asp <- as.numeric((bb['ymax'] - bb['ymin']) / (bb['xmax'] - bb['xmin']))
+				ggsave(rpn2, hftmap, width=12, height=min(max(10 * asp + 1.5, 5), 16), dpi=300)
 			}
 		}
 	}
