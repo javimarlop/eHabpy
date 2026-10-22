@@ -22,9 +22,9 @@ except ImportError:
 CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
+SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
 
 FIRST_VAR = ','.join(ENV_VARS0).split(',')[0].strip()  # its valid pixels define the analysed area
-SMALL_BUFFER = 3000  # m: segments smaller than minarea join the most frequent segment within this distance
 
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
 MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
@@ -104,37 +104,70 @@ RESULTS = os.path.join('results', STUDY_AREA)  # moranvar_plots.R guarda aquí l
 
 
 def merge_small_segments(grass, pa3, minarea):
-	"""Asigna a cada segmento de pa3 con menos de minarea celdas el segmento más frecuente a
-	SMALL_BUFFER m o menos de él (fuera de él). Da el mismo resultado que r.buffer + r.mask +
-	r.stats por segmento y un r.patch final, pero sin crear un mapa por segmento: con datos
-	enmascarados hay miles de fragmentos aislados y r.patch agota los archivos abiertos."""
+	"""Une cada segmento de pa3 con menos de minarea celdas al segmento más frecuente de los
+	mayores que él a SMALL_SEGM_RADIUS píxeles o menos (distancia entre centros de celda), en
+	pasadas repetidas hasta que no cambia nada: los grupos de fragmentos cercanos acaban en un
+	mismo segmento. Los que siguen siendo pequeños (sin ningún segmento mayor tan cerca) se
+	unen después al segmento de minarea celdas o más más cercano, a cualquier distancia.
+	Se hace en memoria y no con un mapa por segmento: con datos enmascarados hay miles de
+	fragmentos aislados y r.patch agotaba los archivos abiertos."""
 	import grass.script.array as garray
 
-	proj = grass.parse_command('g.proj', flags='g')
-	if proj.get('proj') == 'll':
-		raise ValueError('The GRASS project must have a projected CRS in meters (e.g. UTM), not degrees')
-	dist = SMALL_BUFFER / float(proj.get('meters', 1))  # in map units
-
 	data = np.asarray(garray.array(mapname=pa3, null=0, dtype=np.int32))
-	ids, counts = np.unique(data[data > 0], return_counts=True)
-	small = ids[counts < minarea]
-	if len(small) == 0:
+	margin = int(SMALL_SEGM_RADIUS) + 1  # cells around the segment that can be within the radius
+	npass = 0
+	while True:
+		ids, counts = np.unique(data[data > 0], return_counts=True)
+		small = ids[counts < minarea]
+		if npass == 0:
+			nsmall = len(small)
+		size = np.zeros(data.max() + 1, dtype=np.int64)
+		size[ids] = counts
+		lut = np.arange(data.max() + 1, dtype=np.int32)
+		boxes = ndimage.find_objects(data)
+		for s in small:
+			rows, cols = boxes[s - 1]
+			sub = data[max(rows.start - margin, 0):rows.stop + margin, max(cols.start - margin, 0):cols.stop + margin]
+			inside = sub == s
+			near = sub[(ndimage.distance_transform_edt(~inside) <= SMALL_SEGM_RADIUS) & ~inside]
+			near = near[near > 0]
+			# Only larger segments (the larger ID if equal), so two segments never swap their IDs
+			near = near[(size[near] > size[s]) | ((size[near] == size[s]) & (near > s))]
+			if near.size:
+				ids_near, n = np.unique(near, return_counts=True)
+				lut[s] = ids_near[np.argmax(n)]
+		if (lut == np.arange(len(lut))).all():
+			break
+		npass += 1
+		# s -> t -> u in the same pass: s ends up in u
+		while not (lut[lut] == lut).all():
+			lut = lut[lut]
+		data = lut[data]
+	print(f"{pa3}: {nsmall} segments < {minarea} cells, {len(small)} left after {npass} merging passes "
+	      f"(no larger segment within {SMALL_SEGM_RADIUS} pixels)")
+
+	# Those left join the nearest segment with minarea cells or more, at any distance
+	changed = npass > 0
+	big = np.isin(data, ids[counts >= minarea])
+	if len(small) and big.any():
+		dist, (nrow, ncol) = ndimage.distance_transform_edt(~big, return_indices=True)
+		lut = np.arange(data.max() + 1, dtype=np.int32)
+		farthest = 0
+		for s in small:
+			box = boxes[s - 1]
+			inside = data[box] == s
+			d = dist[box][inside]
+			k = np.argmin(d)
+			lut[s] = data[nrow[box][inside][k], ncol[box][inside][k]]
+			farthest = max(farthest, d[k])
+		print(f"{pa3}: {len(small)} small segments joined the nearest segment >= {minarea} cells "
+		      f"(the farthest at {farthest:.1f} pixels)")
+		data = lut[data]
+		changed = True
+	if not changed:
 		return
-	lut = np.arange(data.max() + 1, dtype=np.int32)
-	boxes = ndimage.find_objects(data)
-	margin = int(dist // RESOLUTION) + 1  # cells around the segment that can be within dist
-	for s in small:
-		rows, cols = boxes[s - 1]
-		sub = data[max(rows.start - margin, 0):rows.stop + margin, max(cols.start - margin, 0):cols.stop + margin]
-		inside = sub == s
-		# Distances between cell centres, as r.buffer does in projected CRS
-		near = sub[(ndimage.distance_transform_edt(~inside, sampling=RESOLUTION) <= dist) & ~inside]
-		near = near[near > 0]
-		if near.size:
-			ids_near, n = np.unique(near, return_counts=True)
-			lut[s] = ids_near[np.argmax(n)]
 	out = garray.array(dtype=np.int32)
-	out[...] = lut[data]
+	out[...] = data
 	out.write(mapname=pa3, null=0, overwrite=True)
 
 

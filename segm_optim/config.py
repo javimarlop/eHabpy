@@ -21,9 +21,6 @@ ENV_VARS = { # REQUIRED
     ,'Guajares_5_TempMediaAnual_gradosC_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_5_TempMediaAnual_gradosC_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
     ,'Guajares_6_PrecipAnual_mm_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_6_PrecipAnual_mm_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
     ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-#    ,'ndvimax': {'file': 'ndvimax.tif', 'nodata': 65535.0}
-#    ,'ndvimin': {'file': 'ndvimin.tif', 'nodata': 65535.0}
-#    ,'herb': {'file': 'herb.tif', 'nodata': 255.0}
 }
 
 # REINICIAR DESDE CERO:
@@ -39,6 +36,14 @@ FORCE_RESTART = True
 # 0 = Bounding box ajustado exactamente al área de estudio.
 # > 0 = Extiende el bounding box de la región de trabajo en la distancia especificada.
 PA_BUFFER = 500
+
+# RADIO PARA UNIR SEGMENTOS PEQUEÑOS (en píxeles, así depende del tamaño de píxel):
+# los segmentos con menos píxeles que minarea (raíz cuadrada del nº de píxeles con datos de
+# la región) se unen al segmento más frecuente de los mayores que ellos a esta distancia o
+# menos, en pasadas repetidas hasta que no cambia nada. Los que no tienen ningún segmento
+# mayor tan cerca se unen después al segmento de minarea píxeles o más más cercano, esté a
+# la distancia que esté. 5 = 5 x RESOLUTION (50 m con píxeles de 10 m).
+SMALL_SEGM_RADIUS = 10
 
 # NÚMERO DE HFTs (corte del árbol de clasificación jerárquica en moranvar_plots.R):
 # 1 = Corta en el percentil 25 de las alturas de fusión, con límite superior de HFTs.

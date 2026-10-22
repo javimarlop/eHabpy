@@ -99,8 +99,6 @@ def read_variables():
 	# The model reads the GeoTIFFs directly with a single pixel size (RESOLUTION) for all of them
 	first = next(iter(variables.values()))
 	res = first['res'][0]
-	if first['srs'].IsGeographic():
-		fail(f"{first['file']} has a geographic CRS (degrees): reproject all variables to a projected CRS in meters (e.g. UTM)")
 	for name, v in variables.items():
 		if not same_crs(v['srs'], first['srs']):
 			fail(f"{v['file']} and {first['file']} have different CRS: reproject all variables to the same CRS")

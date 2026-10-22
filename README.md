@@ -176,7 +176,8 @@ export PYTHONPATH=$GISBASE/etc/python:$PYTHONPATH
    when its name is that of the study area file.
 
 4. Edit `palist.csv` to process only some of the IDs, and check the other
-   options in `config.py` (`PA_BUFFER`, `SIMIL`, `STAT_AGG`, ...). The output
+   options in `config.py` (`PA_BUFFER`, `SMALL_SEGM_RADIUS`, `SIMIL`,
+   `STAT_AGG`, ...). The output
    folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are created
    automatically by `segmentation_pca_par.py`.
 
