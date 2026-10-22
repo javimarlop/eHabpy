@@ -26,6 +26,31 @@ short_labels <- function(x, width = 18) {
 	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
 }
 
+# Colores jerárquicos para cortes anidados del mismo árbol (SIMIL = 3): cada HFT del corte con menos
+# clases conserva su color (base_cols) y los HFTs de los cortes más finos que contiene son tonos de ese
+# color, de oscuro a claro en el orden del dendrograma; un HFT intermedio toma el tono medio de los
+# HFTs finos que contiene. cls_list: clasificaciones (una por corte) de la más gruesa a la más fina.
+hier_colours <- function(tree, cls_list, base_cols) {
+	coarse <- cls_list[[1]]
+	fine <- cls_list[[length(cls_list)]]
+	ford <- unique(fine[tree$order])
+	pos <- numeric(max(fine))
+	for (g in unique(coarse)) {
+		fg <- ford[ford %in% fine[coarse == g]]
+		pos[fg] <- (seq_along(fg) - 0.5) / length(fg)
+	}
+	mixcol <- function(a, b, w) rgb(t((1 - w) * col2rgb(a) + w * col2rgb(b)), maxColorValue=255)
+	lapply(cls_list, function(cl) {
+		cols <- character(max(cl))
+		for (h in unique(cl)) {
+			g <- coarse[cl == h][1]
+			ramp <- colorRamp(c(mixcol(base_cols[g], 'black', 0.5), base_cols[g], mixcol(base_cols[g], 'white', 0.65)), space='Lab')
+			cols[h] <- rgb(ramp(mean(pos[unique(fine[cl == h])])), maxColorValue=255)
+		}
+		cols
+	})
+}
+
 # Archivo (en ../inVars) y NoData de cada variable, de ENV_VARS en config.py
 read_env_vars <- function() {
 	lines <- readLines('config.py', warn = FALSE)
@@ -268,6 +293,18 @@ for (pmx in 1:mx) {
 		pixarea <- terra::values(terra::cellSize(pixgrid, unit = 'ha', mask = FALSE), mat = FALSE)
 	}
 
+	# SIMIL = 3: colores jerárquicos entre los cortes (ver hier_colours), solo para cortes con más de un HFT
+	hier_cols <- list()
+	if (simil == 3) {
+		cls_list <- lapply(cuts, function(f) cutree(hclust_mh, h=f * max(hclust_mh$height)))
+		nk <- sapply(cls_list, function(cl) length(unique(cl)))
+		cls_list <- cls_list[nk > 1][order(nk[nk > 1])]
+		if (length(cls_list) > 0) {
+			nb <- length(unique(cls_list[[1]]))
+			hier_cols <- hier_colours(hclust_mh, cls_list, if (nb <= length(kols)) kols else colorRampPalette(kols)(nb))
+		}
+	}
+
 	for (cn in names(cuts)) {
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
 		tag <- if (simil == 3) paste0('_', cn) else '' # el corte también va en el nombre de cada fichero
@@ -297,8 +334,12 @@ for (pmx in 1:mx) {
 			ncl <- length(unique(hclust_mean))
 		}
 
-		# Colores del mapa: Set1 hasta 8 HFTs, interpolados si hay más
+		# Colores del mapa: Set1 hasta 8 HFTs, interpolados si hay más; con SIMIL = 3, jerárquicos
 		kolsn <- if (ncl <= length(kols)) kols else colorRampPalette(kols)(ncl)
+		if (!is.null(hier_cols[[cn]])) kolsn <- hier_cols[[cn]]
+		# Orden de los HFTs en leyendas y ejes: con colores jerárquicos el del dendrograma (los tonos de un
+		# mismo color quedan juntos), si no el numérico
+		hft_order <- if (!is.null(hier_cols[[cn]])) unique(hclust_mean[hclust_mh$order]) else sort(unique(hclust_mean))
 
 		if (ncl > 1) {
 			# Título de las figuras: área de estudio, umbral, corte del árbol y nº de HFTs
@@ -313,7 +354,7 @@ for (pmx in 1:mx) {
 			# HFT; elipses (68 %) con 10 HFTs o menos; variables ajustadas como vectores con envfit
 			if (!is.null(mds_mh)) {
 				nm <- data.frame(x=mds_mh$points[, 1], y=mds_mh$points[, 2], HFT=hclust_mean)
-				nm_hfts <- sort(unique(nm$HFT))
+				nm_hfts <- hft_order[hft_order %in% nm$HFT]
 				nm$HFT <- factor(nm$HFT, levels=nm_hfts)
 				cell_ha <- if (!is.null(pixvals)) median(pixarea, na.rm=TRUE) else read_config_num('RESOLUTION', 1)^2 / 1e4
 				nm$ha <- hri$sumpamask * cell_ha
@@ -386,7 +427,7 @@ for (pmx in 1:mx) {
 			# Etiquetas cortas y en varias líneas, con margen a los lados para que no se corten
 			radar <- CreateRadialPlot(scaled2, axis.labels = short_labels(clean_names), axis.label.size = 3.5, axis.label.offset = 1.25,
 			                          plot.extent.x.sf = 1.9, plot.extent.y.sf = 1.35,
-			                          group.colours = setNames(kolsn[scaled2$group], scaled2$group))
+			                          group.colours = setNames(kolsn[scaled2$group], scaled2$group), group.order = hft_order)
 			radar <- radar + labs(title=area, subtitle=plot_subtitle) + theme(plot.title=element_text(size=16), plot.subtitle=element_text(size=14))
 			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
 			ggsave(filename=rpn, plot=radar, width=10, height=7.5, dpi=300)
@@ -411,7 +452,7 @@ for (pmx in 1:mx) {
 
 				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO (ggplot2) ---
 				rpn2 <- file.path(outdir, paste('map_', park, '_', res, tag, '_segms_hclust.png', sep=''))
-				hfts <- sort(unique(segm_pa_class$hclust_mean))
+				hfts <- hft_order[hft_order %in% segm_pa_class$hclust_mean]
 				segm_pa_class$HFT <- factor(segm_pa_class$hclust_mean, levels=hfts)
 
 				# Bordes de los segmentos en gris fino para que destaque el contorno negro del área de estudio

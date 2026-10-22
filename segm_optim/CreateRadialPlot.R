@@ -30,8 +30,10 @@ CreateRadialPlot <- function(plot.data,
                              plot.legend=if (nrow(plot.data)>1) TRUE else FALSE,
                              legend.title="HFT",
                              legend.text.size=grid.label.size,
-                             group.colours=NULL ) {
+                             group.colours=NULL,
+                             group.order=NULL ) {
   #group.colours: optional colours named by group ID (default: Set1 palette, max. 9 groups)
+  #group.order: optional order of the group IDs in the legend (default: numeric order)
 
   var.names <- colnames(plot.data)[-1]  #'Short version of variable names 
   #axis.labels [if supplied] is designed to hold 'long version' of variable names
@@ -155,6 +157,7 @@ funcCircleCoords <- function(center = c(0,0), r = 1, npoints = 100){
   # (b) convert into radial coords
   group <-NULL
   group$path <- CalculateGroupPath(plot.data.offset)
+  if (!is.null(group.order)) group$path$group <- factor(group$path$group, levels=as.character(group.order))
   #print(group$path)
   
   # (c) Calculate coordinates required to plot radial variable axes
