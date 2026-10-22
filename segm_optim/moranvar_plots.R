@@ -293,7 +293,8 @@ for (pmx in 1:mx) {
 				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO ---
 				rpn2 <- file.path(outdir, paste('map_', park, '_', res, tag, '_segms_hclust.png', sep=''))
 				png(rpn2)
-				plot(st_geometry(segm_pa_class), col=kolsn[segm_pa_class$hclust_mean], main=park)
+				# Bordes de los segmentos en gris fino para que destaque el contorno negro del área de estudio
+				plot(st_geometry(segm_pa_class), col=kolsn[segm_pa_class$hclust_mean], border='grey50', lwd=0.3, main=park)
 				
 				# Cargar y dibujar la capa del área de estudio en negro
 				pa_outline <- find_and_read_pa_vector("pa", park, area)
@@ -303,7 +304,7 @@ for (pmx in 1:mx) {
 						pa_outline <- st_transform(pa_outline, st_crs(segm_pa_class))
 					}
 					# Dibujar el contorno del polígono sobre la clasificación
-					plot(st_geometry(pa_outline), add = TRUE, border = "yellow", lwd = 2, col = NA)
+					plot(st_geometry(pa_outline), add = TRUE, border = "black", lwd = 2, col = NA)
 				}
 				
 				hfts <- sort(unique(segm_pa_class$hclust_mean))

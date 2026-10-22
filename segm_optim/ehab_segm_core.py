@@ -148,12 +148,13 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
             gt_pa = src_ds_pa.GetGeoTransform()
             
             # Usar la primera variable como referencia para el chequeo de límites original
+            # (desplazamiento 0 = el segmento empieza en la primera fila o columna del ráster)
             ref_var = list(ENV_VARS.keys())[0]
             gt_ref = global_maps[ref_var]['gt']
             xoff_test = int((gt_pa[0] - gt_ref[0]) / res)
             yoff_test = int((gt_ref[3] - gt_pa[3]) / res)
-            
-            if xoff_test > 0 and yoff_test > 0:
+
+            if xoff_test >= 0 and yoff_test >= 0:
                 results = {}
                 
                 # Bucle dinámico para procesar todas las capas ambientales
