@@ -242,7 +242,10 @@ for (pmx in 1:mx) {
 	cophval <- 0
 	try(chcl <- cophenetic(hclust_mh))
 	try(cophval <- cor(chcl, dmh))
-	try(metaMDS(dmh) -> mds_mh)
+	# metaMDS parte de configuraciones aleatorias: con la misma semilla sale igual en cada ejecución
+	mds_mh <- NULL
+	set.seed(1)
+	try(mds_mh <- metaMDS(dmh, trace=FALSE))
 
 	# Valores de las variables en cada píxel (../inVars), para los boxplots por HFT
 	var_names <- sub("pamean$", "", names(hri)[3:(2 + num_vars)])
@@ -298,14 +301,72 @@ for (pmx in 1:mx) {
 		kolsn <- if (ncl <= length(kols)) kols else colorRampPalette(kols)(ncl)
 
 		if (ncl > 1) {
+			# Título de las figuras: área de estudio, umbral, corte del árbol y nº de HFTs
+			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')
+
 			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
 			try(plot(hclust_mh, hang=-1, main=park, sub=cophval)); try(rect.hclust(hclust_mh, k=ncl))
 			dev.off()
 
-			png(file.path(outdir, paste('NMDS_', park, '_', res, tag, '_segms_mean.png', sep='')))
-			try(plot(mds_mh))
-			try(s.class(mds_mh$points, as.factor(hclust_mean), col=1:length(unique(hclust_mean))))
-			dev.off()
+			# --- NMDS DE LOS SEGMENTOS (las mismas distancias que la clasificación) ---
+			# Cada segmento coloreado por su HFT y con tamaño según su superficie, unido al centroide del
+			# HFT; elipses (68 %) con 10 HFTs o menos; variables ajustadas como vectores con envfit
+			if (!is.null(mds_mh)) {
+				nm <- data.frame(x=mds_mh$points[, 1], y=mds_mh$points[, 2], HFT=hclust_mean)
+				nm_hfts <- sort(unique(nm$HFT))
+				nm$HFT <- factor(nm$HFT, levels=nm_hfts)
+				cell_ha <- if (!is.null(pixvals)) median(pixarea, na.rm=TRUE) else read_config_num('RESOLUTION', 1)^2 / 1e4
+				nm$ha <- hri$sumpamask * cell_ha
+				nm_ha <- tapply(nm$ha, nm$HFT, sum)
+				nm_labels <- paste0(nm_hfts, ': ', format(round(nm_ha), big.mark=',', trim=TRUE), ' ha (', round(100 * nm_ha / sum(nm_ha), 1), ' %)')
+				nm_cols <- setNames(kolsn[nm_hfts], nm_hfts)
+				cent <- aggregate(cbind(cx=x, cy=y) ~ HFT, nm, mean)
+				nm <- merge(nm, cent, by='HFT')
+				ext <- max(abs(c(nm$x, nm$y)))
+
+				# Variables (medias de los segmentos) ajustadas a la ordenación: dirección y r2; las no
+				# significativas (p >= 0.05, 999 permutaciones) en gris claro
+				fit <- NULL
+				set.seed(1)
+				try(fit <- envfit(mds_mh, hri[, 3:(2 + num_vars), drop=FALSE], permutations=999, na.rm=TRUE))
+				if (!is.null(fit)) {
+					fv <- data.frame(var=paste0(short_labels(var_names), '\nr2 = ', sprintf('%.2f', fit$vectors$r)),
+					                 x=fit$vectors$arrows[, 1] * sqrt(fit$vectors$r), y=fit$vectors$arrows[, 2] * sqrt(fit$vectors$r),
+					                 signif=fit$vectors$pvals < 0.05)
+					fv[, c('x', 'y')] <- fv[, c('x', 'y')] * 0.9 * ext / max(sqrt(fv$x^2 + fv$y^2), 1e-9)
+					flen <- pmax(sqrt(fv$x^2 + fv$y^2), 1e-9)
+					fv$lx <- fv$x / flen * 1.15 * ext
+					fv$ly <- fv$y / flen * 1.15 * ext
+				}
+
+				nmdsp <- ggplot(nm, aes(x=x, y=y)) +
+					geom_hline(yintercept=0, colour='grey85') + geom_vline(xintercept=0, colour='grey85') +
+					geom_segment(aes(x=cx, y=cy, xend=x, yend=y, colour=HFT), alpha=0.35, linewidth=0.3) +
+					(if (length(nm_hfts) <= 10) stat_ellipse(data=nm[nm$HFT %in% names(which(table(nm$HFT) >= 4)), ],
+					                                         aes(colour=HFT), type='norm', level=0.68, linewidth=0.6)) +
+					geom_point(aes(colour=HFT, size=ha), alpha=0.8)
+				if (!is.null(fit)) {
+					nmdsp <- nmdsp +
+						geom_segment(data=fv, aes(x=x, y=y, xend=lx, yend=ly), colour='grey60', linewidth=0.3, linetype='dotted') +
+						geom_segment(data=fv, aes(x=0, y=0, xend=x, yend=y), colour=ifelse(fv$signif, 'grey20', 'grey70'),
+						             linewidth=0.5, arrow=arrow(length=unit(0.2, 'cm'))) +
+						ggrepel::geom_label_repel(data=fv, aes(x=lx, y=ly, label=var), colour=ifelse(fv$signif, 'black', 'grey55'),
+						                          size=3, lineheight=0.9, seed=1, box.padding=0.25, min.segment.length=Inf,
+						                          max.overlaps=Inf, label.padding=unit(0.15, 'lines'), fill=alpha('white', 0.9))
+				}
+				nmdsp <- nmdsp +
+					geom_label(data=cent, aes(x=cx, y=cy, label=HFT, fill=HFT), fontface='bold', size=3.5, show.legend=FALSE) +
+					scale_colour_manual(values=nm_cols, labels=nm_labels, name='HFT (area)') +
+					scale_fill_manual(values=nm_cols) +
+					scale_size_area(max_size=7, name='Segment area (ha)') +
+					guides(colour=guide_legend(override.aes=list(size=4, alpha=1, linetype=0))) +
+					coord_equal() +
+					labs(title=area, subtitle=paste0(plot_subtitle, sprintf(' | NMDS of the segments, stress = %.3f', mds_mh$stress),
+					                                 if (!is.null(fit)) ' | vectors: variables fitted with envfit (grey: p >= 0.05)'),
+					     x='NMDS1', y='NMDS2') +
+					theme_bw(base_size=13)
+				ggsave(file.path(outdir, paste('NMDS_', park, '_', res, tag, '_segms_mean.png', sep='')), nmdsp, width=12, height=9, dpi=300)
+			}
 
 			hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
 			raw_names <- names(hri)[3:(2 + num_vars)]
@@ -326,8 +387,6 @@ for (pmx in 1:mx) {
 			radar <- CreateRadialPlot(scaled2, axis.labels = short_labels(clean_names), axis.label.size = 3.5, axis.label.offset = 1.25,
 			                          plot.extent.x.sf = 1.9, plot.extent.y.sf = 1.35,
 			                          group.colours = setNames(kolsn[scaled2$group], scaled2$group))
-			# Título del radar y del mapa: área de estudio, umbral, corte del árbol y nº de HFTs
-			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')
 			radar <- radar + labs(title=area, subtitle=plot_subtitle) + theme(plot.title=element_text(size=16), plot.subtitle=element_text(size=14))
 			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
 			ggsave(filename=rpn, plot=radar, width=10, height=7.5, dpi=300)
