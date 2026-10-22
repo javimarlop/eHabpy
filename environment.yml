@@ -29,5 +29,6 @@ dependencies:
   - r-vegan
   - r-ade4
   - r-ggplot2
+  - r-ggrepel            # variable labels of the PCA biplot
   - r-reshape2
   - r-rcolorbrewer

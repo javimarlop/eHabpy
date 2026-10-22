@@ -409,6 +409,108 @@ for (pmx in 1:mx) {
 						theme_bw(base_size=13)
 					rpn3 <- file.path(outdir, paste('boxplot_', park, '_', res, tag, '_hft_pixels.png', sep=''))
 					ggsave(rpn3, boxp, width=4.5 * ncolf + 3.5, height=3.5 * nrowf + 1.5, dpi=300)
+
+					# --- MAPA DE CALOR DE LOS PERFILES DE LOS HFTs ---
+					# Mediana de cada HFT como z respecto a la media y la desviación típica de los píxeles del
+					# área; variables ordenadas por eta2 (parte de su varianza que explican los HFTs) y HFTs
+					# en el orden del dendrograma
+					pmean <- colMeans(pixvals[inhft, , drop=FALSE], na.rm=TRUE)
+					psd <- apply(pixvals[inhft, , drop=FALSE], 2, sd, na.rm=TRUE)
+					eta2 <- sapply(seq_along(var_names), function(i) {
+						x <- pixvals[inhft, i]
+						ok <- !is.na(x)
+						m <- tapply(x[ok], hftcls[ok], mean)
+						n <- tapply(x[ok], hftcls[ok], length)
+						sum(n * (m - mean(x[ok]))^2, na.rm=TRUE) / sum((x[ok] - mean(x[ok]))^2)
+					})
+					vi <- match(as.character(bstats$var), var_labels)
+					vord <- order(-eta2)
+					col_labels <- paste0(var_labels, '\neta2 = ', sprintf('%.2f', eta2))
+					hord <- unique(hclust_mean[hclust_mh$order])
+					hord <- hord[hord %in% hfts]
+					heat <- data.frame(x=match(vi, vord),
+					                   row=factor(hft_labels[match(bstats$HFT, hfts)], levels=rev(hft_labels[match(hord, hfts)])),
+					                   median=bstats$middle, z=(bstats$middle - pmean[vi]) / psd[vi])
+					zlim <- max(abs(heat$z), 0.5, na.rm=TRUE)
+					heat$txtcol <- ifelse(abs(heat$z) > 0.6 * zlim, 'white', 'black')
+					# Columna estrecha con el color de cada HFT en el mapa
+					swatch <- data.frame(row=factor(hft_labels, levels=levels(heat$row)))
+					heatp <- ggplot(heat, aes(x=x, y=row)) +
+						geom_tile(aes(fill=z), colour='white', linewidth=0.6) +
+						geom_text(aes(label=signif(median, 3), colour=txtcol), size=3.4) +
+						geom_tile(data=swatch, aes(x=0.25, y=row), fill=kolsn[hfts], width=0.25, height=0.8) +
+						scale_colour_identity() +
+						scale_fill_gradient2(low='#2166AC', mid='white', high='#B2182B', limits=c(-zlim, zlim), name='z of the\nmedian') +
+						scale_x_continuous(breaks=seq_along(vord), labels=col_labels[vord], position='top', expand=c(0, 0.05)) +
+						labs(title=area, subtitle=paste0(plot_subtitle, ' | median of the pixels of each HFT, coloured as z = (median - mean) / sd of the study area'),
+						     x=NULL, y=NULL) +
+						theme_minimal(base_size=13) +
+						theme(panel.grid=element_blank(), axis.text.x.top=element_text(size=10))
+					rpn4 <- file.path(outdir, paste('heatmap_', park, '_', res, tag, '_hft_profiles.png', sep=''))
+					ggsave(rpn4, heatp, width=4.5 + 1.7 * length(var_names), height=2.5 + 0.4 * length(hfts), dpi=300)
+
+					# --- BIPLOT DE LA PCA: CENTROIDES DE LOS HFTs Y VARIABLES COMO VECTORES ---
+					# PCA de los píxeles con las variables estandarizadas; los vectores son las correlaciones
+					# de cada variable con los ejes (escaladas al tamaño de la nube de HFTs)
+					okpix <- inhft & complete.cases(pixvals)
+					zpix <- scale(pixvals[okpix, , drop=FALSE])
+					eg <- eigen(cor(zpix), symmetric=TRUE)
+					ve <- 100 * eg$values / sum(eg$values)
+					axes2 <- if (length(var_names) >= 3) 2:3 else 2
+					scores <- zpix %*% eg$vectors[, c(1, axes2), drop=FALSE]
+					loads <- eg$vectors %*% diag(sqrt(pmax(eg$values, 0)))
+					hfpix <- factor(cls[okpix], levels=hfts)
+					panels <- sprintf('PC1 (%.1f %%) - PC%d (%.1f %%)', ve[1], axes2, ve[axes2])
+					cents <- ells <- arrs <- NULL
+					for (a in seq_along(axes2)) {
+						sc <- scores[, c(1, a + 1)]
+						for (h in hfts) {
+							s <- sc[hfpix == h, , drop=FALSE]
+							if (nrow(s) < 3) next
+							mu <- colMeans(s)
+							# Elipse que contiene la mitad de los píxeles del HFT (aproximación normal)
+							e <- eigen(cov(s), symmetric=TRUE)
+							ang <- seq(0, 2 * pi, length.out=100)
+							xy <- t(mu + e$vectors %*% diag(sqrt(pmax(e$values, 0) * qchisq(0.5, 2))) %*% rbind(cos(ang), sin(ang)))
+							cents <- rbind(cents, data.frame(panel=panels[a], HFT=h, x=mu[1], y=mu[2], ha=ha[as.character(h)], colour=kolsn[h]))
+							ells <- rbind(ells, data.frame(panel=panels[a], HFT=h, x=xy[, 1], y=xy[, 2], colour=kolsn[h]))
+						}
+						arrs <- rbind(arrs, data.frame(panel=panels[a], var=var_labels, x=loads[, 1], y=loads[, axes2[a]]))
+					}
+					# Con muchos HFTs las elipses se convierten en una maraña: solo se dibujan con 10 o menos
+					show_ell <- length(hfts) <= 10
+					ext <- if (show_ell) max(abs(c(ells$x, ells$y))) else 1.3 * max(abs(c(cents$x, cents$y)))
+					arrscale <- 0.9 * ext / max(sqrt(arrs$x^2 + arrs$y^2))
+					arrs$x <- arrs$x * arrscale
+					arrs$y <- arrs$y * arrscale
+					# Etiquetas de las variables en un anillo por fuera de las elipses, en la dirección de su
+					# vector, para que no tapen los centroides (que quedan cerca del centro)
+					rlab <- 1.1 * ext
+					alen <- pmax(sqrt(arrs$x^2 + arrs$y^2), 1e-9)
+					arrs$lx <- arrs$x / alen * rlab
+					arrs$ly <- arrs$y / alen * rlab
+					for (d in c('cents', 'ells', 'arrs')) assign(d, transform(get(d), panel=factor(panel, levels=panels)))
+					biplot <- ggplot() +
+						geom_hline(yintercept=0, colour='grey80') + geom_vline(xintercept=0, colour='grey80') +
+						# Elipses tenues: los HFTs se solapan mucho en el espacio de los píxeles
+						(if (show_ell) geom_path(data=ells, aes(x=x, y=y, group=HFT, colour=colour), linewidth=0.4, alpha=0.45)) +
+						geom_segment(data=arrs, aes(x=x, y=y, xend=lx, yend=ly), colour='grey60', linewidth=0.3, linetype='dotted') +
+						geom_segment(data=arrs, aes(x=0, y=0, xend=x, yend=y), colour='grey25', linewidth=0.5,
+						             arrow=arrow(length=unit(0.2, 'cm'))) +
+						geom_point(data=cents, aes(x=x, y=y, fill=colour, size=ha), shape=21, colour='black') +
+						geom_text(data=cents, aes(x=x, y=y, label=HFT), size=3, fontface='bold') +
+						ggrepel::geom_label_repel(data=arrs, aes(x=lx, y=ly, label=var), size=3, lineheight=0.9, seed=1,
+						                          box.padding=0.25, min.segment.length=Inf, max.overlaps=Inf,
+						                          label.padding=unit(0.15, 'lines'), fill=alpha('white', 0.9)) +
+						scale_colour_identity() + scale_fill_identity() +
+						scale_size(range=c(5, 13), name='HFT area (ha)') +
+						facet_wrap(~ panel, ncol=2) + coord_equal() +
+						labs(title=area, subtitle=paste0(plot_subtitle, ' | PCA of the pixels (standardized variables): HFT centroids',
+						                                 if (show_ell) ', ellipses with half of their pixels', ', variables as vectors'),
+						     x='PC1', y=paste(paste0('PC', axes2), collapse=' / ')) +
+						theme_bw(base_size=13)
+					rpn5 <- file.path(outdir, paste('pca_biplot_', park, '_', res, tag, '_hft.png', sep=''))
+					ggsave(rpn5, biplot, width=7 * length(axes2) + 2.5, height=8, dpi=300)
 				}
 			}
 		}
