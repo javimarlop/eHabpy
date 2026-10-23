@@ -1242,9 +1242,9 @@ x = a + \frac{VAR_a - MI_a}{(MI_b - MI_a) - (VAR_b - VAR_a)}\,(b - a)
 and selects, from the first crossing `x_1`, the threshold index
 
 ```math
-k^* = \operatorname{round}(x_1) - 1 \quad (\texttt{optim} = 2), \qquad
-k^* = \operatorname{round}(x_1) \quad (\texttt{optim} = 1), \qquad
-k^* = 5 \quad (\texttt{optim} = 0 \text{ or no crossing})
+k^* = \mathrm{round}(x_1) - 1 \quad (\text{optim} = 2), \qquad
+k^* = \mathrm{round}(x_1) \quad (\text{optim} = 1), \qquad
+k^* = 5 \quad (\text{optim} = 0 \text{ or no crossing})
 ```
 
 taking the evaluated threshold closest to `k*`. The threshold is `k*/10`.
@@ -1280,8 +1280,8 @@ internal heterogeneity, with the same weight for every variable.
    into fewer groups, to
 
    ```math
-   n_{HFT} \le \left\lceil \log_6 N \right\rceil \ (\texttt{upper} = 2)
-   \ \text{or}\ \left\lceil \log_{10} N \right\rceil \ (\texttt{upper} = 1),
+   n_{HFT} \le \left\lceil \log_6 N \right\rceil \ (\text{upper} = 2)
+   \ \text{or}\ \left\lceil \log_{10} N \right\rceil \ (\text{upper} = 1),
    \qquad n_{HFT} \le n_v - 1
    ```
 
@@ -1319,7 +1319,7 @@ internal heterogeneity, with the same weight for every variable.
   mean of HFT `h`:
 
   ```math
-  z_{h,v} = \frac{\operatorname{median}_h(x_v) - \bar x_v}{s_v},
+  z_{h,v} = \frac{\mathrm{median}_h(x_v) - \bar x_v}{s_v},
   \qquad
   \eta^2_v = \frac{\sum_h n_h\,(\bar x_{h,v} - \bar x_v)^2}{\sum_i (x_{i,v} - \bar x_v)^2}
   ```
