@@ -1065,32 +1065,39 @@ flowchart TD
     IN2[/"pa/STUDY_AREA.gpkg<br>study area polygons"/]
     SETUP["<b>setup.py</b><br>checks CRS, pixel size and NoData<br>creates the GRASS project<br>imports variables and study area"]
     GDB[("GRASS project<br>GRASSDB/STUDY_AREA/PERMANENT")]
-    CFG[/"config.py, palist.csv"/]
-    SEG["<b>segmentation_pca_par.py</b><br>for every area ID, in parallel:<br>PCA, region growing at 9 thresholds,<br>merging of small segments"]
-    SEGOUT[/"shp/park_segm_ID_K.shp<br>tiffs/pa_SEGMID.tif<br>csv/park_ID_K.csv"/]
-    STAT["<b>get_mean_median_var.py</b> + ehab_segm_core.py<br>mean or median, variance and size<br>of every variable in every segment"]
-    HRI[/"csv/park_ID_hri_resultsK.csv"/]
-    MOR["<b>moranvar.py</b><br>Moran's I of the segment means and<br>area-weighted variance, per variable and threshold"]
-    MOROUT[/"csv/ID_moran_mean.csv, csv/ID_var_mean.csv<br>shp/park_segm_ID_K_diss.shp"/]
-    RPLOT["<b>moranvar_plots.R</b><br>optimal threshold, Ward classification<br>of its segments into HFTs, maps and plots"]
-    RES[/"results/STUDY_AREA/<br>p25, p50, p75 with SIMIL = 3"/]
+    CFG[/"config.py (options, SCENARIO), palist.csv"/]
+    STATE[("run_state.json (hft_state.py)<br>imported files and inputs of every step")]
+    subgraph RUN ["<b>run_hft.py</b>"]
+        SEG["<b>segmentation_pca_par.py</b><br>for every area ID, in parallel:<br>PCA, region growing at 9 thresholds,<br>merging of small segments"]
+        SEGOUT[/"shp/park_segm_ID_K.shp<br>tiffs/pa_SEGMID.tif<br>csv/park_ID_K.csv"/]
+        STAT["<b>get_mean_median_var.py</b> + ehab_segm_core.py<br>mean or median, variance and size<br>of every variable in every segment"]
+        HRI[/"csv/park_ID_hri_resultsK.csv"/]
+        MOR["<b>moranvar.py</b><br>Moran's I of the segment means and<br>area-weighted variance, per variable and threshold"]
+        MOROUT[/"csv/ID_moran_mean.csv, csv/ID_var_mean.csv<br>shp/park_segm_ID_K_diss.shp"/]
+        RPLOT["<b>moranvar_plots.R</b><br>optimal threshold, Ward classification<br>of its segments into HFTs, maps and plots"]
+        SEG --> SEGOUT --> STAT --> HRI --> MOR --> MOROUT --> RPLOT
+    end
+    RES[/"results/STUDY_AREA/SCENARIO/<br>p25, p50, p75 with SIMIL = 3"/]
 
     IN1 --> SETUP
     IN2 --> SETUP
     SETUP --> GDB
     SETUP --> CFG
+    SETUP -. "size and date of the imported files" .-> STATE
     GDB --> SEG
-    CFG --> SEG
-    SEG --> SEGOUT --> STAT
+    CFG --> RUN
+    STATE <-. "each step checks the steps before it and records its inputs" .-> RUN
     IN1 -- pixel values --> STAT
-    STAT --> HRI --> MOR --> MOROUT --> RPLOT --> RES
     IN1 -. pixel values for boxplots, heatmap and PCA .-> RPLOT
+    RPLOT --> RES
 ```
 
-`run_hft.py` runs `segmentation_pca_par.py`, `get_mean_median_var.py` and
-`moranvar.py` (or only `moranvar_plots.R`) in this order, starting from the
-first one that is out of date (A11), and runs `setup.py` first when an input
-file changed.
+`run_hft.py` first shows the scenario (and lets you change it), then runs
+`segmentation_pca_par.py`, `get_mean_median_var.py` and `moranvar.py` (or only
+`moranvar_plots.R`) in this order, starting from the first one that is out of
+date according to `run_state.json` (A11), and runs `setup.py` first when an
+input file changed. The scripts can also be run one by one: each one checks in
+`run_state.json` that the steps before it are up to date.
 
 ### A2. Setup (setup.py)
 
