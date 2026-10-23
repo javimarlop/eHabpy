@@ -23,6 +23,12 @@ ENV_VARS = { # REQUIRED
     ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
 }
 
+# ESCENARIO: nombre de la subcarpeta de los resultados, results/<STUDY_AREA>/<SCENARIO>
+# (letras, números, - y _), para guardar aparte los resultados de distintas opciones.
+# run_hft.py lo muestra y permite cambiarlo antes de empezar (o --scenario NOMBRE), y avisa
+# si ya hay resultados de ese escenario hechos con otras opciones. '' = 'base'.
+SCENARIO = 'base'
+
 # REINICIAR DESDE CERO (segmentation_pca_par.py):
 # True  = Borra los archivos de control y csv/shp/tiffs y repite la segmentación desde el principio.
 # False = Continúa una segmentación interrumpida omitiendo las áreas ya completadas en csv/segm_done.csv
@@ -30,8 +36,8 @@ ENV_VARS = { # REQUIRED
 #         hace nada si ya terminó. Si desde entonces han cambiado las opciones de config.py,
 #         palist.csv o los datos (run_state.json), o si csv/shp/tiffs son de otra área de
 #         estudio, empieza desde cero.
-# moranvar_plots.R mueve los resultados anteriores de esta área a results/<STUDY_AREA>_previous;
-# los de otras áreas de estudio (results/<otra área>) nunca se tocan.
+# moranvar_plots.R mueve los resultados anteriores del escenario a
+# results/<STUDY_AREA>/<SCENARIO>_previous; los de otros escenarios y otras áreas nunca se tocan.
 FORCE_RESTART = False
 
 # DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros; se redondea hacia arriba
@@ -53,7 +59,7 @@ SMALL_SEGM_RADIUS = 10
 # 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores
 #     (por superficie del área y nº de variables - 1).
 # 3 = Corta el árbol al 25, 50 y 75 % de su altura máxima, sin límite superior; los
-#     resultados de cada corte se guardan en results/<STUDY_AREA>/p25, p50 y p75.
+#     resultados de cada corte se guardan en results/<STUDY_AREA>/<SCENARIO>/p25, p50 y p75.
 SIMIL = 3
 
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:

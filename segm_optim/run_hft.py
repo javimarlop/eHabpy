@@ -4,9 +4,15 @@
 """
 Run from the segm_optim folder, after python3 setup.py:
 
-    python3 run_hft.py               # run every step that is needed
-    python3 run_hft.py --status      # only show what would run and why
-    python3 run_hft.py --from stats  # run again from a step (segm, stats, moranvar or plots)
+    python3 run_hft.py                     # run every step that is needed
+    python3 run_hft.py --status            # only show what would run and why
+    python3 run_hft.py --scenario NAME     # results in results/<study area>/NAME, without asking
+    python3 run_hft.py --from stats        # run again from a step (segm, stats, moranvar or plots)
+
+The results are written to results/<STUDY_AREA>/<SCENARIO> (SCENARIO in
+config.py). When run in a terminal, it shows the scenario and asks whether to
+change it before starting, and it warns when the scenario already has results
+made with other options (they would be moved to <SCENARIO>_previous).
 
 A step is needed when it was never run, did not finish, or when something it
 depends on changed since it ran: its options in config.py, palist.csv, the
@@ -39,9 +45,54 @@ def setup_command(rec):
 	return cmd
 
 
+def ask_name(prompt, default):
+	"""Scenario name typed by the user (DEFAULT if only Enter is pressed)."""
+	while True:
+		try:
+			name = input(prompt).strip() or default
+		except EOFError:
+			return default
+		err = hft_state.scenario_error(name)
+		if not err:
+			return name
+		print(f"'{name}' is not a valid scenario name: {err}")
+
+
+def choose_scenario(args, cfg, state, interactive):
+	"""Scenario of this run: --scenario NAME, or the one of config.py, which can be changed when
+	run in a terminal. Warns when the scenario already has results made with other options."""
+	name = hft_state.scenario_name(cfg)
+	if args.scenario is not None:
+		name = args.scenario
+		err = hft_state.scenario_error(name)
+		if err:
+			sys.exit(f"ERROR: '{name}' is not a valid scenario name: {err}")
+	elif interactive:
+		print(f"Scenario: {name} (results in {hft_state.results_dir(cfg)})")
+		name = ask_name('Press Enter to keep it, or type another scenario name: ', name)
+	while True:
+		this = dict(cfg, SCENARIO=name)
+		folder = hft_state.results_dir(this)
+		changes = hft_state.scenario_changes(this, state)
+		if changes == [] or not (os.path.isdir(folder) and os.listdir(folder)):
+			return name
+		made = f"with other options ({'; '.join(changes)})" if changes else 'with options that are not recorded'
+		print(f"\nWARNING: {folder} already has results made {made}.\n"
+		      f"Running again moves them to {folder}_previous (replacing what is there).")
+		if not interactive:
+			return name
+		new = ask_name('Press Enter to replace them, or type another scenario name: ', name)
+		if new == name:
+			return name
+		name = new
+
+
 def main():
 	parser = argparse.ArgumentParser(description='Run the steps of the HFT module that are out of date.')
 	parser.add_argument('--status', action='store_true', help='only show what would run and why')
+	parser.add_argument('--scenario', metavar='NAME',
+	                    help='scenario of the results (results/<study area>/NAME), without asking; '
+	                         'it is saved as SCENARIO in config.py')
 	parser.add_argument('--from', dest='first', choices=hft_state.NAMES,
 	                    help='run again from this step, even if it is up to date')
 	args = parser.parse_args()
@@ -51,6 +102,16 @@ def main():
 	if not os.path.isdir(project):
 		sys.exit(f'ERROR: GRASS project not found: {project}\nRun python3 setup.py first (see README.md)')
 
+	# The scenario is asked only in a terminal (and not with --status)
+	scenario = choose_scenario(args, cfg, state, interactive=sys.stdin.isatty() and not args.status)
+	if args.status:
+		cfg = dict(cfg, SCENARIO=scenario)  # shown, not saved
+	elif scenario != hft_state.scenario_name(cfg):
+		hft_state.write_option('SCENARIO', repr(scenario))
+		print(f'config.py: SCENARIO = {scenario!r}')
+		cfg = hft_state.read_config()
+	print()
+
 	hft_state.print_status(cfg, state)
 	changes = hft_state.setup_changes(cfg, state)
 	todo = [name for name, r in hft_state.plan(cfg, state) if r]
@@ -59,7 +120,7 @@ def main():
 	if args.first:
 		todo = hft_state.NAMES[hft_state.NAMES.index(args.first):]
 	if not todo and not changes:
-		print(f"\nEverything is up to date: the results are in results/{cfg.get('STUDY_AREA')}")
+		print(f'\nEverything is up to date: the results are in {hft_state.results_dir(cfg)}')
 		return
 	# moranvar.py runs moranvar_plots.R at the end
 	commands = [hft_state.COMMAND[n] for n in todo if not (n == 'plots' and 'moranvar' in todo)]
@@ -89,7 +150,7 @@ def main():
 		cmd = hft_state.COMMAND[name].split()
 		run([sys.executable] + cmd[1:] if cmd[0] == 'python3' else cmd, env)
 
-	print(f"\nDone: the results are in results/{cfg.get('STUDY_AREA')}")
+	print(f'\nDone: the results are in {hft_state.results_dir(cfg)}')
 	hft_state.print_status()
 
 

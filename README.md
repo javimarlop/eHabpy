@@ -191,23 +191,27 @@ every step, option and output of the HFT module in detail.
    boxplots of the pixel values of each variable by HFT, heatmaps of the HFT
    profiles, PCA biplots of the HFTs and the variables, the other plots,
    `overall_optim_thresholds.csv` and `processing_metadata.txt`) are saved in
-   their own folder, `results/<study area>` (e.g. `results/guajares`), and are
-   kept when another study area is processed. When the same study area is
-   processed again, the previous results are moved to
-   `results/<study area>_previous`. The intermediate folders `csv`,
-   `shp` and `tiffs` only hold the last study area processed.
+   a folder of their study area and **scenario** (`SCENARIO` in `config.py`,
+   `base` by default), `results/<study area>/<scenario>` (e.g.
+   `results/guajares/base`), so that the results of different options can be
+   kept apart. They are kept when another study area or scenario is
+   processed. When the same scenario is processed again, its previous results
+   are moved to `results/<study area>/<scenario>_previous`. The intermediate
+   folders `csv`, `shp` and `tiffs` only hold the last run.
 
 
 ### Habitat Functional Types (HFTs) (_segm_optim_ folder)
 
 ```
 python3 run_hft.py --status # shows which steps are needed and why
-python3 run_hft.py          # runs them, in order
+python3 run_hft.py          # asks the scenario name, then runs them in order
 ```
 
 `run_hft.py` runs only the steps that are out of date with `config.py`,
 `palist.csv` and the input data, so after changing an option you just run it
-again. The steps can also be run one by one; each one stops with a message
+again. Before starting it shows the scenario and lets you change it (or use
+`--scenario NAME` to set it without being asked). The steps can also be run
+one by one; each one stops with a message
 saying what to run first if a step before it is out of date:
 
 ```
@@ -305,8 +309,9 @@ eHabpy/
     ├── run_state.json             that record (written by the scripts)
     ├── pa/                        <- the vector file of your study area
     ├── csv/  shp/  tiffs/         intermediate files (only of the last study area processed)
-    ├── results/<STUDY_AREA>/      final results, one folder per study area
-    └── results/<STUDY_AREA>_previous/  results of the run before the last one
+    └── results/<STUDY_AREA>/      final results, one folder per study area
+        ├── <SCENARIO>/            one folder per scenario (base by default)
+        └── <SCENARIO>_previous/   results of the run of the scenario before the last one
 
 ~/grassdata/                       GRASS database (GRASSDB in config.py)
 └── <STUDY_AREA>/                  GRASS project created by setup.py
@@ -477,7 +482,7 @@ are in Spanish; this table explains each option in English. The options marked
 |---|---|---|---|
 | `GRASSDB` | setup | `'~/grassdata'` | GRASS database folder. |
 | `GRASSLOC` | setup | study area name | GRASS project (location) with the data. |
-| `STUDY_AREA` | setup | study area name | Name of the study area map in GRASS and of the folder `results/<STUDY_AREA>`. |
+| `STUDY_AREA` | setup | study area name | Name of the study area map in GRASS and of its results folder, `results/<STUDY_AREA>`. |
 | `COL_ID` | setup | `'cat'` | Integer column of the study area with the IDs processed separately. |
 | `RESOLUTION` | setup | `10` | Pixel size of the variables, in map units. Also the pixel size of the segmentation. |
 | `ENV_VARS0` | setup | all variables | Variables used in the PCA of the segmentation, as one comma-separated string in a list. **Its first variable defines the analysed pixels.** |
@@ -487,6 +492,7 @@ are in Spanish; this table explains each option in English. The options marked
 | `SMALL_SEGM_RADIUS` | you | `10` | Radius, in pixels, used to merge the segments smaller than the minimum size into a neighbouring segment (default `5` when the option is missing). |
 | `SIMIL` | you | `3` | How the classification tree is cut into HFTs: `1`, `2` or `3` (see below). |
 | `STAT_AGG` | you | `'mean'` | Statistic of each variable in each segment: `'mean'` or `'median'`. |
+| `SCENARIO` | you (or `run_hft.py`) | `'base'` | Name of the scenario: the results are written to `results/<STUDY_AREA>/<SCENARIO>`. Letters, digits, `-` and `_`; empty is `base`. |
 | `FORCE_RESTART` | you | `False` | `False`: the segmentation resumes an interrupted run (skipping the IDs in `csv/segm_done.csv`) only if nothing it depends on changed; otherwise it starts from scratch. `True`: always start the segmentation from scratch, deleting `csv`, `shp` and `tiffs`. |
 
 Choosing the options:
@@ -507,7 +513,7 @@ Choosing the options:
   - `3` (recommended to explore the results): the tree is cut at 25, 50 and
     75 % of its height, giving three classifications from detailed (`p25`,
     more HFTs) to broad (`p75`, fewer HFTs), saved in
-    `results/<STUDY_AREA>/p25`, `p50` and `p75`. The HFTs are coloured by the
+    `results/<STUDY_AREA>/<SCENARIO>/p25`, `p50` and `p75`. The HFTs are coloured by the
     hierarchy of the tree, so the same colour family marks the same group in
     the three cuts.
   - `1`: one cut at the first quartile of the merging heights of the tree,
@@ -520,10 +526,23 @@ Choosing the options:
 - **`FORCE_RESTART`** is rarely needed: the segmentation already starts from
   scratch whenever something it depends on changed. Use it to repeat a
   segmentation that is up to date (or `python3 run_hft.py --from segm`).
-- **Previous results.** Each time the results are written, the previous ones
-  of the same study area are moved to `results/<STUDY_AREA>_previous`
-  (replacing the ones that were there). To keep more than one earlier run
-  (e.g. to compare several settings), copy the results to another folder.
+- **`SCENARIO`** keeps apart the results of different options: e.g. run once
+  with `PA_BUFFER = 500` as scenario `buffer500` and once with `PA_BUFFER =
+  5000` as `buffer5k`, and both sets of results stay in
+  `results/<STUDY_AREA>/buffer500` and `results/<STUDY_AREA>/buffer5k`.
+  `run_hft.py` shows the scenario before starting and lets you type another
+  name (Enter keeps it), or takes it from `--scenario NAME` without asking;
+  the name is saved in `config.py`. Changing only the name runs only the last
+  step (classification and plots), which writes the results to the new folder.
+  The intermediate files (`csv`, `shp`, `tiffs`) are shared, so going back to
+  a scenario whose segmentation options differ from the last run repeats the
+  segmentation.
+- **Previous results.** Each time the results of a scenario are written, its
+  previous ones are moved to `results/<STUDY_AREA>/<SCENARIO>_previous`
+  (replacing the ones that were there). If the scenario already has results
+  made with other options, `run_hft.py` warns and lists the options that
+  differ; in a terminal, it lets you type another scenario name instead (Enter
+  replaces them). Without a terminal (e.g. `nohup`) it only warns and goes on.
 
 Two more options are set at the top of `moranvar_plots.R`:
 
@@ -538,8 +557,8 @@ parallel workers, default the number of CPU cores - 1), `EHAB_FORCE_RESTART=1`
 (as `FORCE_RESTART = True`), `GRASSDBASE` and `GRASSLOC` (GRASS database and
 project), e.g. `EHAB_NPROC=2 python3 run_hft.py`.
 
-All the options used are written to `results/<STUDY_AREA>/processing_metadata.txt`
-with the results.
+All the options used are written to
+`results/<STUDY_AREA>/<SCENARIO>/processing_metadata.txt` with the results.
 
 ### Step 5. Choose the IDs to process (palist.csv)
 
@@ -550,32 +569,53 @@ process. Each ID is a separate analysis with its own HFTs.
 ### Step 6. Run the model (run_hft.py)
 
 ```
-python3 run_hft.py --status   # what would run, and why
-python3 run_hft.py            # run it
+python3 run_hft.py --status             # what would run, and why
+python3 run_hft.py                      # run it (asks the scenario first)
+python3 run_hft.py --scenario buffer5k  # run it with this scenario, without asking
 ```
 
-`run_hft.py` runs steps 7 to 9 in order, but only those that are needed: a
+First, `run_hft.py` shows the scenario (`SCENARIO` in `config.py`) and, when
+it runs in a terminal, lets you type another name (Enter keeps it); the name
+is saved in `config.py` and the results go to
+`results/<STUDY_AREA>/<SCENARIO>`. If that scenario already has results made
+with other options, it warns and lets you choose another name, because
+running again moves those results to `<SCENARIO>_previous`:
+
+```
+Scenario: buffer5k (results in results/Guajares_zona_quemada_dNBR2022_10m/buffer5k)
+Press Enter to keep it, or type another scenario name:
+
+WARNING: results/Guajares_zona_quemada_dNBR2022_10m/buffer5k already has results made with other options (SIMIL changed (3 -> 2)).
+Running again moves them to results/Guajares_zona_quemada_dNBR2022_10m/buffer5k_previous (replacing what is there).
+Press Enter to replace them, or type another scenario name: simil2
+```
+
+Then it runs steps 7 to 9 in order, but only those that are needed: a
 step runs when it was never run, did not finish, or when something it depends
 on changed since it ran (table below), and then every step after it runs too.
 It also sets `ulimit -n 8192` and `PYTHONNOUSERSITE=1` for the scripts. For
 example, after changing only `SIMIL`:
 
 ```
-Study area: Guajares_zona_quemada_dNBR2022_10m
+Study area: Guajares_zona_quemada_dNBR2022_10m | scenario: simil2 (results in results/Guajares_zona_quemada_dNBR2022_10m/simil2)
   1. segmentation                               up to date
   2. statistics of the segments                 up to date
   3. Moran's I and variance of the thresholds   up to date
-  4. threshold, HFTs and plots                  to run: SIMIL changed (3 -> 2)
+  4. threshold, HFTs and plots                  to run: SCENARIO changed ('buffer5k' -> 'simil2'); SIMIL changed (3 -> 2)
 
 To run: Rscript moranvar_plots.R
 ```
+
+Without a terminal (e.g. with `nohup` or in a batch job) it does not ask: it
+uses `--scenario` or the scenario of `config.py`, and only prints the
+warning.
 
 | Step | Runs again when this changed (or a step before it ran again) |
 |---|---|
 | 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
 | 8. Statistics of the segments | `STAT_AGG`, `RESOLUTION`, `ENV_VARS`, the files of `../inVars`, `get_mean_median_var.py`, `ehab_segm_core.py` |
 | 9. Moran's I and variance | `moranvar.py` |
-| 9. Threshold, HFTs and plots | `SIMIL`, `moranvar_plots.R` (e.g. its options `optim` and `upper`), `CreateRadialPlot.R` |
+| 9. Threshold, HFTs and plots | `SIMIL`, `SCENARIO`, `moranvar_plots.R` (e.g. its options `optim` and `upper`), `CreateRadialPlot.R` |
 
 When an input file (in `../inVars`, or the study area in `pa/`) changed since
 `setup.py` imported it, `run_hft.py` first runs `setup.py` again with the same
@@ -676,7 +716,7 @@ For every ID it:
    `csv/<id>_var_mean.csv`);
 2. runs `Rscript moranvar_plots.R`, which selects the threshold, classifies
    its segments into HFTs and writes all the maps, plots and tables to
-   `results/<STUDY_AREA>` (see [A5](#a5-optimal-segmentation-threshold) and
+   `results/<STUDY_AREA>/<SCENARIO>` (see [A5](#a5-optimal-segmentation-threshold) and
    [A6](#a6-classification-of-the-segments-into-hfts)).
 
 To redo only the classification and the plots, for example after changing
@@ -690,7 +730,7 @@ Running `moranvar.py` again replaces its csv files.
 
 ### Step 10. Check the results
 
-Look first at `results/<STUDY_AREA>/<id>_moran_var_mean.png` (the selected
+Look first at `results/<STUDY_AREA>/<SCENARIO>/<id>_moran_var_mean.png` (the selected
 threshold) and then, for each cut, at the map, the heatmap and the boxplots.
 [Interpreting the outputs](#interpreting-the-outputs) explains every file.
 `python3 run_hft.py --status` tells whether the results are up to date with
@@ -722,6 +762,8 @@ threshold) and then, for each cut, at the map, the heatmap and the boxplots.
 | `ERROR: run the ... first (...)` | A step before the one you ran is out of date; the message says why. Run `python3 run_hft.py`, or the command given in the message. |
 | `ERROR: the input data changed since setup.py imported them` | A file of `../inVars` or the study area file changed: run `python3 run_hft.py` (it runs `setup.py`) or `python3 setup.py`. |
 | `The segmentation is up to date ...: nothing to do` | Not an error. To repeat it anyway: `python3 run_hft.py --from segm`. |
+| `... is not a valid scenario name` | Use only letters, digits, `-` and `_` in `SCENARIO` (or `--scenario`), and do not end it in `_previous`. |
+| `WARNING: results/.../<SCENARIO> already has results made with other options` | Not an error: the scenario name was used before with the options listed. Type another name, or let them be moved to `<SCENARIO>_previous`. |
 | `module 'numpy' has no attribute ...` or other errors importing numpy / scipy | Python packages of `~/.local` are loaded instead of those of the environment: `export PYTHONNOUSERSITE=1` (`run_hft.py` does it by itself). |
 | `Too many open files` | `run_hft.py` raises the limit by itself; to run the scripts by hand, run `ulimit -n 8192` first in the same terminal. |
 | The computer runs out of memory | Reduce the parallel workers, e.g. `EHAB_NPROC=1 python3 run_hft.py`. |
@@ -737,18 +779,20 @@ burned area of 2022, with 7 variables at 10 m: maximum and minimum NDVI, NDWI,
 slope, mean annual temperature, annual precipitation and TWI), run with
 `PA_BUFFER = 5000` (5 km), `SMALL_SEGM_RADIUS = 10`, `SIMIL = 3` and
 `STAT_AGG = 'mean'`. The figures are those of that run (of the cut `p50`
-unless said otherwise), reduced in size; they are in `docs/img`.
+unless said otherwise), reduced in size; they are in `docs/img`. The paths
+below are relative to the folder of the scenario,
+`results/<STUDY_AREA>/<SCENARIO>`.
 
 ### Where the results are
 
 ```
-results/<STUDY_AREA>/
+results/<STUDY_AREA>/<SCENARIO>/
 ├── processing_metadata.txt              options used for the run
 ├── overall_optim_thresholds.csv         selected threshold of every ID
 ├── <id>_moran_var_mean.png              threshold selection plot
 ├── <id>_optim_thresholds.csv            crossings of the Moran's I and variance curves
 └── p25/  p50/  p75/                     one folder per cut of the tree (SIMIL = 3; otherwise
-    │                                    these files are directly in results/<STUDY_AREA>)
+    │                                    these files are directly in <SCENARIO>/)
     ├── park_segm_<id>_<k>_<cut>_class.shp    HFT polygons (with .dbf, .shx, .prj)
     ├── map_<id>_<k>_<cut>_segms_hclust.png   HFT map
     ├── hclust_<id>_<k>_<cut>_segms_mean.png  classification tree
@@ -758,6 +802,9 @@ results/<STUDY_AREA>/
     ├── pca_biplot_<id>_<k>_<cut>_hft.png        PCA of the pixels with the HFTs
     └── NMDS_<id>_<k>_<cut>_segms_mean.png       ordination of the segments
 ```
+
+Next to it, `results/<STUDY_AREA>` holds the folders of the other scenarios
+and `<SCENARIO>_previous`, with the run of the scenario before the last one.
 
 In the file names `<id>` is the area ID, `<k>` the index of the selected
 threshold (`6` is threshold 0.6) and `<cut>` the cut of the tree (`p25`,
@@ -1423,7 +1470,11 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
   classification and plots), the inputs it was run with (the table of step 6:
   options of `config.py`, `palist.csv`, input files and a hash of its own
   code), a hash of those inputs together with the inputs of all the steps
-  before it, and whether it finished.
+  before it, and whether it finished;
+- for every study area and scenario, the inputs of all the steps that
+  produced its results (written when the last step finishes), which
+  `run_hft.py` compares with the current ones to warn when a scenario name is
+  used again with other options.
 
 A step is up to date when it finished and that hash is the same as the one
 computed now. When a script starts, it checks that every step before it is up

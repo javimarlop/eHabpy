@@ -152,10 +152,16 @@ upper <- 2 # 1: default, 2: límite superior incrementado
 
 if (!simil %in% 1:3) stop("SIMIL en config.py debe ser 1, 2 o 3")
 
-# Resultados en results/<área de estudio>: la de los csv (anotada por segmentation_pca_par.py) o STUDY_AREA de config.py
+# Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
+# o STUDY_AREA de config.py, y SCENARIO de config.py ('base' si falta o está vacío)
 area <- if (file.exists('csv/study_area.csv')) readLines('csv/study_area.csv', n=1, warn=FALSE) else read_config('STUDY_AREA')
 if (is.na(area) || area == '') stop("No se encuentra el área de estudio: falta STUDY_AREA en config.py")
-outroot <- file.path('results', area)
+scenario <- read_config('SCENARIO')
+if (is.na(scenario) || scenario == '') scenario <- 'base'
+if (!grepl('^[A-Za-z0-9_-]+$', scenario) || grepl('_previous$', scenario)) {
+	stop(paste0("SCENARIO en config.py ('", scenario, "') solo puede tener letras, números, - y _, y no puede acabar en _previous"))
+}
+outroot <- file.path('results', area, scenario)
 
 # Cortes del árbol: simil = 3 genera una clasificación por corte (25, 50 y 75 % de la altura máxima), cada una en su subcarpeta
 if (simil == 3) {
@@ -168,8 +174,8 @@ if (simil == 3) {
 cfg <- if (file.exists('config.py')) readLines('config.py', warn=FALSE) else character(0)
 cfg <- sub('\\s+#.*$', '', cfg)
 cfg <- cfg[!grepl('^\\s*(#|$)', cfg)]
-# Los resultados anteriores de esta área se mueven a results/<área>_previous (sustituyendo los que hubiera),
-# para no mezclar ficheros de ejecuciones con otras opciones (p. ej. otro umbral en el nombre)
+# Los resultados anteriores de este escenario se mueven a results/<área>/<escenario>_previous (sustituyendo
+# los que hubiera), para no mezclar ficheros de ejecuciones con otras opciones (p. ej. otro umbral en el nombre)
 if (length(list.files(outroot, recursive = TRUE)) > 0) {
 	prev <- paste0(outroot, '_previous')
 	unlink(prev, recursive = TRUE)
@@ -180,6 +186,7 @@ writeLines(c(
 	'eHabitat+ processing metadata: options used to produce the files in this folder',
 	paste('Date:', format(Sys.time(), '%Y-%m-%d %H:%M:%S')),
 	paste('Study area:', area),
+	paste('Scenario:', scenario),
 	paste('IDs processed (csv/segm_done.csv):', paste(ecox_list, collapse=', ')),
 	'',
 	'## config.py',

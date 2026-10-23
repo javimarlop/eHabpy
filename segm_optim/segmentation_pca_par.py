@@ -72,7 +72,7 @@ def init_grass(gisdbase, location, mapset):
 
 def clean_previous_results():
 	"""Borra archivos de control y csv/shp/tiffs (results/ no: moranvar_plots.R mueve los resultados
-	anteriores a results/<STUDY_AREA>_previous cuando escribe los nuevos)."""
+	anteriores del escenario a results/<STUDY_AREA>/<SCENARIO>_previous cuando escribe los nuevos)."""
 	control_files = ['csv/segm_done.csv', 'ongoing.csv', 'done.csv']
 	for f in control_files:
 		if os.path.exists(f):

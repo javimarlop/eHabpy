@@ -41,3 +41,4 @@
 - setup.py stops when the variables have a geographic CRS, imports again the files that changed since it imported them and records what it imported.
 - moranvar_plots.R moves the previous results of the study area to results/<STUDY_AREA>_previous before writing the new ones, so files of runs with different options are not mixed; moranvar.py stops with an error when moranvar_plots.R fails.
 - README: extended tutorial of the HFT module, interpretation of all the outputs and annex on how the model works.
+- Scenarios: new SCENARIO option in config.py (default 'base'); the results are written to results/<STUDY_AREA>/<SCENARIO> (and the previous ones of the scenario to <SCENARIO>_previous). run_hft.py shows the scenario and, in a terminal, lets you change it before starting (--scenario NAME sets it without asking), and warns, listing the options that differ, when the scenario already has results made with other options.

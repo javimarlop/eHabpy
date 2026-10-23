@@ -154,13 +154,7 @@ def find_grass():
 	fail('GRASS GIS not found: activate the environment first (conda activate ehabpy)')
 
 
-def set_option(text, name, value):
-	"""Set NAME = value in the text of config.py keeping its comment, or append it."""
-	pattern = re.compile(rf'^{name}\s*=.*?(?=\s+#|$)', re.M)
-	line = f'{name} = {value}'
-	if pattern.search(text):
-		return pattern.sub(lambda m: line, text, count=1)
-	return text.rstrip('\n') + '\n' + line + '\n'
+set_option = hft_state.set_option
 
 
 def set_env_vars(text, entries):

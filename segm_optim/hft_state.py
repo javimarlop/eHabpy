@@ -7,6 +7,9 @@ with: the options of config.py it uses, palist.csv, the input files and its
 own code. Before running, a step checks that the steps before it are up to
 date with the current inputs and, if they are not, stops saying which script
 to run. run_hft.py uses the same record to run only the steps that are needed.
+It also records the inputs that produced the results of every scenario
+(SCENARIO in config.py, results in results/<STUDY_AREA>/<SCENARIO>), to warn
+when a scenario name is used again with other options.
 
     python3 hft_state.py              # status of every step
 
@@ -21,6 +24,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import runpy
 import sys
 
@@ -33,6 +37,8 @@ INVARS = os.path.normpath(os.path.join(HERE, '..', 'inVars'))
 RASTER_EXT = ('.tif', '.tiff')
 SHP_PARTS = ('.shp', '.dbf', '.shx', '.prj', '.cpg')
 NOT_READY = 3  # exit code of 'check' when a step before is out of date
+DEFAULT_SCENARIO = 'base'
+SCENARIO_RE = re.compile(r'[A-Za-z0-9_-]+')  # also checked in moranvar_plots.R
 
 # Steps in order: name, what it does, command that runs it, files with its code
 STEPS = [
@@ -66,6 +72,40 @@ def save(state):
 def read_config():
 	"""Options of config.py as they are now (not as imported when the script started)."""
 	return runpy.run_path(CONFIG)
+
+
+def set_option(text, name, value):
+	"""Set NAME = value in the text of config.py keeping its comment, or append it."""
+	pattern = re.compile(rf'^{name}\s*=.*?(?=\s+#|$)', re.M)
+	line = f'{name} = {value}'
+	if pattern.search(text):
+		return pattern.sub(lambda m: line, text, count=1)
+	return text.rstrip('\n') + '\n' + line + '\n'
+
+
+def write_option(name, value):
+	"""Set NAME = value (a Python literal) in config.py."""
+	with open(CONFIG) as f:
+		text = f.read()
+	with open(CONFIG, 'w') as f:
+		f.write(set_option(text, name, value))
+
+
+def scenario_name(cfg):
+	return str(cfg.get('SCENARIO') or DEFAULT_SCENARIO)
+
+
+def scenario_error(name):
+	"""Why NAME cannot be a scenario name (None if it can)."""
+	if not SCENARIO_RE.fullmatch(name):
+		return 'use only letters, digits, - and _'
+	if name.endswith('_previous'):
+		return "it cannot end in '_previous' (used for the previous results of a scenario)"
+	return None
+
+
+def results_dir(cfg):
+	return os.path.join('results', str(cfg.get('STUDY_AREA')), scenario_name(cfg))
 
 
 def file_sig(path):
@@ -154,6 +194,7 @@ def step_inputs(step, cfg=None, state=None):
 		inputs = {}
 	else:
 		inputs = opts(('SIMIL', 2))
+		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
 	inputs['code'] = _code_sig(CODE[step])
 	return inputs
 
@@ -176,6 +217,23 @@ def _short(v, n=40):
 	return v if len(v) <= n else v[:n - 3] + '...'
 
 
+def _diff(step, old, new):
+	"""Differences between two sets of inputs of a step, as messages."""
+	out = []
+	for k in sorted(set(old) | set(new)):
+		if old.get(k) == new.get(k):
+			continue
+		if k == 'code':
+			out.append(f"{' or '.join(CODE[step])} changed")
+		elif k == 'imported data':
+			out.append('input data imported again by setup.py')
+		elif k.startswith('inVars/'):
+			out.append(f'{k} changed')
+		else:
+			out.append(f'{k} changed ({_short(old.get(k))} -> {_short(new.get(k))})')
+	return out
+
+
 def reasons(step, cfg=None, state=None):
 	"""Why a step has to be run (empty list if it is up to date)."""
 	cfg = read_config() if cfg is None else cfg
@@ -185,19 +243,7 @@ def reasons(step, cfg=None, state=None):
 		return ['not run yet']
 	out = []
 	if rec['chain'] != chain(step, cfg, state):
-		now = step_inputs(step, cfg, state)
-		for k in sorted(set(now) | set(rec['inputs'])):
-			old, new = rec['inputs'].get(k), now.get(k)
-			if old == new:
-				continue
-			if k == 'code':
-				out.append(f"{' or '.join(CODE[step])} changed")
-			elif k == 'imported data':
-				out.append('input data imported again by setup.py')
-			elif k.startswith('inVars/'):
-				out.append(f'{k} changed')
-			else:
-				out.append(f'{k} changed ({_short(old)} -> {_short(new)})')
+		out = _diff(step, rec['inputs'], step_inputs(step, cfg, state))
 		if not out:
 			out.append('the inputs of a step before it changed')
 	if not rec.get('done'):
@@ -257,7 +303,29 @@ def done(step):
 	rec = record(step, state)
 	if rec:
 		rec['done'] = True
+		if step == 'plots':
+			# Inputs of all the steps that produced the results of this scenario (without its name)
+			cfg = read_config()
+			inputs = {s: dict(record(s, state)['inputs']) for s in NAMES if record(s, state)}
+			inputs.get('plots', {}).pop('SCENARIO', None)
+			state.setdefault('scenarios', {}).setdefault(str(cfg.get('STUDY_AREA')), {})[scenario_name(cfg)] = inputs
 		save(state)
+
+
+def scenario_changes(cfg=None, state=None):
+	"""How the current inputs differ from those that produced the results of the scenario:
+	None if there is no record of them, an empty list if they are the same."""
+	cfg = read_config() if cfg is None else cfg
+	state = load() if state is None else state
+	rec = state.get('scenarios', {}).get(str(cfg.get('STUDY_AREA')), {}).get(scenario_name(cfg))
+	if rec is None:
+		return None
+	out = []
+	for name in NAMES:
+		now = step_inputs(name, cfg, state)
+		now.pop('SCENARIO', None)
+		out += _diff(name, rec.get(name, {}), now)
+	return out
 
 
 def reset(first='segm'):
@@ -271,7 +339,7 @@ def reset(first='segm'):
 def print_status(cfg=None, state=None):
 	cfg = read_config() if cfg is None else cfg
 	state = load() if state is None else state
-	print(f"Study area: {cfg.get('STUDY_AREA')}")
+	print(f"Study area: {cfg.get('STUDY_AREA')} | scenario: {scenario_name(cfg)} (results in {results_dir(cfg)})")
 	changes = setup_changes(cfg, state)
 	if changes:
 		print(f"   input data: to import again with setup.py ({'; '.join(changes)})")
