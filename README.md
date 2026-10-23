@@ -736,7 +736,8 @@ The examples below come from the Guajares dataset (one study area, ID 1, a
 burned area of 2022, with 7 variables at 10 m: maximum and minimum NDVI, NDWI,
 slope, mean annual temperature, annual precipitation and TWI), run with
 `PA_BUFFER = 5000` (5 km), `SMALL_SEGM_RADIUS = 10`, `SIMIL = 3` and
-`STAT_AGG = 'mean'`.
+`STAT_AGG = 'mean'`. The figures are those of that run (of the cut `p50`
+unless said otherwise), reduced in size; they are in `docs/img`.
 
 ### Where the results are
 
@@ -774,7 +775,18 @@ the tree, so the shades of a colour are together. In the example `p75` has 3
 HFTs (red, blue and green); `p50` splits the red one into four shades of red
 and keeps the green and the blue ones (6 HFTs), and `p25` has 17 HFTs.
 
+<p>
+<img src="docs/img/map_p75.png" width="32%" alt="HFT map of the cut p75 (3 HFTs)">
+<img src="docs/img/map_p50.png" width="32%" alt="HFT map of the cut p50 (6 HFTs)">
+<img src="docs/img/map_p25.png" width="32%" alt="HFT map of the cut p25 (17 HFTs)">
+</p>
+
+*HFT maps of the cuts `p75`, `p50` and `p25` (from broad to detailed): the
+shades of each colour are the HFTs of the finer cuts inside an HFT of `p75`.*
+
 ### Threshold selection plot (`<id>_moran_var_mean.png`)
+
+<img src="docs/img/threshold_selection.png" width="420" alt="Moran's I and variance curves of the nine thresholds, crossing at 7.21">
 
 - **x axis**: threshold index `k` (1 to 9 for thresholds 0.1 to 0.9).
 - **Black (M.I)**: Moran's I of the segment means, rescaled to 0-1 over the
@@ -821,6 +833,8 @@ how they were produced.
 
 ### Classification tree (`hclust_<id>_<k>_<cut>_segms_mean.png`)
 
+<img src="docs/img/hclust_p50.png" width="420" alt="Ward dendrogram of the 104 segments with the 6 HFTs of the cut p50">
+
 The dendrogram of the Ward classification of the segments of the selected
 threshold. Each leaf is a segment (numbered by its row in
 `csv/park_<id>_hri_results<k>.csv`), and the height at which two branches
@@ -840,6 +854,8 @@ separated HFTs; HFTs that join just above the cut are similar and could be
 taken together.
 
 ### HFT map (`map_<id>_<k>_<cut>_segms_hclust.png`)
+
+![HFT map of the cut p50](docs/img/map_p50.png)
 
 The segments coloured by HFT, with the outline of the study area in black and
 the borders of the segments in thin grey. White areas inside the map are
@@ -870,6 +886,8 @@ habitat composition of the study area, or to compare the HFTs with other maps
 
 ### Radar plot (`radarplot_<id>_<k>_<cut>_segms_mean.png`)
 
+![Radar plot of the 6 HFTs of the cut p50](docs/img/radar_p50.png)
+
 One line per HFT and one axis per variable. The value of an HFT on an axis is
 the mean of the segment means (or medians with `STAT_AGG = 'median'`) of its
 segments, rescaled between the HFTs: **0 is the HFT with the lowest value of
@@ -886,6 +904,8 @@ an axis.
 
 ### Boxplots of the pixel values (`boxplot_<id>_<k>_<cut>_hft_pixels.png`)
 
+![Boxplots of the pixel values of each variable by HFT](docs/img/boxplot_p50.png)
+
 One panel per variable, in its original units and with its own scale, and one
 box per HFT made of all its pixels (read from `../inVars`): the line is the
 median, the box goes from the first to the third quartile and the whiskers to
@@ -899,6 +919,8 @@ real units: in the example HFTs 2 and 4 are the warmest (medians of 17.1 and
 inside each HFT than between them.
 
 ### Heatmap of the HFT profiles (`heatmap_<id>_<k>_<cut>_hft_profiles.png`)
+
+![Heatmap of the median of each variable by HFT](docs/img/heatmap_p50.png)
 
 A table with one row per HFT (in the order of the tree, with its colour and
 area on the left) and one column per variable:
@@ -922,6 +944,8 @@ area) is greener and wetter than the mean (NDVI max 0.78, NDWI 0.136) and HFT
 
 ### PCA biplot of the HFTs (`pca_biplot_<id>_<k>_<cut>_hft.png`)
 
+![PCA biplot of the pixels with the HFT centroids](docs/img/pca_biplot_p50.png)
+
 A principal component analysis of the standardised pixel values of all the
 classified pixels, in two panels: PC1-PC2 and PC1-PC3. The percentage of the
 variance explained by each component is in the panel titles (39.0, 23.4 and
@@ -941,6 +965,8 @@ carry the same information), with the green HFT on their side, and
 temperature points towards HFTs 4 and 2.
 
 ### NMDS of the segments (`NMDS_<id>_<k>_<cut>_segms_mean.png`)
+
+![NMDS of the segments coloured by HFT](docs/img/nmds_p50.png)
 
 A non-metric multidimensional scaling of the segments using the same
 distances as the classification (means and variances of the variables), so
