@@ -46,6 +46,15 @@ FORCE_RESTART = False
 # > 0 = Extiende el bounding box de la región de trabajo en la distancia especificada.
 PA_BUFFER = 500
 
+# ENTRADA DE LA SEGMENTACIÓN:
+# True  = Segmenta los tres primeros ejes de una PCA estandarizada de las variables de
+#         ENV_VARS0, calculada para cada área (necesita al menos 3 variables).
+# False = Segmenta directamente las variables de ENV_VARS0, todas con el mismo peso, sin PCA
+#         (las variables muy correlacionadas, p. ej. dos índices de vegetación, pesan más).
+# En los dos casos i.segment escala cada capa a su rango en la región de trabajo del área,
+# así que las unidades de las variables no influyen.
+SEGM_PCA = True
+
 # RADIO PARA UNIR SEGMENTOS PEQUEÑOS (en píxeles, así depende del tamaño de píxel):
 # los segmentos con menos píxeles que minarea (raíz cuadrada del nº de píxeles con datos de
 # la región) se unen al segmento más frecuente de los mayores que ellos a esta distancia o

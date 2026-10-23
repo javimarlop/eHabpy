@@ -391,8 +391,8 @@ Things to keep in mind when preparing them:
 - **Its file name is the name of the study area**, of the GRASS project and
   of the results folder: `pa/guajares.gpkg` gives `guajares` and
   `results/guajares`. Rename the file to change it.
-- **Each ID is processed separately**, with its own working region, PCA,
-  segmentation, threshold and HFTs. The IDs are the values of the column
+- **Each ID is processed separately**, with its own working region, PCA
+  (unless `SEGM_PCA = False`), segmentation, threshold and HFTs. The IDs are the values of the column
   `COL_ID` (by default `cat`: one ID per polygon). To classify several
   polygons together, give them the same value in an integer column and choose
   it with `--col-id` (or dissolve them into one feature).
@@ -485,10 +485,11 @@ are in Spanish; this table explains each option in English. The options marked
 | `STUDY_AREA` | setup | study area name | Name of the study area map in GRASS and of its results folder, `results/<STUDY_AREA>`. |
 | `COL_ID` | setup | `'cat'` | Integer column of the study area with the IDs processed separately. |
 | `RESOLUTION` | setup | `10` | Pixel size of the variables, in map units. Also the pixel size of the segmentation. |
-| `ENV_VARS0` | setup | all variables | Variables used in the PCA of the segmentation, as one comma-separated string in a list. **Its first variable defines the analysed pixels.** |
+| `ENV_VARS0` | setup | all variables | Variables of the segmentation (of its PCA with `SEGM_PCA = True`), as one comma-separated string in a list. **Its first variable defines the analysed pixels.** |
 | `ENV_VARS` | setup | all variables | For each variable (GRASS map name): its file in `../inVars` and its NoData value. Used for the statistics, the classification and the plots. |
 | `CLIP_TO_PA` | you | `False` | `False`: segments and HFTs cover the whole bounding box plus `PA_BUFFER`. `True`: only the pixels inside the polygons of each ID. |
 | `PA_BUFFER` | you | `500` | Distance (map units, rounded up to whole pixels) by which the bounding box of each ID is grown. `0`: the bounding box only. |
+| `SEGM_PCA` | you | `True` | Input of the segmentation. `True`: the first three axes of a standardised PCA of the variables of `ENV_VARS0`. `False`: the variables of `ENV_VARS0` themselves, without PCA (default `True` when the option is missing). |
 | `SMALL_SEGM_RADIUS` | you | `10` | Radius, in pixels, used to merge the segments smaller than the minimum size into a neighbouring segment (default `5` when the option is missing). |
 | `SIMIL` | you | `3` | How the classification tree is cut into HFTs: `1`, `2` or `3` (see below). |
 | `STAT_AGG` | you | `'mean'` | Statistic of each variable in each segment: `'mean'` or `'median'`. |
@@ -502,6 +503,20 @@ Choosing the options:
   too, and the HFTs inside are compared with those around. A larger buffer
   takes longer. With `CLIP_TO_PA = True` the buffer only enlarges the
   working region.
+- **`SEGM_PCA`**: with `True` (the original behaviour) the segments are
+  delimited on the first three principal components, which sum up correlated
+  variables (e.g. two vegetation indices) so that each environmental gradient
+  counts about once, but leave out the variance of the other components. With
+  `False` every variable of `ENV_VARS0` is a layer of the segmentation with
+  the same weight: no variance is left out and the segments follow each
+  variable directly, but a group of correlated variables weighs more than a
+  variable that is alone, and the segmentation needs more memory and time
+  with many variables. The statistics and the classification into HFTs do
+  not change. In both cases `i.segment` scales each layer to
+  its range in the working region of the ID, so the units of the variables do
+  not matter, and the same thresholds (0.1 to 0.9) are evaluated. With fewer
+  than three variables use `False`. See
+  [A3](#a3-segmentation-segmentation_pca_parpy).
 - **`SMALL_SEGM_RADIUS`**: the minimum size of a segment is the square root
   of the number of analysed pixels (`minarea`, e.g. 1180 pixels = 11.8 ha in
   the Guajares example). Smaller segments, often fragments isolated by NoData
@@ -612,7 +627,7 @@ warning.
 
 | Step | Runs again when this changed (or a step before it ran again) |
 |---|---|
-| 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
+| 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SEGM_PCA`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
 | 8. Statistics of the segments | `STAT_AGG`, `RESOLUTION`, `ENV_VARS`, the files of `../inVars`, `get_mean_median_var.py`, `ehab_segm_core.py` |
 | 9. Moran's I and variance | `moranvar.py` |
 | 9. Threshold, HFTs and plots | `SIMIL`, `SCENARIO`, `moranvar_plots.R` (e.g. its options `optim` and `upper`), `CreateRadialPlot.R` |
@@ -652,8 +667,9 @@ for the details) it:
 1. extracts its polygons and sets the working region to their bounding box
    grown by `PA_BUFFER`, on the grid of the first variable;
 2. computes a standardised PCA of the variables of `ENV_VARS0` and keeps the
-   first three components;
-3. segments the components with region growing (`i.segment`) at the
+   first three components (with `SEGM_PCA = False` it skips the PCA and uses
+   the variables themselves);
+3. segments the components (or the variables) with region growing (`i.segment`) at the
    thresholds 0.1, 0.2, ..., 0.9, each one starting from the segments of the
    previous one: low thresholds give many small segments, high thresholds a
    few large ones;
@@ -1068,7 +1084,7 @@ flowchart TD
     CFG[/"config.py (options, SCENARIO), palist.csv"/]
     STATE[("run_state.json (hft_state.py)<br>imported files and inputs of every step")]
     subgraph RUN ["<b>run_hft.py</b>"]
-        SEG["<b>segmentation_pca_par.py</b><br>for every area ID, in parallel:<br>PCA, region growing at 9 thresholds,<br>merging of small segments"]
+        SEG["<b>segmentation_pca_par.py</b><br>for every area ID, in parallel:<br>PCA (if SEGM_PCA), region growing at 9 thresholds,<br>merging of small segments"]
         SEGOUT[/"shp/park_segm_ID_K.shp<br>tiffs/pa_SEGMID.tif<br>csv/park_ID_K.csv"/]
         STAT["<b>get_mean_median_var.py</b> + ehab_segm_core.py<br>mean or median, variance and size<br>of every variable in every segment"]
         HRI[/"csv/park_ID_hri_resultsK.csv"/]
@@ -1136,9 +1152,12 @@ flowchart TD
     B --> C["g.region: bounding box of the polygons<br>grown by PA_BUFFER, on the grid of the first variable"]
     C --> D["valid pixels: first variable not NoData<br>minarea = floor(sqrt(number of valid pixels))"]
     D --> E["random seed map, r.mapcalc seed = 10"]
-    E --> F["i.pca -n: standardised PCA of ENV_VARS0<br>group of PC1, PC2 and PC3"]
+    E --> SP{"SEGM_PCA"}
+    SP -- "True" --> F["i.pca -n: standardised PCA of ENV_VARS0<br>group of PC1, PC2 and PC3"]
+    SP -- "False" --> F2["copies of the ENV_VARS0 variables<br>on the working region, grouped"]
     F --> G{"next threshold<br>0.1, 0.2 ... 0.9"}
-    G -- "0.1: seeds = random map, minsize = minarea" --> H["i.segment region growing<br>Euclidean distance on PC1-PC3"]
+    F2 --> G
+    G -- "0.1: seeds = random map, minsize = minarea" --> H["i.segment region growing<br>Euclidean distance on the layers of the group"]
     G -- "0.2 to 0.9: seeds = segments of the previous threshold" --> H
     H --> I["copy of the segments,<br>masked to the polygons if CLIP_TO_PA"]
     I --> J["merge segments smaller than minarea:<br>within SMALL_SEGM_RADIUS, then the nearest"]
@@ -1174,11 +1193,18 @@ flowchart TD
    variable dominates because of its units. The first three components
    (`pax_<id>.1`, `.2`, `.3`), which usually hold most of the variance of
    correlated environmental variables, are grouped for the segmentation.
+   With `SEGM_PCA = False` there is no PCA: each variable of `ENV_VARS0` is
+   copied to the working region (`pax_<id>_1`, `_2`, ...) and all of them are
+   grouped. The copies are needed because `i.segment` scales every layer of
+   the group to the range of the whole map, which for the copies is the
+   range in the working region, as for the components; with the maps of
+   `PERMANENT` it would be the range of the whole raster.
 5. **Region growing at nine thresholds.** `i.segment` (`method=region_growing`,
    `similarity=euclidean`, `iterations=20`, `memory=10000`) merges
    neighbouring segments that are each other's most similar neighbour while
-   the Euclidean distance between their PC values, relative to the range of
-   the data, is below the threshold (0: only identical pixels merge, 1:
+   the Euclidean distance between their values (PC1-PC3, or the variables
+   with `SEGM_PCA = False`), each layer scaled to 0-1 with its minimum and
+   maximum, is below the threshold (0: only identical pixels merge, 1:
    everything merges). It runs for the thresholds 0.1 to 0.9:
    - at 0.1 it starts from the seed map and segments smaller than `minarea`
      are merged into their most similar neighbour (`minsize=minarea`);
@@ -1450,11 +1476,13 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 
 ### A10. Fixed parameters and limitations
 
-- The nine thresholds (0.1 to 0.9), the three principal components and the
-  `i.segment` parameters (`region_growing`, `euclidean`, 20 iterations,
-  10000 MB of memory) are fixed in `segmentation_pca_par.py`; `optim` and
-  `upper` are set in `moranvar_plots.R`.
-- At least three variables are needed (three principal components).
+- The nine thresholds (0.1 to 0.9), the three principal components (with
+  `SEGM_PCA = True`) and the `i.segment` parameters (`region_growing`,
+  `euclidean`, 20 iterations, 10000 MB of memory) are fixed in
+  `segmentation_pca_par.py`; `optim` and `upper` are set in
+  `moranvar_plots.R`.
+- With `SEGM_PCA = True` at least three variables are needed (three
+  principal components); with `SEGM_PCA = False` one is enough.
 - The CRS must be projected (`setup.py` stops with a geographic CRS), in
   metres (see the noise of A4).
 - The parallelism is over the IDs: one ID uses one core.

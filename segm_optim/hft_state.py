@@ -181,7 +181,7 @@ def step_inputs(step, cfg=None, state=None):
 	if step == 'segm':
 		inputs = opts(('GRASSDB', None), ('GRASSLOC', None), ('STUDY_AREA', None), ('COL_ID', None),
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
-		              ('SMALL_SEGM_RADIUS', 5))
+		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []
 		inputs['palist.csv'] = ' '.join(sorted(set(ids)))
 		setup = get_setup(cfg.get('STUDY_AREA'), state)

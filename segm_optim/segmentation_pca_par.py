@@ -26,8 +26,10 @@ CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.environ.get('EHAB_FORCE_RESTART', '') not in ('', '0')
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
+SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
 
-FIRST_VAR = ','.join(ENV_VARS0).split(',')[0].strip()  # its valid pixels define the analysed area
+SEGM_VARS = [v.strip() for v in ','.join(ENV_VARS0).split(',') if v.strip()]
+FIRST_VAR = SEGM_VARS[0]  # its valid pixels define the analysed area
 
 GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
 MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
@@ -234,9 +236,17 @@ def fsegm(pa):
 		if len(a) == 0: a = [1, 625]
 		minarea = int(np.sqrt(int(a[1])))
 
-		grass.run_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
-		pcas = f"{pa44x}.1,{pa44x}.2,{pa44x}.3"
-		grass.run_command('i.group', group='segm', input=pcas)
+		# Input of i.segment, which scales each map to its range: PC1-PC3, or copies of the variables
+		# on the working region, so that their range is also that of the region and not of the whole map
+		if SEGM_PCA:
+			grass.run_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
+			segm_input = [f"{pa44x}.{i}" for i in (1, 2, 3)]
+		else:
+			segm_input = []
+			for i, var in enumerate(SEGM_VARS, 1):
+				grass.run_command('r.mapcalc', expression=f'{pa44x}_{i} = {var}', overwrite=True)
+				segm_input.append(f"{pa44x}_{i}")
+		grass.run_command('i.group', group='segm', input=','.join(segm_input))
 
 		j = 0
 		for thr in reps:
