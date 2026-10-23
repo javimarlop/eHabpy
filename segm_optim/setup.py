@@ -15,10 +15,12 @@ It
   3. imports the variables and the study area into its PERMANENT mapset,
   4. writes palist.csv with every ID of the study area (if it does not exist),
   5. fills GRASSDB, GRASSLOC, ENV_VARS0, STUDY_AREA, COL_ID, RESOLUTION and
-     ENV_VARS in config.py; the other options are kept as they are.
+     ENV_VARS in config.py; the other options are kept as they are,
+  6. records what it imported in run_state.json (see hft_state.py).
 
-Running it again only imports the maps that are not in the project yet;
---overwrite imports all of them again (e.g. after replacing a GeoTIFF).
+Running it again only imports the maps that are not in the project yet and
+those whose file changed since setup.py imported it (recorded in
+run_state.json); --overwrite imports all of them again.
 Run 'python3 setup.py --help' for the other options.
 """
 
@@ -31,6 +33,8 @@ import subprocess
 import sys
 
 from osgeo import gdal, ogr, osr
+
+import hft_state
 
 gdal.UseExceptions()
 ogr.UseExceptions()
@@ -85,6 +89,10 @@ def read_variables():
 		srs = ds.GetSpatialRef()
 		if srs is None:
 			fail(f'{f} has no CRS')
+		# RESOLUTION, PA_BUFFER and the noise added to the pixel values (ehab_segm_core.py) are in map units
+		if srs.IsGeographic():
+			fail(f'{f} has a geographic CRS ({srs.GetName()}): reproject the variables to a projected CRS '
+			     'in metres (e.g. UTM), for example with gdalwarp -t_srs EPSG:<code>')
 		gt = ds.GetGeoTransform()
 		if ds.RasterCount > 1:
 			print(f'WARNING: {os.path.basename(f)} has {ds.RasterCount} bands, only the first one is used')
@@ -229,17 +237,30 @@ def main():
 				     'move it or rename the study area file')
 			print(f'Using existing GRASS project {project}')
 
-		# 3. Import the variables and the study area
+		# 3. Import the variables and the study area. A map already in the project is imported again
+		#    when its file changed since setup.py imported it (size and time recorded in run_state.json)
+		imported = hft_state.get_setup(study_area) or {}
+		old_sigs = imported.get('variables', {})
 		for name in order:
+			v = variables[name]
+			sig = hft_state.file_sig(v['path'])
 			if gs.find_file(name, element='raster', mapset='PERMANENT')['name'] and not args.overwrite:
-				print(f'  {name}: already in the project')
-				continue
-			print(f"  {name}: importing {variables[name]['file']}")
-			gs.run_command('r.import', input=variables[name]['path'], output=name, band=1, overwrite=True, quiet=True)
+				if old_sigs.get(v['file'], sig) == sig:
+					print(f'  {name}: already in the project')
+					continue
+				print(f"  {name}: {v['file']} changed since it was imported, importing it again")
+			else:
+				print(f"  {name}: importing {v['file']}")
+			gs.run_command('r.import', input=v['path'], output=name, band=1, overwrite=True, quiet=True)
 
 		if sa_file:
+			sa_sigs = hft_state.vector_sigs(sa_file)
 			if gs.find_file(study_area, element='vector', mapset='PERMANENT')['name'] and not args.overwrite:
-				print(f'  {study_area}: already in the project')
+				if imported.get('study_area') in (None, sa_sigs):
+					print(f'  {study_area}: already in the project')
+				else:
+					print(f'  {study_area}: {os.path.basename(sa_file)} changed since it was imported, importing it again')
+					gs.run_command('v.import', input=sa_file, layer=layer, output=study_area, overwrite=True, quiet=True)
 			else:
 				print(f'  {study_area}: importing {os.path.basename(sa_file)}')
 				gs.run_command('v.import', input=sa_file, layer=layer, output=study_area, overwrite=True, quiet=True)
@@ -288,7 +309,17 @@ def main():
 		f.write(text)
 	print('config.py: ENV_VARS = {\n' + '\n'.join(entries) + '\n}')
 
-	print('\nSetup done. Check the other options in config.py and run: python3 segmentation_pca_par.py')
+	# 6. What was imported, so that the other steps know when the input data change
+	hft_state.set_setup(study_area, {
+		'grassdb': args.grassdb,
+		'study_area_file': os.path.abspath(sa_file) if sa_file else None,
+		'layer': layer,
+		'col_id': args.col_id,
+		'variables': {variables[n]['file']: hft_state.file_sig(variables[n]['path']) for n in order},
+		'study_area': hft_state.vector_sigs(sa_file) if sa_file else None,
+	})
+
+	print('\nSetup done. Check the other options in config.py and run: python3 run_hft.py')
 
 
 if __name__ == '__main__':

@@ -27,3 +27,5 @@ pre4root*
 *.ini
 *.gpkg
 processing_metadata.txt
+run_state.json
+run_state.json.tmp

@@ -3,12 +3,16 @@
 #### Robust alignment for segm_id matching (fixes disappearing polygons)
 #### License: CC BY-SA 3.0
 
+import glob
 import numpy as np
 import os
+import subprocess
 import sys
 import libpysal
 import esda
 import geopandas as gpd
+
+import hft_state
 
 # Configuración dinámica desde config.py
 try:
@@ -17,6 +21,10 @@ try:
 except ImportError:
     print("ERROR: No se encuentra config.py.")
     sys.exit(1)
+
+# Para si la segmentación o las estadísticas no están al día con config.py, palist.csv o los datos
+hft_state.check_ready('moranvar')
+hft_state.start('moranvar')
 
 print(f"Modo de análisis espacial: {'Estricto a PA (CLIP_TO_PA=True)' if CLIP_TO_PA else 'Bounding Box completo (CLIP_TO_PA=False)'}")
 
@@ -44,6 +52,13 @@ for pmx in range(0, mx):
     csvnamev2 = 'csv/' + str(park) + '_var_mean.csv'
     csvname2 = 'csv/' + str(park) + '_movar_thresholds.csv'
     csvname5 = 'csv/' + str(park) + '_movar_results.csv'
+
+    # Los archivos de esta área se empiezan de cero: abajo se les añaden filas, y al ejecutarlo
+    # otra vez se duplicarían
+    for f in [csvname, csvnamem, csvnamev, csvnamem2, csvnamev2, csvname2, csvname5] + \
+            glob.glob('shp/park_segm_' + str(park) + '_[1-9]_diss.*'):
+        if os.path.exists(f):
+            os.remove(f)
 
     for i in range(2, 2 + num_vars):
         print('variable is:', i)
@@ -172,5 +187,10 @@ for pmx in range(0, mx):
             except Exception as e:
                 print(f"Error procesando columna {d} en resultados finales: {e}")
 
-os.system('Rscript moranvar_plots.R')
+hft_state.done('moranvar')
+
+# moranvar_plots.R calls hft_state.py with the same Python (EHAB_PYTHON)
+r = subprocess.run(['Rscript', 'moranvar_plots.R'], env=dict(os.environ, EHAB_PYTHON=sys.executable))
+if r.returncode != 0:
+    sys.exit(f"ERROR: Rscript moranvar_plots.R failed (exit code {r.returncode}): see the messages above")
 print("BATCH END")

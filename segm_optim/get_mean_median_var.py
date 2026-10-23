@@ -14,6 +14,7 @@
 import sys
 import numpy as np
 import ehab_segm_core as _core
+import hft_state
 from ehab_segm_core import safelyMakeDir, initglobalmaps
 
 # Importar la opción de agregación desde config.py
@@ -34,10 +35,16 @@ else:
 
 
 def run_batch_all():
-	return _core.run_batch_all(_AGG)
+	# Stops saying what to run if the segmentation is out of date with config.py, palist.csv or the data
+	hft_state.check_ready('stats')
+	hft_state.start('stats')
+	out = _core.run_batch_all(_AGG)
+	hft_state.done('stats')
+	return out
 
 
 def run_park(paid):
+	hft_state.check_ready('stats')
 	return _core.run_park(paid, _AGG)
 
 

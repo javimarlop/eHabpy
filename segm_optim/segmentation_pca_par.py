@@ -7,9 +7,12 @@ import multiprocessing
 import subprocess
 import numpy as np
 from scipy import ndimage
+import math
 import os
 import sys
 import shutil
+
+import hft_state
 
 # Importar configuración global de variables y opciones
 try:
@@ -20,7 +23,7 @@ except ImportError:
 
 # OPCIONES DE CONFIGURACIÓN
 CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
-FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False)
+FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.environ.get('EHAB_FORCE_RESTART', '') not in ('', '0')
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
 
@@ -68,7 +71,8 @@ def init_grass(gisdbase, location, mapset):
 
 
 def clean_previous_results():
-	"""Borra archivos de control, csv/shp/tiffs y los resultados de esta área de estudio (no los de otras)."""
+	"""Borra archivos de control y csv/shp/tiffs (results/ no: moranvar_plots.R mueve los resultados
+	anteriores a results/<STUDY_AREA>_previous cuando escribe los nuevos)."""
 	control_files = ['csv/segm_done.csv', 'ongoing.csv', 'done.csv']
 	for f in control_files:
 		if os.path.exists(f):
@@ -76,8 +80,9 @@ def clean_previous_results():
 				os.remove(f)
 			except Exception as e:
 				print(f"No se pudo eliminar {f}: {e}")
+	hft_state.reset('segm')
 
-	directories = ['csv', 'shp', 'tiffs', RESULTS]
+	directories = ['csv', 'shp', 'tiffs']
 	for folder in directories:
 		if os.path.exists(folder):
 			for filename in os.listdir(folder):
@@ -100,7 +105,6 @@ csvong1 = 'ongoing.csv'
 csvong2 = 'done.csv'
 # csv, shp y tiffs los comparten todas las áreas de estudio: este archivo dice de cuál son
 csvarea = 'csv/study_area.csv'
-RESULTS = os.path.join('results', STUDY_AREA)  # moranvar_plots.R guarda aquí los resultados
 
 
 def merge_small_segments(grass, pa3, minarea):
@@ -209,11 +213,13 @@ def fsegm(pa):
 		opt1 = col + '=' + pa
 		grass.run_command('v.extract', input=source, output=pa0, where=opt1, overwrite=True)
 
-		# Configuración de región con buffer opcional alrededor del Bounding Box
-		region_kwargs = {'vector': pa0, 'res': RESOLUTION}
+		# Región: bounding box del área más el buffer opcional, alineada con la malla de las variables
+		# (align: mismos bordes de píxel y resolución que FIRST_VAR, así los píxeles son los de ../inVars).
+		# grow va en celdas: PA_BUFFER (unidades del mapa) se pasa a celdas redondeando hacia arriba
+		region_kwargs = {'vector': pa0, 'align': FIRST_VAR}
 		if PA_BUFFER > 0:
-			region_kwargs['grow'] = PA_BUFFER
-		
+			region_kwargs['grow'] = int(math.ceil(PA_BUFFER / RESOLUTION))
+
 		grass.run_command('g.region', **region_kwargs)
 
 		same = pa + 'v2_= const'
@@ -296,7 +302,7 @@ def fsegm(pa):
 
 				grass.run_command('v.extract', input=pa4, output=spa0, where=sopt1, overwrite=True)
 				grass.message("setting up the working region")
-				grass.run_command('g.region', vector=spa0, res=RESOLUTION)
+				grass.run_command('g.region', vector=spa0, align=FIRST_VAR)
 				grass.run_command('v.to.rast', input=spa0, output=spa0, use='val')
 				soptt = spa4 + '=' + spa0
 
@@ -336,15 +342,27 @@ if __name__ == '__main__':
 		print("(e.g. '~/grassdata'), not the GRASS installation folder given by 'grass --config path'.")
 		sys.exit(1)
 
-	previous_area = open(csvarea).read().strip() if os.path.isfile(csvarea) else STUDY_AREA
+	hft_state.check_ready('segm')  # the input data have not changed since setup.py imported them
+
+	# Resume only an interrupted run with the same options, palist.csv and input data (run_state.json);
+	# otherwise csv, shp and tiffs (shared by all the study areas) are started from scratch
+	rec = hft_state.record('segm')
 	if FORCE_RESTART:
 		print("\n⚠️ FORCE_RESTART activado: Limpiando resultados anteriores para empezar desde cero...")
 		clean_previous_results()
-	elif previous_area != STUDY_AREA:
-		print(f"\n⚠️ csv, shp y tiffs son del área de estudio {previous_area}: se empieza desde cero con {STUDY_AREA}...")
+	elif rec is None or rec['chain'] != hft_state.chain('segm'):
+		why = 'no record of a previous segmentation' if rec is None else '; '.join(hft_state.reasons('segm'))
+		print(f"\n⚠️ Starting the segmentation from scratch ({why})...")
 		clean_previous_results()
+	elif rec['done']:
+		print("The segmentation is up to date with config.py, palist.csv and the input data: nothing to do.\n"
+		      "Set FORCE_RESTART = True in config.py to run it again anyway.")
+		sys.exit(0)
+	else:
+		print("\nResuming the interrupted segmentation: the IDs in csv/segm_done.csv are skipped")
+	hft_state.start('segm')
 
-	for folder in ['csv', 'shp', 'tiffs', RESULTS]:
+	for folder in ['csv', 'shp', 'tiffs']:
 		os.makedirs(folder, exist_ok=True)
 	with open(csvarea, 'w') as wb:
 		wb.write(STUDY_AREA + '\n')
@@ -363,3 +381,4 @@ if __name__ == '__main__':
 	pool.map(fsegm, pa_list)
 	pool.close()
 	pool.join()
+	hft_state.done('segm')

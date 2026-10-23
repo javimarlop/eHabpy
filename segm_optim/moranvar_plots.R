@@ -119,6 +119,16 @@ kols <- brewer.pal(8, 'Set1')
 
 is.linear.radar <- function(coord) TRUE
 
+# Registro de los pasos (hft_state.py, run_state.json): para si un paso anterior no está al día con
+# config.py, palist.csv o los datos, y anota cuándo empieza y termina este
+run_state <- function(action) {
+	suppressWarnings(system2(Sys.getenv('EHAB_PYTHON', 'python3'), c('hft_state.py', action, 'plots')))
+}
+st <- run_state('check')
+if (st == 3) stop('a step before moranvar_plots.R is out of date (see the message above)', call. = FALSE)
+if (st != 0) warning('could not check the steps run before with hft_state.py (is python3 in the PATH?)')
+run_state('start')
+
 df0 <- read.table('csv/segm_done.csv', sep=' ', header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
@@ -158,6 +168,13 @@ if (simil == 3) {
 cfg <- if (file.exists('config.py')) readLines('config.py', warn=FALSE) else character(0)
 cfg <- sub('\\s+#.*$', '', cfg)
 cfg <- cfg[!grepl('^\\s*(#|$)', cfg)]
+# Los resultados anteriores de esta área se mueven a results/<área>_previous (sustituyendo los que hubiera),
+# para no mezclar ficheros de ejecuciones con otras opciones (p. ej. otro umbral en el nombre)
+if (length(list.files(outroot, recursive = TRUE)) > 0) {
+	prev <- paste0(outroot, '_previous')
+	unlink(prev, recursive = TRUE)
+	if (file.rename(outroot, prev)) print(paste('Previous results moved to', prev))
+}
 dir.create(outroot, recursive = TRUE, showWarnings = FALSE)
 writeLines(c(
 	'eHabitat+ processing metadata: options used to produce the files in this folder',
@@ -616,3 +633,5 @@ for (pmx in 1:mx) {
 		}
 	}
 }
+
+run_state('done')

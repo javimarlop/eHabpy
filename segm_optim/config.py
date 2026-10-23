@@ -23,16 +23,19 @@ ENV_VARS = { # REQUIRED
     ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
 }
 
-# REINICIAR DESDE CERO:
-# True  = Borra los archivos de control, csv/shp/tiffs y los resultados anteriores de esta área
-#         de estudio (results/<STUDY_AREA>) para empezar desde el principio.
-# False = Continúa el procesamiento omitiendo las áreas ya completadas en csv/segm_done.csv
-#         (un área interrumpida a medias se rehace desde cero, borrando antes sus restos).
-#         Si csv/shp/tiffs son de otra área de estudio se empieza también desde cero.
-# Los resultados de otras áreas de estudio (results/<otra área>) nunca se borran.
-FORCE_RESTART = True
+# REINICIAR DESDE CERO (segmentation_pca_par.py):
+# True  = Borra los archivos de control y csv/shp/tiffs y repite la segmentación desde el principio.
+# False = Continúa una segmentación interrumpida omitiendo las áreas ya completadas en csv/segm_done.csv
+#         (un área interrumpida a medias se rehace desde cero, borrando antes sus restos), y no
+#         hace nada si ya terminó. Si desde entonces han cambiado las opciones de config.py,
+#         palist.csv o los datos (run_state.json), o si csv/shp/tiffs son de otra área de
+#         estudio, empieza desde cero.
+# moranvar_plots.R mueve los resultados anteriores de esta área a results/<STUDY_AREA>_previous;
+# los de otras áreas de estudio (results/<otra área>) nunca se tocan.
+FORCE_RESTART = False
 
-# DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros):
+# DISTANCIA DE BUFFER OPCIONAL (en las unidades del mapa, ej. metros; se redondea hacia arriba
+# a un número entero de píxeles):
 # 0 = Bounding box ajustado exactamente al área de estudio.
 # > 0 = Extiende el bounding box de la región de trabajo en la distancia especificada.
 PA_BUFFER = 500

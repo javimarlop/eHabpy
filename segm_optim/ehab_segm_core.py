@@ -149,24 +149,28 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
             
             # Usar la primera variable como referencia para el chequeo de límites original
             # (desplazamiento 0 = el segmento empieza en la primera fila o columna del ráster)
+            # (los mapas de los segmentos están en la malla de las variables: el desplazamiento es un número
+            # entero de píxeles, que se redondea para que un error de coma flotante no quite un píxel)
             ref_var = list(ENV_VARS.keys())[0]
             gt_ref = global_maps[ref_var]['gt']
-            xoff_test = int((gt_pa[0] - gt_ref[0]) / res)
-            yoff_test = int((gt_ref[3] - gt_pa[3]) / res)
+            xoff_test = int(round((gt_pa[0] - gt_ref[0]) / res))
+            yoff_test = int(round((gt_ref[3] - gt_pa[3]) / res))
 
             if xoff_test >= 0 and yoff_test >= 0:
                 results = {}
-                
+                # Ruido con semilla fija por segmento: los mismos valores en cada ejecución
+                rng = np.random.default_rng(int(pa))
+
                 # Bucle dinámico para procesar todas las capas ambientales
                 for idx, var in enumerate(ENV_VARS.keys()):
                     band_info = global_maps[var]
                     gt_var = band_info['gt']
                     nodata = band_info['nodata']
                     
-                    xoff = int((gt_pa[0] - gt_var[0]) / res)
-                    yoff = int((gt_var[3] - gt_pa[3]) / res)
-                    
-                    var_bb0 = band_info['band'].ReadAsArray(xoff, yoff, par.XSize, par.YSize).astype(np.float32)
+                    xoff = int(round((gt_pa[0] - gt_var[0]) / res))
+                    yoff = int(round((gt_var[3] - gt_pa[3]) / res))
+
+                    var_bb0 = band_info['band'].ReadAsArray(xoff, yoff, par.XSize, par.YSize).astype(np.float64)
                     var_bb = var_bb0.flatten()
                     var_pa0 = var_bb[ind]
                     
@@ -178,16 +182,17 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
                         results[var] = {'mean': 'None', 'var': 'None', 'var2': 'None'}
                     else:
                         var_pa[mask2var] = np.interp(np.flatnonzero(mask2var), np.flatnonzero(~mask2var), var_pa[~mask2var])
-                        var_pa = np.random.random_sample(len(var_pa),) / res + var_pa
-                        
-                        var_mean = round(aggfun(var_pa), 2)
-                        var_var = round(np.var(var_pa), 2)
-                        var_var2 = var_var * sum_pa_mask
-                        
+                        var_pa = rng.random(len(var_pa)) / res + var_pa
+
+                        # Sin redondear: con 2 decimales las varianzas de índices entre -1 y 1 (~0.01) perdían precisión
+                        var_mean = float(aggfun(var_pa))
+                        var_var = float(np.var(var_pa))
+                        var_var2 = var_var * int(sum_pa_mask)
+
                         results[var] = {
-                            'mean': str(var_mean),
-                            'var': str(var_var),
-                            'var2': str(var_var2)
+                            'mean': repr(var_mean),
+                            'var': repr(var_var),
+                            'var2': repr(var_var2)
                         }
                         print(f"pa {var} processado")
 
@@ -216,13 +221,26 @@ def run_batch(k, aggfun=np.mean):
     print("BATCH END")
 
 
+def remove_park_results(paid):
+    """Borra las estadísticas de un área: ehabitat() añade filas a sus archivos, así que sin esto
+    ejecutarlo otra vez duplicaría las filas."""
+    for k in range(1, 10):
+        f = f'csv/park_{paid}_hri_results{k}.csv'
+        if os.path.isfile(f):
+            os.remove(f)
+
+
 def run_batch_all(aggfun=np.mean):
+    for k in range(1, 10):
+        if os.path.isfile(f'csv/ecoregs_done{k}.csv'):
+            os.remove(f'csv/ecoregs_done{k}.csv')
     ecox_list0 = np.genfromtxt('csv/segm_done.csv', dtype=int)
     ecox_list = np.unique(ecox_list0)
     for pmx in range(len(ecox_list)):
         global park
         park = ecox_list[pmx]
         print(park)
+        remove_park_results(park)
         for k in range(1, 10):
             run_batch(k, aggfun)
     print(str(datetime.now()))
@@ -233,6 +251,7 @@ def run_park(paid, aggfun=np.mean):
     global park
     park = paid
     print(park)
+    remove_park_results(park)
     for k in range(1, 10):
         run_batch(k, aggfun)
     print(str(datetime.now()))
