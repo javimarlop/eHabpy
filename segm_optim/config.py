@@ -106,8 +106,11 @@ CLASS_METHOD = 'ward_area'
 # 1 = Corta en el percentil 25 de las alturas de fusión, con límite superior de HFTs.
 # 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores
 #     (por superficie del área y nº de variables - 1).
-# 3 = Corta el árbol al 25, 50 y 75 % de su altura máxima, sin límite superior; los
-#     resultados de cada corte se guardan en results/<STUDY_AREA>/<SCENARIO>/p25, p50 y p75.
+# 3 = Corta el árbol al 10, 25, 50, 75 y 90 % de su altura máxima, sin límite superior,
+#     de más HFTs (p10) a menos (p90); los resultados de cada corte se guardan en
+#     results/<STUDY_AREA>/<SCENARIO>/p10, p25, p50, p75 y p90. Se sugiere el corte más
+#     próximo al codo de la curva de R2 (r2_<id>_hfts.png), con _optim en sus archivos: más
+#     HFTs añaden poca información.
 SIMIL = 3
 
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:

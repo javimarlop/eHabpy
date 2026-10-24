@@ -556,16 +556,23 @@ Choosing the options:
   (variances) and weighs every segment the same. `'ward_area_kmeans'` refines
   the HFTs a little more, but the HFTs of the cuts of `SIMIL = 3` are then not
   exactly nested. The tree of `'ward_area'` has its highest joins at the top,
-  so with `SIMIL = 3` the same cuts give fewer HFTs (in the example 9, 3 and
-  2 instead of 19, 8 and 3). [A6](#a6-classification-of-the-segments-into-hfts)
+  so with `SIMIL = 3` the same cuts give fewer HFTs (in the example 29, 9, 3,
+  2 and 2 instead of 88, 19, 8, 3 and 2). [A6](#a6-classification-of-the-segments-into-hfts)
   explains each method and the test. Changing it repeats only the last step.
 - **`SIMIL`** (read by `moranvar_plots.R`):
-  - `3` (recommended to explore the results): the tree is cut at 25, 50 and
-    75 % of its height, giving three classifications from detailed (`p25`,
-    more HFTs) to broad (`p75`, fewer HFTs), saved in
-    `results/<STUDY_AREA>/<SCENARIO>/p25`, `p50` and `p75`. The HFTs are coloured by the
-    hierarchy of the tree, so the same colour family marks the same group in
-    the three cuts.
+  - `3` (recommended to explore the results): the tree is cut at 10, 25, 50,
+    75 and 90 % of its height, giving five classifications from detailed
+    (`p10`, more HFTs) to broad (`p90`, fewer HFTs), saved in
+    `results/<STUDY_AREA>/<SCENARIO>/p10`, `p25`, `p50`, `p75` and `p90`, so
+    that you can take more or fewer HFTs than `p50` without running the model
+    again. The HFTs are coloured by the hierarchy of the tree, so the same
+    colour family marks the same group in the five cuts. Two cuts give the
+    same HFTs when the tree has no join between them (`p75` and `p90` in the
+    example, with 2 HFTs). The model **suggests one of the cuts**, whose
+    files carry `_optim` in their names: the one whose number of HFTs is
+    closest to the bend of the curve of `r2_<id>_hfts.png`, beyond which more
+    HFTs add little information (see
+    [Variance explained by the HFTs](#variance-explained-by-the-hfts-r2_id_hftspng)).
   - `1`: one cut at the first quartile of the merging heights of the tree,
     with at most `ceiling(log6(number of pixels))` HFTs and at most the number
     of variables - 1.
@@ -849,8 +856,9 @@ results/<STUDY_AREA>/<SCENARIO>/
 ├── r2_<id>_hfts.png                     variance explained by the HFTs, by number of HFTs
 ├── r2_<id>_hfts.csv                     its values, for every threshold and number of HFTs
 ├── r2_<id>_cuts.csv                     variance explained by the HFTs of each cut
-└── p25/  p50/  p75/                     one folder per cut of the tree (SIMIL = 3; otherwise
-    │                                    these files are directly in <SCENARIO>/)
+└── p10/ p25/ p50/ p75/ p90/             one folder per cut of the tree (SIMIL = 3; otherwise
+    │                                    these files are directly in <SCENARIO>/;
+    │                                    <cut>_optim in the file names of the suggested cut)
     ├── park_segm_<id>_<k>_<cut>_class.shp    HFT polygons (with .dbf, .shx, .prj)
     ├── map_<id>_<k>_<cut>_segms_hclust.png   HFT map
     ├── hclust_<id>_<k>_<cut>_segms_mean.png  classification tree
@@ -865,18 +873,29 @@ Next to it, `results/<STUDY_AREA>` holds the folders of the other scenarios
 and `<SCENARIO>_previous`, with the run of the scenario before the last one.
 
 In the file names `<id>` is the area ID, `<k>` the index of the selected
-threshold (`6` is threshold 0.6) and `<cut>` the cut of the tree (`p25`,
-`p50` or `p75`; only with `SIMIL = 3`). All the figures have the same title
+threshold (`6` is threshold 0.6) and `<cut>` the cut of the tree (`p10`,
+`p25`, `p50`, `p75` or `p90`; only with `SIMIL = 3`), followed by `_optim` in
+the suggested cut (e.g. `map_1_5_p25_optim_segms_hclust.png` and
+`park_segm_1_5_p25_optim_class.shp`). All the figures have the same title
 (study area) and subtitle (ID, threshold, cut and number of HFTs), and all
 use the same colour for each HFT.
 
 **HFT numbers and colours.** The HFT numbers are labels with no meaning of
 their own, and the same number in two cuts is usually a different HFT. With
-`SIMIL = 3` the **colours** are what links the cuts: the HFTs of the broadest
-cut (`p75`) keep the colours of the Set1 palette (red, blue, green, ...), and
-the HFTs of the finer cuts inside each of them are shades of that colour, from
-dark to light in the order of the tree. All the legends follow the order of
-the tree, so the shades of a colour are together. In the example `p75` has 3
+`SIMIL = 3` the **colours** are what links the cuts: every HFT of the
+broadest cut (`p90`) gets a part of the colour circle (a family of hues), and
+the HFTs of the finer cuts inside it share out that part, so they have hues
+of the same family; neighbouring HFTs of a family also alternate between a
+darker and a lighter colour. An HFT that does not change from one cut to the
+next keeps its colour. In the example, the HFT of `p90` coloured blue covers
+the cool hues (teal, blue, violet and pink), and the olive one the warm hues
+(ochres, browns and greens), in all the cuts. All the legends follow the
+order of the tree, so the HFTs of a family are together. Up to about 10 HFTs
+the neighbouring colours of the legend can be told apart also with colour
+blindness; with many more HFTs (e.g. `p10`) some neighbours look alike, and
+the number of the HFT of every polygon is in its shapefile. The example maps
+below come from a run with the original methods, only the cuts `p25`, `p50`
+and `p75` and the previous colours (shades of the Set1 colours): `p75` has 3
 HFTs (red, blue and green); `p50` splits the red one into four shades of red
 and keeps the green and the blue ones (6 HFTs), and `p25` has 17 HFTs.
 
@@ -943,7 +962,7 @@ and run `python3 run_hft.py`.
 
 ### Variance explained by the HFTs (`r2_<id>_hfts.png`)
 
-<img src="docs/img/r2_hfts.png" width="640" alt="R2 of the HFTs against their number for the nine thresholds, with the cuts p25, p50 and p75 of the threshold 0.5">
+<img src="docs/img/r2_hfts.png" width="640" alt="R2 of the HFTs against their number for the nine thresholds, with the cuts p10 to p90 of the threshold 0.5">
 
 How much of the variation of the variables in the area the HFTs capture. For
 each variable, R² is the part of the variance of its pixel values that lies
@@ -955,18 +974,40 @@ variables. 0: the HFTs do not differ at all; 1: every HFT is uniform.
   with `CLASS_METHOD` (as in [A6](#a6-classification-of-the-segments-into-hfts)).
   Light blue: fine thresholds; dark blue: coarse ones; thick orange: the
   selected threshold.
-- **Orange points**: the HFTs of the cuts of the selected threshold (`p25`,
-  `p50` and `p75` with `SIMIL = 3`), with their number and R².
+- **Orange points**: the HFTs of the cuts of the selected threshold (`p10`,
+  `p25`, `p50`, `p75` and `p90` with `SIMIL = 3`), with their number and R².
 - **Legend**: number of segments of each threshold and R² of the segments
   themselves, the most the HFTs of that threshold could reach.
+- **Dashed line**: the bend of the selected curve, and **(suggested)** next to
+  the cut whose number of HFTs is closest to it.
 
 R² always grows with the number of HFTs, so compare the thresholds at the
 same number of HFTs (vertically). A curve below the others means that the
 segments of that threshold mix different conditions and give worse HFTs. In
 the example the thresholds 0.1 to 0.5 give about the same R² up to about 8
 HFTs, the finest ones gain a little with more HFTs, and 0.6 to 0.9 give
-clearly less. Along the selected curve, the number of HFTs where it
-flattens is the one beyond which more HFTs add little.
+clearly less.
+
+**Suggested cut.** Along the selected curve, the number of HFTs where it bends
+is the one beyond which each additional HFT adds little explained variance:
+fewer HFTs lose much information, more HFTs make the classification more
+complex for little gain. It is found with the Kneedle method (Satopää et al.,
+2011) on the curve from 2 to 30 HFTs, as the point furthest above the straight
+line between its ends once both axes are rescaled to 0-1:
+
+```math
+k^{*} = \arg\max_k \left( \frac{R^2_k - R^2_{2}}{R^2_{30} - R^2_{2}} - \frac{k - 2}{30 - 2} \right)
+```
+
+and the suggested cut is the one whose number of HFTs is closest to `k*` (in
+logarithmic scale; with a tie, the one with fewer HFTs). Its files carry
+`_optim` after the name of the cut (e.g. `p25/map_1_5_p25_optim_segms_hclust.png`),
+the subtitle of its figures says "suggested", and it is printed, added to
+`processing_metadata.txt` and marked in `r2_<id>_cuts.csv` (`suggested`).
+In the example the curve bends at 9 HFTs and `p25` (9 HFTs) is suggested: it
+keeps 75 % of the variance explained by the segments, against 51 % for `p50`
+(3 HFTs) and 91 % for `p10` (29 HFTs). It is a suggestion: if you need broader
+or more detailed HFTs, use another cut.
 
 The values are modest (0.38 for the 9 HFTs of `p25`) because some variables
 vary mostly between neighbouring pixels: in `r2_<id>_cuts.csv` the R² of
@@ -977,7 +1018,9 @@ the vegetation and water indices, and 0.11 and 0.02 for slope and TWI.
   `threshold`, `segments`, `r2_segments`, `hfts`, `r2` (mean) and the R² of
   every variable.
 - `r2_<id>_cuts.csv`: one row per cut of the selected threshold, with `cut`,
-  `hfts`, `r2` and the R² of every variable.
+  `hfts`, `r2`, `r2_share` (its R² over the R² of the segments: the part of
+  the information of the segments that the HFTs keep), `suggested` (1 for the
+  suggested cut) and the R² of every variable.
 
 They are computed from the pixel values of `../inVars` (skipped if the files
 are not there), so they are exact with `STAT_AGG = 'mean'` and `'median'`
@@ -985,9 +1028,9 @@ are not there), so they are exact with `STAT_AGG = 'mean'` and `'median'`
 
 ### Run metadata (`processing_metadata.txt`)
 
-Date, study area, IDs processed, every option of `config.py` and the option
-`upper` of `moranvar_plots.R`. Keep it with the results to know how they
-were produced.
+Date, study area, IDs processed, every option of `config.py`, the option
+`upper` of `moranvar_plots.R` and, at the end, the suggested cut of every ID.
+Keep it with the results to know how they were produced.
 
 ### Classification tree (`hclust_<id>_<k>_<cut>_segms_mean.png`)
 
@@ -1000,8 +1043,8 @@ at which two branches join measures how different they are; with
 `'ward_area'` it grows with the size of the groups, so the last joins are
 much higher. The red boxes are the HFTs of this cut (with
 `'ward_area_kmeans'`, before some segments move to the HFT of nearest mean).
-With `SIMIL = 3` the tree is the same in the three folders and only the boxes
-change: `p75` cuts it near the top (few broad HFTs), `p25` near the bottom
+With `SIMIL = 3` the tree is the same in the five folders and only the boxes
+change: `p90` cuts it near the top (few broad HFTs), `p10` near the bottom
 (many detailed HFTs).
 
 The number under the plot is the **cophenetic correlation** between the
@@ -1161,9 +1204,10 @@ A practical order to read the results of one ID:
    segmentation of that threshold (`shp/park_segm_<id>_<k>.shp`) in QGIS.
 2. `r2_<id>_hfts.png`: do the HFTs of the selected threshold capture as much
    of the variance as those of other thresholds with the same number of HFTs?
-3. `hclust_...png` and the maps of the three cuts: which level of detail suits
-   your purpose (`p75` broad, `p50` intermediate, `p25` detailed)? The R² of
-   each cut, and where the curve flattens, help to decide.
+3. `hclust_...png` and the maps of the five cuts: which level of detail suits
+   your purpose (`p90` and `p75` broad, `p50` intermediate, `p25` and `p10`
+   detailed)? The suggested cut, the R² of each cut and where the curve
+   bends help to decide.
 4. For the chosen cut, the heatmap and the boxplots: name each HFT by the
    variables that set it apart (high eta2, colours far from white).
 5. The PCA biplot and the NMDS: are the HFTs distinct, or do some of them
@@ -1196,7 +1240,7 @@ flowchart TD
         RPLOT["<b>moranvar_plots.R</b><br>Ward classification of the segments<br>of the chosen threshold into HFTs,<br>maps, plots and R² of the HFTs"]
         SEG --> SEGOUT --> STAT --> HRI --> MOR --> MOROUT --> RPLOT
     end
-    RES[/"results/STUDY_AREA/SCENARIO/<br>p25, p50, p75 with SIMIL = 3"/]
+    RES[/"results/STUDY_AREA/SCENARIO/<br>p10, p25, p50, p75, p90 with SIMIL = 3"/]
 
     IN1 --> SETUP
     IN2 --> SETUP
@@ -1707,8 +1751,9 @@ compact HFTs but, by construction, less separable ones.
 1. **Cut of the tree** (`SIMIL`), with `h_max` the height of the last merge
    (with `'ward_area'` the heights grow with the size of the groups, so the
    same fractions give fewer HFTs than with `'ward'`):
-   - `SIMIL = 3`: cuts at heights `0.25 h_max`, `0.50 h_max` and `0.75
-     h_max` (`p25`, `p50`, `p75`), with no limit on the number of HFTs;
+   - `SIMIL = 3`: cuts at heights `0.10 h_max`, `0.25 h_max`, `0.50 h_max`,
+     `0.75 h_max` and `0.90 h_max` (`p10`, `p25`, `p50`, `p75`, `p90`), with
+     no limit on the number of HFTs;
    - `SIMIL = 1`: cut at the first quartile of the merging heights;
    - `SIMIL = 2`: cut below the lowest merge (every segment apart), so the
      number of HFTs is set by the limits below.
@@ -1725,13 +1770,28 @@ compact HFTs but, by construction, less separable ones.
    with `N` the number of pixels analysed. If a cut gives a single HFT, every
    segment is taken as its own HFT. The figures are drawn when there are at
    least two HFTs.
-2. **Colours.** Set1 palette (interpolated beyond 8 HFTs). With `SIMIL = 3`,
-   `hier_colours()` takes the cuts with more than one HFT from the broadest to
-   the finest: each HFT of the broadest cut keeps its Set1 colour; inside it,
-   the HFTs of the finest cut get positions from 0 to 1 in the order of the
-   dendrogram, mapped onto a ramp from dark (the colour mixed with 50 % black)
-   to light (mixed with 65 % white) through the colour itself; an HFT of an
-   intermediate cut takes the mean position of the finest HFTs it contains.
+2. **Colours.** Without `SIMIL = 3`, the Set1 palette (interpolated beyond 8
+   HFTs). With `SIMIL = 3`, `hier_colours()` gives colours that follow the
+   hierarchy of the cuts, as the "tree colors" of Tennekes & de Jonge (2014)
+   in the HCL colour space. The cuts with more than one HFT are taken from the
+   broadest to the finest (identical cuts once):
+   - the HFTs of the broadest cut share out the circle of hues (0-360°), each
+     one a part proportional to the number of HFTs of the finest cut it
+     contains, in the order of the dendrogram, keeping 75 % of its part and
+     leaving the rest as gaps between families;
+   - every HFT of the next cut gets, in the same way, a part of the range of
+     the HFT that contains it (here without gaps), and so on down to the
+     finest cut;
+   - the colour of an HFT is `hcl(h, 80, L)`, with `h` the centre of its range
+     (plus 15°), chroma 80 and luminance `L` 60 in the broadest cut and, in
+     the others, alternately 47 and 69 between neighbouring HFTs of a family;
+     an HFT that does not change from one cut to the next keeps its colour.
+
+   These values were chosen with a palette validator (lightness band, chroma,
+   and colour difference between neighbouring colours of the legend for normal
+   vision and colour blindness): in the example, the palettes of up to about
+   10 HFTs pass every check except the contrast of the lightest colours with
+   a white background.
 
 ### A7. How the figures are computed
 
@@ -1754,7 +1814,9 @@ compact HFTs but, by construction, less separable ones.
   which is the `eta²` of the heatmap; the figure shows its mean over the
   variables. The R² of the segments (each segment its own HFT) is the
   highest that the HFTs of a threshold can reach. Being computed from the
-  pixels, it does not depend on `STAT_AGG`.
+  pixels, it does not depend on `STAT_AGG`. The dashed line is the bend of
+  the selected curve (Kneedle) and the suggested cut the closest to it (see
+  [Variance explained by the HFTs](#variance-explained-by-the-hfts-r2_id_hftspng)).
 - **Dendrogram**: the tree of A6 with `rect.hclust()` boxes for the HFTs of
   the cut; the subtitle is the cophenetic correlation.
 - **Map and shapefile**: `shp/park_segm_<id>_<k*>_diss.shp` joined with the
@@ -1907,6 +1969,13 @@ first step that is out of date and all the steps after it, and
   interpretation and validation of cluster analysis. *Journal of
   Computational and Applied Mathematics*, 20, 53-65.
   https://doi.org/10.1016/0377-0427(87)90125-7
+- Satopää, V., Albrecht, J., Irwin, D., & Raghavan, B. (2011). Finding a
+  "Kneedle" in a haystack: detecting knee points in system behavior. *31st
+  International Conference on Distributed Computing Systems Workshops*,
+  166-171. https://doi.org/10.1109/ICDCSW.2011.20
+- Tennekes, M., & de Jonge, E. (2014). Tree colors: color schemes for
+  tree-structured data. *IEEE Transactions on Visualization and Computer
+  Graphics*, 20(12), 2072-2081. https://doi.org/10.1109/TVCG.2014.2346277
 - Ward, J. H. (1963). Hierarchical grouping to optimize an objective
   function. *Journal of the American Statistical Association*, 58(301),
   236-244. https://doi.org/10.1080/01621459.1963.10500845

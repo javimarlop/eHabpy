@@ -26,29 +26,49 @@ short_labels <- function(x, width = 18) {
 	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
 }
 
-# Colores jerárquicos para cortes anidados del mismo árbol (SIMIL = 3): cada HFT del corte con menos
-# clases conserva su color (base_cols) y los HFTs de los cortes más finos que contiene son tonos de ese
-# color, de oscuro a claro en el orden del dendrograma; un HFT intermedio toma el tono medio de los
-# HFTs finos que contiene. cls_list: clasificaciones (una por corte) de la más gruesa a la más fina.
-hier_colours <- function(tree, cls_list, base_cols) {
-	coarse <- cls_list[[1]]
+# Colores jerárquicos para cortes anidados del mismo árbol (SIMIL = 3), como los "tree colors" de Tennekes
+# y de Jonge (2014) en el espacio HCL: los HFTs del corte con menos HFTs se reparten el círculo de tonos, y
+# cada HFT reparte su parte entre los HFTs del corte siguiente que contiene (en proporción a los HFTs del
+# corte más fino que hay en cada uno y en el orden del dendrograma). El tono de cada HFT es el centro de su
+# parte, así que una familia tiene tonos próximos en todos los cortes y distintos de los de las otras; entre
+# hermanos alterna además la luminosidad. Un HFT que no cambia de un corte al siguiente conserva su color.
+# cls_list: clasificaciones (una por corte), de la más general a la más detallada. frac: parte del círculo
+# que usan los HFTs del corte más general (el resto, huecos entre familias); frac_in: lo mismo dentro de
+# cada HFT. lum y chroma (HCL) elegidos con el validador de paletas: con hasta unos 10 HFTs los colores
+# vecinos en la leyenda se distinguen también con daltonismo
+hier_colours <- function(tree, cls_list, frac=0.75, frac_in=1, lum=c(47, 69), chroma=80) {
 	fine <- cls_list[[length(cls_list)]]
-	ford <- unique(fine[tree$order])
-	pos <- numeric(max(fine))
-	for (g in unique(coarse)) {
-		fg <- ford[ford %in% fine[coarse == g]]
-		pos[fg] <- (seq_along(fg) - 0.5) / length(fg)
-	}
-	mixcol <- function(a, b, w) rgb(t((1 - w) * col2rgb(a) + w * col2rgb(b)), maxColorValue=255)
-	lapply(cls_list, function(cl) {
-		cols <- character(max(cl))
-		for (h in unique(cl)) {
-			g <- coarse[cl == h][1]
-			ramp <- colorRamp(c(mixcol(base_cols[g], 'black', 0.5), base_cols[g], mixcol(base_cols[g], 'white', 0.65)), space='Lab')
-			cols[h] <- rgb(ramp(mean(pos[unique(fine[cl == h])])), maxColorValue=255)
+	out <- list()
+	prev <- NULL
+	for (lv in seq_along(cls_list)) {
+		cl <- cls_list[[lv]]
+		ord <- unique(cl[tree$order])
+		parent <- if (lv == 1) rep(1, length(ord)) else sapply(ord, function(h) cls_list[[lv - 1]][cl == h][1])
+		cur <- list(lo=numeric(max(cl)), hi=numeric(max(cl)), col=character(max(cl)))
+		for (p in unique(parent)) {
+			kids <- ord[parent == p]
+			a <- if (lv == 1) 0 else prev$lo[p]
+			b <- if (lv == 1) 360 else prev$hi[p]
+			if (lv > 1 && length(kids) == 1) {
+				cur$lo[kids] <- a
+				cur$hi[kids] <- b
+				cur$col[kids] <- prev$col[p]
+				next
+			}
+			nfine <- sapply(kids, function(h) length(unique(fine[cl == h])))
+			edges <- a + (b - a) * c(0, cumsum(nfine)) / sum(nfine)
+			for (j in seq_along(kids)) {
+				pad <- (1 - (if (lv == 1) frac else frac_in)) / 2 * (edges[j + 1] - edges[j])
+				cur$lo[kids[j]] <- edges[j] + pad
+				cur$hi[kids[j]] <- edges[j + 1] - pad
+				L <- if (lv == 1) 60 else lum[(j - 1) %% length(lum) + 1]
+				cur$col[kids[j]] <- hcl((cur$lo[kids[j]] + cur$hi[kids[j]]) / 2 + 15, chroma, L, fixup=TRUE)
+			}
 		}
-		cols
-	})
+		out[[lv]] <- cur$col
+		prev <- cur
+	}
+	setNames(out, names(cls_list))
 }
 
 # Archivo (en ../inVars) y NoData de cada variable, de ENV_VARS en config.py
@@ -269,9 +289,10 @@ if (!grepl('^[A-Za-z0-9_-]+$', scenario) || grepl('_previous$', scenario)) {
 }
 outroot <- file.path('results', area, scenario)
 
-# Cortes del árbol: simil = 3 genera una clasificación por corte (25, 50 y 75 % de la altura máxima), cada una en su subcarpeta
+# Cortes del árbol: simil = 3 genera una clasificación por corte (10, 25, 50, 75 y 90 % de la altura máxima),
+# cada una en su subcarpeta, de la más detallada (p10, más HFTs) a la más general (p90, menos HFTs)
 if (simil == 3) {
-	cuts <- c(p25=0.25, p50=0.50, p75=0.75)
+	cuts <- c(p10=0.10, p25=0.25, p50=0.50, p75=0.75, p90=0.90)
 } else {
 	cuts <- c(results=NA)
 }
@@ -416,15 +437,30 @@ for (pmx in 1:mx) {
 		cls_list <- lapply(cuts, function(f) cutree(hclust_mh, h=f * max(hclust_mh$height)))
 		nk <- sapply(cls_list, function(cl) length(unique(cl)))
 		cls_list <- cls_list[nk > 1][order(nk[nk > 1])]
-		if (length(cls_list) > 0) {
-			nb <- length(unique(cls_list[[1]]))
-			hier_cols <- hier_colours(hclust_mh, cls_list, if (nb <= length(kols)) kols else colorRampPalette(kols)(nb))
+		if (length(cls_list) > 0) hier_cols <- hier_colours(hclust_mh, cls_list)
+	}
+
+	# Corte sugerido: el codo de la curva de R2 del umbral elegido con 2 a 30 HFTs (Kneedle, Satopää et al. 2011:
+	# el punto más alejado por encima de la recta entre sus extremos, con los dos ejes reescalados a 0-1), a
+	# partir del cual cada HFT más añade poca varianza explicada, y, con SIMIL = 3, el corte con el número de HFTs
+	# más próximo a él (en escala logarítmica; a igual distancia, el de menos HFTs). Sus archivos llevan _optim
+	knee <- NA
+	suggested <- NA
+	if (!is.null(ss_sel) && nrow(hri) >= 5) {
+		nh <- 2:min(nrow(hri) - 1, 30)
+		r2k <- sapply(nh, function(h) mean(r2_groups(ss_sel, classify_k(ct, h, class_method)), na.rm=TRUE))
+		knee <- nh[which.max(rescale01(r2k) - rescale01(nh))]
+		if (simil == 3) {
+			nk_cut <- sapply(cuts, function(f) length(unique(cutree(hclust_mh, h=f * max(hclust_mh$height)))))
+			o <- order(nk_cut)
+			suggested <- names(cuts)[o[which.min(abs(log(nk_cut[o]) - log(knee)))]]
 		}
 	}
 
 	for (cn in names(cuts)) {
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
-		tag <- if (simil == 3) paste0('_', cn) else '' # el corte también va en el nombre de cada fichero
+		# el corte también va en el nombre de cada fichero, con _optim si es el sugerido
+		tag <- if (simil == 3) paste0('_', cn, if (identical(cn, suggested)) '_optim') else ''
 		dir.create(outdir, showWarnings = FALSE)
 
 		if (simil == 1) { hcut <- quantile(hclust_mh$height)[2] }
@@ -474,7 +510,8 @@ for (pmx in 1:mx) {
 
 		if (ncl > 1) {
 			# Título de las figuras: área de estudio, umbral, corte del árbol y nº de HFTs
-			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')
+			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn, if (identical(cn, suggested)) ' (suggested)'),
+			                        ' | ', ncl, ' HFTs')
 
 			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
 			try(plot(hclust_mh, hang=-1, main=park, sub=cophval, xlab=class_label)); try(rect.hclust(hclust_mh, k=ncl))
@@ -767,8 +804,20 @@ for (pmx in 1:mx) {
 			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
 			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), r2m, check.names=FALSE))
 		}
+		# Corte sugerido (calculado antes de los cortes) y parte del R2 de los segmentos que conserva cada corte
+		cut_r2$r2_share <- cut_r2$r2 / curves$r2_segments[curves$threshold == res / 10][1]
+		cut_r2$suggested <- as.integer(cut_r2$cut %in% suggested)
+		cut_r2 <- cut_r2[, c('cut', 'hfts', 'r2', 'r2_share', 'suggested', var_names)]
 		write.table(curves, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
 		write.table(cut_r2, file.path(outroot, paste0('r2_', park, '_cuts.csv')), sep=' ', row.names=F, quote=F)
+		if (!is.na(knee)) {
+			s <- cut_r2[cut_r2$suggested == 1, ]
+			msg <- paste0('ID ', park, ': the R2 curve of the threshold 0.', res, ' bends at ', knee, ' HFTs',
+			              if (nrow(s) == 1) sprintf('; suggested cut %s: %d HFTs, R2 %.2f (%.0f %% of the R2 of the segments)',
+			                                        s$cut, s$hfts, s$r2, 100 * s$r2_share))
+			print(msg)
+			write(paste('Suggested cut:', msg), file.path(outroot, 'processing_metadata.txt'), append=TRUE)
+		}
 
 		# Umbrales en una rampa de azules (claro: 0.1, oscuro: 0.9) y el elegido en naranja y más grueso
 		curves$thr <- factor(sprintf('%.1f', curves$threshold))
@@ -779,8 +828,12 @@ for (pmx in 1:mx) {
 		thr_labels <- setNames(paste0(seg_info$thr, ': ', seg_info$segments, ' segments, R2 ', sprintf('%.2f', seg_info$r2_segments),
 		                              ifelse(seg_info$thr == sel, ' (selected)', '')), seg_info$thr)
 		cut_pts <- data.frame(hfts=cut_r2$hfts, r2=cut_r2$r2,
-		                      label=paste0(if (simil == 3) paste0(cut_r2$cut, ': ') else '', cut_r2$hfts, ' HFTs, R2 ', sprintf('%.2f', cut_r2$r2)))
+		                      label=paste0(if (simil == 3) paste0(cut_r2$cut, ': ') else '', cut_r2$hfts, ' HFTs, R2 ', sprintf('%.2f', cut_r2$r2),
+		                                   ifelse(cut_r2$suggested == 1, ' (suggested)', '')))
 		r2p <- ggplot(curves, aes(x=hfts, y=r2, colour=thr)) +
+			(if (!is.na(knee)) geom_vline(xintercept=knee, colour='grey45', linetype='dashed')) +
+			(if (!is.na(knee)) annotate('text', x=knee, y=min(curves$r2), label=paste0(' bend of the selected curve: ', knee, ' HFTs'),
+			                            hjust=0, vjust=0, size=3.5, colour='grey30')) +
 			geom_line(data=curves[curves$thr != sel, ], linewidth=0.6) +
 			geom_line(data=curves[curves$thr == sel, ], linewidth=1.5) +
 			geom_point(data=cut_pts, aes(x=hfts, y=r2), inherit.aes=FALSE, colour='#eb6834', size=3.5) +
