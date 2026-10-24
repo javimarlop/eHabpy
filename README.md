@@ -856,6 +856,8 @@ results/<STUDY_AREA>/<SCENARIO>/
 ├── r2_<id>_hfts.png                     variance explained by the HFTs, by number of HFTs
 ├── r2_<id>_hfts.csv                     its values, for every threshold and number of HFTs
 ├── r2_<id>_cuts.csv                     variance explained by the HFTs of each cut
+├── hft_tree_<id>_<k>.png                tree of the HFTs of the five cuts (SIMIL = 3)
+├── hft_tree_<id>_<k>.csv                HFT of every cut that contains each HFT of p10
 └── p10/ p25/ p50/ p75/ p90/             one folder per cut of the tree (SIMIL = 3; otherwise
     │                                    these files are directly in <SCENARIO>/;
     │                                    <cut>_optim in the file names of the suggested cut)
@@ -882,7 +884,9 @@ use the same colour for each HFT.
 
 **HFT numbers and colours.** The HFT numbers are labels with no meaning of
 their own, and the same number in two cuts is usually a different HFT. With
-`SIMIL = 3` the **colours** are what links the cuts: every HFT of the
+`SIMIL = 3` the **colours** are what links the cuts (and
+[`hft_tree_<id>_<k>.png`](#tree-of-the-hfts-of-the-cuts-hft_tree_id_kpng)
+draws the links): every HFT of the
 broadest cut (`p90`) gets a part of the colour circle (a family of hues), and
 the HFTs of the finer cuts inside it share out that part, so they have hues
 of the same family; neighbouring HFTs of a family also alternate between a
@@ -1058,6 +1062,43 @@ Use it to choose the cut: long branches just above a cut mean clearly
 separated HFTs; HFTs that join just above the cut are similar and could be
 taken together.
 
+### Tree of the HFTs of the cuts (`hft_tree_<id>_<k>.png`)
+
+<img src="docs/img/hft_tree.png" width="720" alt="Tree of the HFTs of the cuts p90 to p10: 2, 2, 3, 9 and 29 HFTs joined by the area they share">
+
+With `SIMIL = 3`, the HFTs of the five cuts in one figure, from the broadest
+(`p90`, top) to the most detailed (`p10`, bottom), to see which HFTs of a cut
+belong to the same HFT in the broader cuts and into which HFTs each one
+splits in the more detailed ones. Each circle is an HFT, with its number and
+colour in the maps of its cut and a size that grows with its area; each line
+joins an HFT with the HFTs of the next cut that share segments with it,
+wider the more area they share. The HFTs of `p10` are in the order of the
+dendrogram, and every other HFT is centred over those it splits into. On the
+left, the number of HFTs and the R² of each cut; the suggested cut is shaded
+in orange.
+
+A vertical line means that the HFT does not change from one cut to the next.
+To know how alike two HFTs are, follow their lines up to the first cut where
+they join: the higher, the more different they are. In the example `p90` and
+`p75` have the same 2 HFTs; `p50` splits HFT 1 into HFTs 2 and 1 and keeps
+HFT 2 as HFT 3; in the suggested cut `p25`, HFTs 5 and 2 come from HFT 2 of
+`p50`, so they are closer to each other than to HFT 3, which only joins them
+in `p75`, and closer still than to HFTs 4, 9, 8 and 7, which are apart even
+in `p90`.
+
+With `CLASS_METHOD = 'ward_area_kmeans'` the cuts are not exactly nested: an
+HFT can take segments from several HFTs of the cut above, and the opacity of
+each line is the part of the area of the lower HFT that comes from the upper
+one (legend on the right).
+
+`hft_tree_<id>_<k>.csv` has one row per HFT of `p10`, in the order of the
+tree, with the HFT that contains it in every cut (columns `p90` to `p10`), its
+number of `segments`, its area (`ha`) and its share of the area (`pct`); with
+`'ward_area_kmeans'`, one row per combination of HFTs of the cuts. Use it as
+a key to go from the detailed HFTs to the broader ones, e.g. to group in QGIS
+the HFTs (`hclst_m`) of `park_segm_<id>_<k>_p10_class.shp` into those of
+`p25`. A cut with a single HFT is drawn as one grey circle.
+
 ### HFT map (`map_<id>_<k>_<cut>_segms_hclust.png`)
 
 ![HFT map of the cut p50](docs/img/map_p50.png)
@@ -1204,7 +1245,8 @@ A practical order to read the results of one ID:
    segmentation of that threshold (`shp/park_segm_<id>_<k>.shp`) in QGIS.
 2. `r2_<id>_hfts.png`: do the HFTs of the selected threshold capture as much
    of the variance as those of other thresholds with the same number of HFTs?
-3. `hclust_...png` and the maps of the five cuts: which level of detail suits
+3. `hclust_...png`, `hft_tree_<id>_<k>.png` and the maps of the five cuts:
+   which level of detail suits
    your purpose (`p90` and `p75` broad, `p50` intermediate, `p25` and `p10`
    detailed)? The suggested cut, the R² of each cut and where the curve
    bends help to decide.
@@ -1819,6 +1861,14 @@ compact HFTs but, by construction, less separable ones.
   [Variance explained by the HFTs](#variance-explained-by-the-hfts-r2_id_hftspng)).
 - **Dendrogram**: the tree of A6 with `rect.hclust()` boxes for the HFTs of
   the cut; the subtitle is the cophenetic correlation.
+- **Tree of the HFTs of the cuts**: for every two consecutive cuts, the area
+  shared by each HFT of the upper cut and each HFT of the lower one (the
+  pixels of the segments that are in both, times the area of a pixel), which
+  sets the width of the lines. The HFTs of `p10` are placed at 1, 2, ... in
+  the order of the dendrogram, and every HFT of the cut above at the mean of
+  the positions of the HFTs below that share area with it, each weighted by
+  the part of its area that comes from it (with nested cuts, the plain mean
+  of the HFTs it splits into).
 - **Map and shapefile**: `shp/park_segm_<id>_<k*>_diss.shp` joined with the
   HFT of every segment and with the radar profile of its HFT, drawn with
   `ggplot2::geom_sf` with the study area (`pa/`, reprojected if needed) on

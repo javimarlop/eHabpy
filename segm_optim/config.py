@@ -110,7 +110,8 @@ CLASS_METHOD = 'ward_area'
 #     de más HFTs (p10) a menos (p90); los resultados de cada corte se guardan en
 #     results/<STUDY_AREA>/<SCENARIO>/p10, p25, p50, p75 y p90. Se sugiere el corte más
 #     próximo al codo de la curva de R2 (r2_<id>_hfts.png), con _optim en sus archivos: más
-#     HFTs añaden poca información.
+#     HFTs añaden poca información. hft_tree_<id>_<k>.png (y .csv) muestra en qué HFT de los cortes
+#     más generales está cada HFT y en qué HFTs de los más detallados se divide.
 SIMIL = 3
 
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:

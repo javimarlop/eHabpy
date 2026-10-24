@@ -71,6 +71,73 @@ hier_colours <- function(tree, cls_list, frac=0.75, frac_in=1, lum=c(47, 69), ch
 	setNames(out, names(cls_list))
 }
 
+# Árbol de los HFTs de los cortes (SIMIL = 3), del corte más general (arriba) al más detallado (abajo): cada HFT es
+# un círculo con su número y su color, de tamaño según su superficie, unido a los HFTs del corte siguiente con los
+# que comparte segmentos (grosor según la superficie compartida). Así se ve en qué HFT de los cortes más generales
+# está cada HFT y en qué HFTs de los más detallados se divide. Los HFTs del corte más detallado van en el orden
+# del dendrograma y los de los otros cortes en el centro de los suyos. Con 'ward_area_kmeans' los cortes pueden no
+# estar anidados: un HFT puede venir de varios del corte de arriba, y la opacidad de cada unión es la parte de la
+# superficie del HFT de abajo que viene del de arriba.
+# cls_list: HFT de cada segmento en cada corte, del más general al más detallado; cols_list: colores de los HFTs
+# de cada corte (por nº de HFT); ha: superficie de cada segmento; labels: rótulo de cada corte; hl: corte
+# resaltado (el sugerido). Devuelve la figura, su tamaño y una tabla con cada combinación de HFTs de los cortes
+# (con cortes anidados, una por HFT del corte más detallado) y su superficie
+hft_tree <- function(tree, cls_list, cols_list, ha, labels, hl=NA) {
+	nl <- length(cls_list)
+	cuts <- names(cls_list)
+	yl <- nl + 1 - seq_len(nl)
+	# Posición horizontal de los HFTs, de abajo arriba: la media de las de los HFTs del corte de abajo, cada uno
+	# con la parte de su superficie que viene de este HFT (con cortes anidados, toda o nada)
+	ord <- unique(cls_list[[nl]][tree$order])
+	xs <- vector('list', nl)
+	xs[[nl]] <- setNames(seq_along(ord), ord)
+	edges <- NULL
+	for (lv in rev(seq_len(nl - 1))) {
+		ov <- tapply(ha, list(cls_list[[lv]], cls_list[[lv + 1]]), sum, default=0)
+		share <- sweep(ov, 2, colSums(ov), '/')
+		xs[[lv]] <- setNames(as.vector(share %*% xs[[lv + 1]][colnames(ov)]) / rowSums(share), rownames(ov))
+		e <- which(ov > 0, arr.ind=TRUE)
+		edges <- rbind(edges, data.frame(x=xs[[lv]][e[, 1]], y=yl[lv], xend=xs[[lv + 1]][colnames(ov)[e[, 2]]], yend=yl[lv + 1],
+		                                 ha=ov[e], share=share[e]))
+	}
+	nodes <- do.call(rbind, lapply(seq_len(nl), function(lv) {
+		a <- tapply(ha, cls_list[[lv]], sum)
+		data.frame(HFT=names(a), x=xs[[lv]][names(a)], y=yl[lv], ha=as.vector(a), fill=cols_list[[lv]][as.integer(names(a))])
+	}))
+	# Número en blanco sobre los colores oscuros
+	nodes$txt <- ifelse(colSums(col2rgb(nodes$fill) / 255 * c(0.299, 0.587, 0.114)) < 0.55, 'white', 'black')
+	nested <- is.null(edges) || all(abs(edges$share - 1) < 1e-9)
+
+	p <- ggplot() +
+		(if (!is.na(hl) && hl %in% cuts) annotate('rect', xmin=-Inf, xmax=Inf, ymin=yl[match(hl, cuts)] - 0.45,
+		                                          ymax=yl[match(hl, cuts)] + 0.45, fill='#eb6834', alpha=0.1)) +
+		geom_hline(yintercept=yl, colour='grey90') +
+		(if (!is.null(edges)) geom_segment(data=edges, aes(x=x, y=y, xend=xend, yend=yend, linewidth=ha, alpha=share),
+		                                   colour='grey40', lineend='round')) +
+		geom_point(data=nodes, aes(x=x, y=y, size=ha, fill=fill), shape=21, colour='grey20', stroke=0.4) +
+		geom_text(data=nodes, aes(x=x, y=y, label=HFT, colour=txt), size=3.2, fontface='bold') +
+		scale_fill_identity() + scale_colour_identity() +
+		scale_size(range=c(6, 16), name='HFT area (ha)') +
+		scale_linewidth(range=c(0.4, 4), guide='none') +
+		scale_alpha(range=c(0.15, 1), limits=c(0, 1), breaks=c(0.25, 0.5, 0.75, 1), labels=c('25 %', '50 %', '75 %', '100 %'),
+		            name='Part of the lower HFT\nfrom the upper one', guide=if (nested) 'none' else 'legend') +
+		scale_x_continuous(expand=expansion(add=0.8)) +
+		scale_y_continuous(breaks=yl, labels=labels, limits=c(0.5, nl + 0.5), expand=c(0, 0)) +
+		labs(x=NULL, y=NULL) +
+		theme_minimal(base_size=13) +
+		theme(panel.grid=element_blank(), axis.text.x=element_blank(), axis.text.y=element_text(size=12, hjust=0))
+
+	# Combinaciones de HFTs de los cortes, en el orden del árbol
+	comb <- as.data.frame(cls_list, check.names=FALSE)
+	comb$segments <- 1
+	comb$ha <- ha
+	paths <- aggregate(cbind(segments, ha) ~ ., comb, sum)
+	paths <- paths[do.call(order, lapply(seq_len(nl), function(lv) xs[[lv]][as.character(paths[[cuts[lv]]])])), ]
+	paths$pct <- round(100 * paths$ha / sum(paths$ha), 2)
+	paths$ha <- round(paths$ha, 2)
+	list(plot=p, paths=paths, width=max(9, 0.5 * length(ord) + 4), height=1.3 * nl + 2.5)
+}
+
 # Archivo (en ../inVars) y NoData de cada variable, de ENV_VARS en config.py
 read_env_vars <- function() {
 	lines <- readLines('config.py', warn = FALSE)
@@ -423,6 +490,8 @@ for (pmx in 1:mx) {
 		}
 		pixarea <- terra::values(terra::cellSize(pixgrid, unit = 'ha', mask = FALSE), mat = FALSE)
 	}
+	# Superficie de un píxel (ha), para la de los segmentos
+	cell_ha <- if (!is.null(pixvals)) median(pixarea, na.rm=TRUE) else read_config_num('RESOLUTION', 1)^2 / 1e4
 
 	# Sumas de los píxeles de los segmentos del umbral elegido, para el R2 de los HFTs de cada corte
 	ss_sel <- NULL
@@ -433,6 +502,7 @@ for (pmx in 1:mx) {
 
 	# SIMIL = 3: colores jerárquicos entre los cortes (ver hier_colours), solo para cortes con más de un HFT
 	hier_cols <- list()
+	tree_cls <- tree_cols <- list() # HFTs y colores de cada corte, para el árbol de los cortes (hft_tree)
 	if (simil == 3) {
 		cls_list <- lapply(cuts, function(f) cutree(hclust_mh, h=f * max(hclust_mh$height)))
 		nk <- sapply(cls_list, function(cl) length(unique(cl)))
@@ -507,6 +577,12 @@ for (pmx in 1:mx) {
 		# Orden de los HFTs en leyendas y ejes: con colores jerárquicos el del dendrograma (los tonos de un
 		# mismo color quedan juntos), si no el numérico
 		hft_order <- if (!is.null(hier_cols[[cn]])) unique(hclust_mean[hclust_mh$order]) else sort(unique(hclust_mean))
+		# HFTs y colores de este corte en el árbol de los cortes: un solo HFT, gris, si el corte no separa ninguno
+		# (los únicos sin colores jerárquicos con SIMIL = 3)
+		if (simil == 3) {
+			tree_cls[[cn]] <- if (is.null(hier_cols[[cn]])) rep(1, nrow(hri)) else hclust_mean
+			tree_cols[[cn]] <- if (is.null(hier_cols[[cn]])) 'grey60' else kolsn
+		}
 
 		if (ncl > 1) {
 			# Título de las figuras: área de estudio, umbral, corte del árbol y nº de HFTs
@@ -524,7 +600,6 @@ for (pmx in 1:mx) {
 				nm <- data.frame(x=mds_mh$points[, 1], y=mds_mh$points[, 2], HFT=hclust_mean)
 				nm_hfts <- hft_order[hft_order %in% nm$HFT]
 				nm$HFT <- factor(nm$HFT, levels=nm_hfts)
-				cell_ha <- if (!is.null(pixvals)) median(pixarea, na.rm=TRUE) else read_config_num('RESOLUTION', 1)^2 / 1e4
 				nm$ha <- hri$sumpamask * cell_ha
 				nm_ha <- tapply(nm$ha, nm$HFT, sum)
 				nm_labels <- paste0(nm_hfts, ': ', format(round(nm_ha), big.mark=',', trim=TRUE), ' ha (', round(100 * nm_ha / sum(nm_ha), 1), ' %)')
@@ -782,6 +857,24 @@ for (pmx in 1:mx) {
 				}
 			}
 		}
+	}
+
+	# --- ÁRBOL DE LOS HFTs DE LOS CORTES (SIMIL = 3) ---
+	# En qué HFT de los cortes más generales está cada HFT y en qué HFTs de los más detallados se divide (ver
+	# hft_tree). La tabla tiene una fila por HFT del corte más detallado (o por combinación de HFTs, si los cortes
+	# no están anidados) con el HFT que la contiene en cada corte, su nº de segmentos y su superficie
+	if (simil == 3) {
+		rows <- rev(names(cuts)) # del corte más general al más detallado
+		nk_tree <- sapply(tree_cls[rows], function(cl) length(unique(cl)))
+		r2_tree <- if (!is.null(cut_r2)) ifelse(nk_tree == 1, 0, cut_r2$r2[match(rows, cut_r2$cut)])
+		tree_labels <- paste0(rows, '\n', nk_tree, ifelse(nk_tree == 1, ' HFT', ' HFTs'), if (!is.null(r2_tree)) sprintf('\nR2 %.2f', r2_tree),
+		                      ifelse(rows %in% suggested, '\n(suggested)', ''))
+		ht <- hft_tree(hclust_mh, tree_cls[rows], tree_cols[rows], hri$sumpamask * cell_ha, tree_labels, suggested)
+		treep <- ht$plot + labs(title=area, subtitle=paste0('ID ', park, ' | threshold ', k,
+			' | HFTs of the cuts of the tree, from broad (top) to detailed (bottom)\n',
+			'circles: HFTs with their number and colour of the maps, sized by area | lines: area shared by the HFTs of consecutive cuts'))
+		ggsave(file.path(outroot, paste0('hft_tree_', park, '_', res, '.png')), treep, width=ht$width, height=ht$height, dpi=300)
+		write.table(ht$paths, file.path(outroot, paste0('hft_tree_', park, '_', res, '.csv')), sep=' ', row.names=F, quote=F)
 	}
 
 	# --- VARIANZA DE LOS PÍXELES EXPLICADA POR LOS HFTs (R2) SEGÚN EL NÚMERO DE HFTs, EN CADA UMBRAL ---
