@@ -493,6 +493,7 @@ are in Spanish; this table explains each option in English. The options marked
 | `THRESHOLD_METHOD` | you | `'f'` | How the segmentation threshold is chosen among 0.1 to 0.9: `'f'`, `'gs'`, `'gs_fixed'`, `'crossing'`, `'crossing_first'`, or a number for a fixed threshold (e.g. `0.5`). See below and [A5](#a5-optimal-segmentation-threshold). |
 | `THRESHOLD_ALPHA` | you | `0.5` | Only with `'f'`: weight of the variance inside the segments against Moran's I (`1` the same, `0.5` half, `2` double). |
 | `MORAN_NEIGHBOURS` | you | `'rook'` | Neighbours of a segment for Moran's I: `'rook'` the segments that share an edge with it, `'queen'` also those that only touch a corner. |
+| `CLASS_METHOD` | you | `'ward_area'` | How the segments are classified into HFTs: `'ward_area'` (Ward weighted by area on standardised means), `'ward_area_kmeans'` (the same and then weighted k-means) or `'ward'` (the original method). See below and [A6](#a6-classification-of-the-segments-into-hfts). |
 | `SIMIL` | you | `3` | How the classification tree is cut into HFTs: `1`, `2` or `3` (see below). |
 | `STAT_AGG` | you | `'mean'` | Statistic of each variable in each segment: `'mean'` or `'median'`. |
 | `SCENARIO` | you (or `run_hft.py`) | `'base'` | Name of the scenario: the results are written to `results/<STUDY_AREA>/<SCENARIO>`. Letters, digits, `-` and `_`; empty is `base`. |
@@ -530,7 +531,7 @@ Choosing the options:
   segments are homogeneous inside (low variance) and different from their
   neighbours (low Moran's I); they differ in how they weigh both measures.
   `'f'` (the default, with `THRESHOLD_ALPHA = 0.5`) was the most stable in a
-  test with the Guajares data, and with its threshold (0.5) up to about 10
+  test with the Guajares data, and with its threshold (0.5) up to about 8
   HFTs explain as much of the variance of the pixels as with finer
   thresholds, from fewer segments (144 against 354 at 0.1). `'gs'` is the classical Global Score and `'gs_fixed'` a
   version that does not depend on the thresholds tested. `'crossing'` is the
@@ -546,6 +547,18 @@ Choosing the options:
   the high thresholds unreliable (in Guajares 23 of the 39 segments of 0.9).
   `'queen'` counts those corners as neighbours. Each ID writes the number of
   segments without neighbours in `<id>_optim_thresholds.csv`.
+- **`CLASS_METHOD`**: `'ward_area'` groups the segments by their typical
+  conditions (mean or median of every variable), weighting each segment by
+  its area, so that the HFTs are as homogeneous as possible pixel by pixel. In
+  a test with the Guajares data its HFTs were more separable than those of the
+  original method (`'ward'`) at every threshold and number of HFTs. The
+  original method also groups the segments by their internal heterogeneity
+  (variances) and weighs every segment the same. `'ward_area_kmeans'` refines
+  the HFTs a little more, but the HFTs of the cuts of `SIMIL = 3` are then not
+  exactly nested. The tree of `'ward_area'` has its highest joins at the top,
+  so with `SIMIL = 3` the same cuts give fewer HFTs (in the example 9, 3 and
+  2 instead of 19, 8 and 3). [A6](#a6-classification-of-the-segments-into-hfts)
+  explains each method and the test. Changing it repeats only the last step.
 - **`SIMIL`** (read by `moranvar_plots.R`):
   - `3` (recommended to explore the results): the tree is cut at 25, 50 and
     75 % of its height, giving three classifications from detailed (`p25`,
@@ -652,7 +665,7 @@ warning.
 | 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SEGM_PCA`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
 | 8. Statistics of the segments | `STAT_AGG`, `RESOLUTION`, `ENV_VARS`, the files of `../inVars`, `get_mean_median_var.py`, `ehab_segm_core.py` |
 | 9. Moran's I, variance and threshold | `THRESHOLD_METHOD`, `THRESHOLD_ALPHA`, `MORAN_NEIGHBOURS`, `moranvar.py` |
-| 9. HFTs and plots | `SIMIL`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
+| 9. HFTs and plots | `SIMIL`, `CLASS_METHOD`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
 
 When an input file (in `../inVars`, or the study area in `pa/`) changed since
 `setup.py` imported it, `run_hft.py` first runs `setup.py` again with the same
@@ -818,8 +831,10 @@ The examples below come from the Guajares dataset (one study area, ID 1, a
 burned area of 2022, with 7 variables at 10 m: maximum and minimum NDVI, NDWI,
 slope, mean annual temperature, annual precipitation and TWI), run with
 `PA_BUFFER = 5000` (5 km), `SMALL_SEGM_RADIUS = 10`, `SIMIL = 3` and
-`STAT_AGG = 'mean'`. The figures are those of that run (of the cut `p50`
-unless said otherwise), reduced in size; they are in `docs/img`. The paths
+`STAT_AGG = 'mean'`, with the original methods to choose the threshold and to
+classify the segments (`THRESHOLD_METHOD = 'crossing'`, `CLASS_METHOD =
+'ward'`). The figures are those of that run (of the cut `p50` unless said
+otherwise), reduced in size; they are in `docs/img`. The paths
 below are relative to the folder of the scenario,
 `results/<STUDY_AREA>/<SCENARIO>`.
 
@@ -879,8 +894,9 @@ shades of each colour are the HFTs of the finer cuts inside an HFT of `p75`.*
 <img src="docs/img/threshold_selection.png" width="460" alt="Rescaled Moran's I, variance and score of the F method for the nine thresholds, with the threshold 0.5 selected">
 
 *This figure and the next one come from a run with `PA_BUFFER = 500` and the
-default options of `THRESHOLD_METHOD`; the other figures of this section, from
-the run with `PA_BUFFER = 5000` and the original method (threshold 0.6).*
+default options (`THRESHOLD_METHOD = 'f'`, `CLASS_METHOD = 'ward_area'`); the
+other figures of this section, from the run with `PA_BUFFER = 5000` and the
+original methods (threshold 0.6).*
 
 - **x axis**: threshold index `k` (1 to 9 for thresholds 0.1 to 0.9).
 - **Black (M.I)**: Moran's I of the segment means, rescaled to 0-1 over the
@@ -935,8 +951,8 @@ between the HFTs (the eta² of an analysis of variance with the HFT as factor,
 the same eta2 as in the heatmap); the figure shows its mean over the
 variables. 0: the HFTs do not differ at all; 1: every HFT is uniform.
 
-- **Each line is a threshold**: the Ward tree of its segments (built as in
-  [A6](#a6-classification-of-the-segments-into-hfts)) cut into 2, 3, ... HFTs.
+- **Each line is a threshold**: its segments classified into 2, 3, ... HFTs
+  with `CLASS_METHOD` (as in [A6](#a6-classification-of-the-segments-into-hfts)).
   Light blue: fine thresholds; dark blue: coarse ones; thick orange: the
   selected threshold.
 - **Orange points**: the HFTs of the cuts of the selected threshold (`p25`,
@@ -947,15 +963,15 @@ variables. 0: the HFTs do not differ at all; 1: every HFT is uniform.
 R² always grows with the number of HFTs, so compare the thresholds at the
 same number of HFTs (vertically). A curve below the others means that the
 segments of that threshold mix different conditions and give worse HFTs. In
-the example the thresholds 0.1 to 0.5 give about the same R² up to about 10
+the example the thresholds 0.1 to 0.5 give about the same R² up to about 8
 HFTs, the finest ones gain a little with more HFTs, and 0.6 to 0.9 give
 clearly less. Along the selected curve, the number of HFTs where it
 flattens is the one beyond which more HFTs add little.
 
-The values are modest (0.31 for the 8 HFTs of `p50`) because some variables
+The values are modest (0.38 for the 9 HFTs of `p25`) because some variables
 vary mostly between neighbouring pixels: in `r2_<id>_cuts.csv` the R² of
-`p50` is 0.53 and 0.57 for temperature and precipitation, 0.28 to 0.36 for
-the vegetation and water indices, and 0.06 and 0.04 for slope and TWI.
+`p25` is 0.75 and 0.74 for temperature and precipitation, 0.28 to 0.38 for
+the vegetation and water indices, and 0.11 and 0.02 for slope and TWI.
 
 - `r2_<id>_hfts.csv`: one row per threshold and number of HFTs, with
   `threshold`, `segments`, `r2_segments`, `hfts`, `r2` (mean) and the R² of
@@ -978,15 +994,19 @@ were produced.
 <img src="docs/img/hclust_p50.png" width="420" alt="Ward dendrogram of the 104 segments with the 6 HFTs of the cut p50">
 
 The dendrogram of the Ward classification of the segments of the selected
-threshold. Each leaf is a segment (numbered by its row in
-`csv/park_<id>_hri_results<k>.csv`), and the height at which two branches
-join measures how different they are. The red boxes are the HFTs of this cut.
+threshold (`CLASS_METHOD`, named under the plot). Each leaf is a segment
+(numbered by its row in `csv/park_<id>_hri_results<k>.csv`), and the height
+at which two branches join measures how different they are; with
+`'ward_area'` it grows with the size of the groups, so the last joins are
+much higher. The red boxes are the HFTs of this cut (with
+`'ward_area_kmeans'`, before some segments move to the HFT of nearest mean).
 With `SIMIL = 3` the tree is the same in the three folders and only the boxes
 change: `p75` cuts it near the top (few broad HFTs), `p25` near the bottom
 (many detailed HFTs).
 
 The number under the plot is the **cophenetic correlation** between the
-distances of the tree and the original distances between segments: the closer
+distances of the tree and the original distances between segments (their
+Euclidean distances in the variables used to classify them): the closer
 to 1, the better the tree keeps them. Ward trees usually give moderate values
 (0.49 in the example), since they favour compact groups over keeping every
 distance.
@@ -1110,9 +1130,10 @@ temperature points towards HFTs 4 and 2.
 
 ![NMDS of the segments coloured by HFT](docs/img/nmds_p50.png)
 
-A non-metric multidimensional scaling of the segments using the same
-distances as the classification (means and variances of the variables), so
-it shows how the classification sees the segments.
+A non-metric multidimensional scaling of the segments using the distances
+between them that the classification uses (standardised means with
+`'ward_area'`; means and variances rescaled to 0-1 with `'ward'`), so it
+shows how the classification sees the segments.
 
 - **Points**: segments, coloured by HFT and sized by area, joined by a thin
   line to the centroid of their HFT (labelled box).
@@ -1514,7 +1535,8 @@ The methods were compared on ID 1 of the Guajares example (`PA_BUFFER = 500`,
 7 variables): with the thresholds 0.1 to 0.9, with four shorter ranges
 (0.1-0.8, 0.2-0.9, 0.1-0.7 and 0.3-0.9), leaving out each variable in turn,
 and with other neighbours for Moran's I. Then the segments of 0.4, 0.5 and
-0.7 were classified into HFTs and compared with the R² of
+0.7 were classified into HFTs (with `CLASS_METHOD = 'ward'`) and compared
+with the R² of
 [`r2_<id>_hfts.png`](#variance-explained-by-the-hfts-r2_id_hftspng).
 
 | `THRESHOLD_METHOD` | 0.1 to 0.9 | Other ranges | Without one variable | `'queen'` | 4 nearest segments |
@@ -1555,9 +1577,56 @@ every variable rescaled on its own.
 
 ### A6. Classification of the segments into HFTs
 
-`moranvar_plots.R` reads `csv/park_<id>_hri_results<k*>.csv` and, for every
-segment `s`, builds a vector with the statistic and the variance of every
-variable, each one rescaled to 0-1 over the segments of the ID:
+`moranvar_plots.R` reads `csv/park_<id>_hri_results<k*>.csv` and groups the
+segments of the selected threshold into HFTs with Ward's hierarchical
+clustering (Ward, 1963). `CLASS_METHOD` sets how the segments are described
+and weighted; the tree is then cut with `SIMIL`.
+
+#### Methods (`CLASS_METHOD`)
+
+**`'ward_area'` (default): Ward weighted by area on standardised means.**
+Each segment `s` is described by its statistic `m_{s,v}` (mean or median,
+`STAT_AGG`) of every variable, standardised with the standard deviation
+`σ_v` of the pixels of the ID (from the variance inside and between the
+segments, as `V^tot` in A5):
+
+```math
+z_{s,v} = \frac{m_{s,v} - \bar m_v}{\sigma_v}, \qquad
+\bar m_v = \frac{\sum_s n_s\,m_{s,v}}{\sum_s n_s}
+```
+
+A variable constant in the whole area gets `z = 0` and does not count; a
+segment without data in a variable gets the mean of the variable. The
+segments are then joined with Ward's criterion weighting each one by its
+number of pixels `n_s`: at every step the two groups `A` and `B` whose union
+least increases the sum of squares of the pixels within the groups,
+
+```math
+\Delta(A, B) = \frac{N_A\,N_B}{N_A + N_B}\,\lVert \bar{\mathbf z}_A - \bar{\mathbf z}_B \rVert^2
+```
+
+are joined (`N`: number of pixels; `z̄`: means weighted by area). This is
+`hclust(..., "ward.D2", members = n_s)` on the Ward distances
+`sqrt(2 Δ)` between segments, which gives the same tree as Ward's method on
+all the pixels, starting from the segments as groups. So the HFTs keep the
+variance of the pixels within them as low as possible (the R² of
+`r2_<id>_hfts.png` as high as possible), every variable weighs the same (in
+units of its standard deviation), and a large segment weighs more than a
+small fragment.
+
+**`'ward_area_kmeans'`: the same, then weighted k-means.** After each cut,
+every segment moves to the HFT with the nearest mean, and the means
+(weighted by area) are computed again, until no segment moves: k-means
+weighted by area starting from the HFTs of the tree, a usual way to
+consolidate a Ward classification. It can only lower the variance within the
+HFTs of that cut, but the HFTs of different cuts are no longer exactly nested:
+their colours and order follow the tree, and the boxes of the dendrogram show
+the HFTs before the consolidation. An HFT can be left without segments and
+disappear.
+
+**`'ward'`: the original method of eHabitat+.** Each segment is described by
+the statistic and the variance of every variable, each one rescaled to 0-1
+over the segments of the ID:
 
 ```math
 \mathbf{f}_s = \left(\tilde m_{s,1}, \dots, \tilde m_{s,n_v},\ \tilde\sigma^2_{s,1}, \dots, \tilde\sigma^2_{s,n_v}\right),
@@ -1566,14 +1635,78 @@ variable, each one rescaled to 0-1 over the segments of the ID:
 ```
 
 so the segments are compared by both their typical conditions and their
-internal heterogeneity, with the same weight for every variable.
+internal heterogeneity. The Euclidean distances between the vectors
+(`vegan::vegdist`) are joined with Ward's criterion without weights
+(`hclust(..., "ward.D2")`): every segment counts the same, whatever its size.
 
-1. **Distances and tree.** Euclidean distances between the vectors
-   (`vegan::vegdist`) and agglomerative hierarchical clustering with Ward's
-   criterion (`hclust(..., "ward.D2")`): at every step the two groups whose
-   merging least increases the total within-group sum of squares are joined.
-   The cophenetic correlation of the tree is computed for the dendrogram plot.
-2. **Cut of the tree** (`SIMIL`), with `h_max` the height of the last merge:
+The **cophenetic correlation** of the tree, shown in the dendrogram plot, is
+computed against the Euclidean distances between the segments in the
+variables of the method (`z` or `f`), which are also those of the NMDS.
+
+#### Test with the Guajares data
+
+The methods were compared with the segments of the thresholds 0.3, 0.4, 0.5
+and 0.7 of the Guajares example (`PA_BUFFER = 500`), cut into 2 to 20 HFTs,
+together with `'ward'` on the means only (without the variances; not an
+option). The separability of the HFTs was measured with the pixels of
+`../inVars`, standardised:
+
+- **R²**: part of the variance of the pixels between the HFTs, mean over the
+  variables (as in `r2_<id>_hfts.png`).
+- **Jeffries-Matusita distance (JM)** between every pair of HFTs, the usual
+  measure of class separability in remote sensing (Bruzzone et al., 1995).
+  With `μ` and `Σ` the mean vector and the covariance matrix of the pixels of
+  each HFT:
+
+  ```math
+  B = \frac{1}{8}(\boldsymbol\mu_a - \boldsymbol\mu_b)^T \Sigma^{-1} (\boldsymbol\mu_a - \boldsymbol\mu_b)
+      + \frac{1}{2}\ln\frac{|\Sigma|}{\sqrt{|\Sigma_a|\,|\Sigma_b|}},
+  \qquad \Sigma = \frac{\Sigma_a + \Sigma_b}{2},
+  \qquad JM = 2\,(1 - e^{-B})
+  ```
+
+  from 0 (same distribution of the pixels) to 2 (completely separable). Its
+  mean over all the pairs and its minimum (the least separable pair).
+- **Silhouette width** (Rousseeuw, 1987) of every segment on the
+  standardised means (how much closer it is to its HFT than to the next one,
+  from -1 to 1), averaged weighting by area.
+
+With the threshold 0.5 and 8 HFTs (the cut `p50` of `'ward'`):
+
+| `CLASS_METHOD` | R² | Mean JM | Minimum JM | Silhouette |
+|---|---|---|---|---|
+| `'ward'` | 0.31 | 1.35 | 0.30 | 0.11 |
+| `'ward'` on the means only | 0.34 | 1.30 | 0.63 | 0.19 |
+| `'ward_area'` | 0.37 | 1.61 | 0.78 | 0.21 |
+| `'ward_area_kmeans'` | 0.37 | 1.61 | 0.66 | 0.24 |
+
+- Over the four thresholds and 2 to 20 HFTs, `'ward_area'` gave a higher R²
+  and silhouette than `'ward'` in all the cases, a higher mean JM in 84 % of
+  them and a higher minimum JM (a single pair, more variable) in 61 %.
+- Most of the gain comes from leaving the variances out: they grow with the
+  size of the segment (Spearman correlation with its number of pixels 0.64
+  for temperature and 0.59 for precipitation), so they group the segments
+  partly by their size. Weighting by area and standardising add the rest.
+- With `'ward_area'`, the 9 HFTs of `p25` explain as much variance (R² 0.38)
+  as the 19 HFTs of `p25` of `'ward'`.
+- The maps change: the adjusted Rand index between the HFTs of `'ward'` and
+  `'ward_area_kmeans'` with 8 HFTs was 0.41.
+- `'ward_area_kmeans'` improves the silhouette a little more, but not the JM.
+
+The R² and the silhouette are measured on the means, which favours the
+methods that classify by them; the JM distance also accounts for the spread
+of the pixels within each HFT, and favours `'ward_area'` too. Even so the
+HFTs overlap (mean JM about 1.6, the least separable pair about 0.7): the
+environmental gradients are continuous. Not tested: mixtures of normal
+distributions (model-based clustering), fuzzy clustering, and Ward with
+spatial constraints (ClustGeo; Chavent et al., 2018), which gives more
+compact HFTs but, by construction, less separable ones.
+
+#### Cut of the tree and colours
+
+1. **Cut of the tree** (`SIMIL`), with `h_max` the height of the last merge
+   (with `'ward_area'` the heights grow with the size of the groups, so the
+   same fractions give fewer HFTs than with `'ward'`):
    - `SIMIL = 3`: cuts at heights `0.25 h_max`, `0.50 h_max` and `0.75
      h_max` (`p25`, `p50`, `p75`), with no limit on the number of HFTs;
    - `SIMIL = 1`: cut at the first quartile of the merging heights;
@@ -1592,7 +1725,7 @@ internal heterogeneity, with the same weight for every variable.
    with `N` the number of pixels analysed. If a cut gives a single HFT, every
    segment is taken as its own HFT. The figures are drawn when there are at
    least two HFTs.
-3. **Colours.** Set1 palette (interpolated beyond 8 HFTs). With `SIMIL = 3`,
+2. **Colours.** Set1 palette (interpolated beyond 8 HFTs). With `SIMIL = 3`,
    `hier_colours()` takes the cuts with more than one HFT from the broadest to
    the finest: each HFT of the broadest cut keeps its Set1 colour; inside it,
    the HFTs of the finest cut get positions from 0 to 1 in the order of the
@@ -1609,7 +1742,8 @@ internal heterogeneity, with the same weight for every variable.
   are rasterised on the grid of the first variable and, for every segment
   `s` and variable `v`, the number of pixels `n_s`, the sum `S_s` and the sum
   of squares `Q_s` of the pixel values (centred on their mean) are added up.
-  The Ward tree of the threshold (A6) is cut into 2, 3, ... HFTs and, for
+  The segments of the threshold are classified with `CLASS_METHOD` (A6) into
+  2, 3, ... HFTs and, for
   every partition, with `N_h` and `S_h` the sums over the segments of HFT `h`
   and `N`, `S`, `Q` over all of them:
 
@@ -1653,8 +1787,8 @@ internal heterogeneity, with the same weight for every variable.
   `sqrt(qchisq(0.5, 2))`), and the arrows the loadings (eigenvectors times the
   square root of the eigenvalues, i.e. the correlations between variables and
   components), all scaled together to the size of the plot.
-- **NMDS**: `vegan::metaMDS` (2 dimensions, `set.seed(1)`) on the distance
-  matrix of the classification; centroids are the mean position of the
+- **NMDS**: `vegan::metaMDS` (2 dimensions, `set.seed(1)`) on the distances
+  between the segments of the classification (A6); centroids are the mean position of the
   segments of every HFT and ellipses normal at the 68 % level
   (`stat_ellipse`); vectors from `vegan::envfit` of the segment means with
   999 permutations (`set.seed(1)`), drawn with length `sqrt(r2)`.
@@ -1740,14 +1874,22 @@ first step that is out of date and all the steps after it, and
 
 ### References
 
-- Espindola, G. M., Câmara, G., Reis, I. A., Bins, L. S., & Monteiro, A. M.
-  (2006). Parameter selection for region-growing image segmentation
-  algorithms using spatial autocorrelation. *International Journal of Remote
-  Sensing*, 27(14), 3035-3040.
 - Böck, S., Immitzer, M., & Atzberger, C. (2017). On the objectivity of the
   objective function: problems with unsupervised segmentation evaluation
   based on Global Score and a possible remedy. *Remote Sensing*, 9(8), 769.
   https://doi.org/10.3390/rs9080769
+- Bruzzone, L., Roli, F., & Serpico, S. B. (1995). An extension of the
+  Jeffreys-Matusita distance to multiclass cases for feature selection. *IEEE
+  Transactions on Geoscience and Remote Sensing*, 33(6), 1318-1321.
+  https://doi.org/10.1109/36.477187
+- Chavent, M., Kuentz-Simonet, V., Labenne, A., & Saracco, J. (2018).
+  ClustGeo: an R package for hierarchical clustering with spatial
+  constraints. *Computational Statistics*, 33(4), 1799-1822.
+  https://doi.org/10.1007/s00180-018-0791-1
+- Espindola, G. M., Câmara, G., Reis, I. A., Bins, L. S., & Monteiro, A. M.
+  (2006). Parameter selection for region-growing image segmentation
+  algorithms using spatial autocorrelation. *International Journal of Remote
+  Sensing*, 27(14), 3035-3040.
 - Georganos, S., Lennert, M., Grippa, T., Vanhuysse, S., Johnson, B., &
   Wolff, E. (2018). Normalization in unsupervised segmentation parameter
   optimization: a solution based on local regression trend analysis.
@@ -1761,4 +1903,10 @@ first step that is out of date and all the steps after it, and
 - Murtagh, F., & Legendre, P. (2014). Ward's hierarchical agglomerative
   clustering method: which algorithms implement Ward's criterion? *Journal of
   Classification*, 31, 274-295.
-
+- Rousseeuw, P. J. (1987). Silhouettes: a graphical aid to the
+  interpretation and validation of cluster analysis. *Journal of
+  Computational and Applied Mathematics*, 20, 53-65.
+  https://doi.org/10.1016/0377-0427(87)90125-7
+- Ward, J. H. (1963). Hierarchical grouping to optimize an objective
+  function. *Journal of the American Statistical Association*, 58(301),
+  236-244. https://doi.org/10.1080/01621459.1963.10500845

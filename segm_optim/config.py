@@ -89,6 +89,19 @@ THRESHOLD_ALPHA = 0.5
 #           segmentos deja menos segmentos sin vecinos.
 MORAN_NEIGHBOURS = 'rook'
 
+# CLASIFICACIÓN DE LOS SEGMENTOS DEL UMBRAL ELEGIDO EN HFTs (moranvar_plots.R), con el método de Ward:
+# 'ward_area'        = Ward ponderado por el nº de píxeles de cada segmento, sobre su media (o mediana,
+#                      STAT_AGG) de cada variable tipificada con la desviación típica de los píxeles: los
+#                      HFTs reducen al mínimo la varianza de los píxeles dentro de ellos.
+# 'ward_area_kmeans' = 'ward_area' y después k-medias ponderadas: cada segmento pasa al HFT de media más
+#                      próxima. Mejora algo la separabilidad, pero los HFTs de los cortes de SIMIL = 3 ya no
+#                      están exactamente anidados.
+# 'ward'             = Ward sin ponderar sobre las medias y las varianzas de los segmentos reescaladas a
+#                      0-1 (el método original de eHabitat+).
+# En la prueba con Guajares 'ward_area' dio HFTs más separables que 'ward' con todos los umbrales. Su árbol
+# tiene las uniones más altas al final, así que los cortes de SIMIL = 3 dan menos HFTs (README, A6).
+CLASS_METHOD = 'ward_area'
+
 # NÚMERO DE HFTs (corte del árbol de clasificación jerárquica en moranvar_plots.R):
 # 1 = Corta en el percentil 25 de las alturas de fusión, con límite superior de HFTs.
 # 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores

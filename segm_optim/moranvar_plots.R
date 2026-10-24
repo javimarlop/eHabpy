@@ -70,11 +70,59 @@ box_stats <- function(x) {
 	c(ymin = min(x[x >= q[1] - 1.5 * iqr]), lower = q[1], middle = q[2], upper = q[3], ymax = max(x[x <= q[3] + 1.5 * iqr]))
 }
 
-# Distancias entre los segmentos para la clasificación: estadístico (media o mediana) y varianza de cada
-# variable, reescalados a 0-1 entre los segmentos
+# Distancias entre los segmentos del método original ('ward'): estadístico (media o mediana) y varianza
+# de cada variable, reescalados a 0-1 entre los segmentos
 segm_dist <- function(hri) {
 	nv <- (ncol(hri) - 3) / 3
 	vegdist(as.data.frame(lapply(hri[, 3:(2 + 2 * nv)], rescale01)), "euclidean", na.rm=T)
+}
+
+# Árbol de la clasificación de los segmentos según CLASS_METHOD (ver config.py) y distancias entre ellos
+# (para la correlación cofenética y el NMDS). Con 'ward_area' y 'ward_area_kmeans', Ward ponderado por el
+# nº de píxeles de cada segmento sobre su estadístico de cada variable tipificado con la desviación típica
+# de los píxeles (dentro + entre segmentos): con la distancia de Ward entre grupos y members = nº de
+# píxeles, hclust da el mismo árbol que el Ward de todos los píxeles partiendo de los segmentos
+class_tree <- function(hri, method) {
+	if (method == 'ward') {
+		d <- segm_dist(hri)
+		return(list(tree=hclust(d, "ward.D2"), dist=d))
+	}
+	nv <- (ncol(hri) - 3) / 3
+	m <- as.matrix(hri[, 3:(2 + nv)])
+	v <- as.matrix(hri[, (3 + nv):(2 + 2 * nv)])
+	n <- hri$sumpamask
+	z <- sapply(seq_len(nv), function(i) {
+		ok <- !is.na(m[, i]) & !is.na(v[, i])
+		mu <- sum(n[ok] * m[ok, i]) / sum(n[ok])
+		s <- sqrt((sum(n[ok] * v[ok, i]) + sum(n[ok] * (m[ok, i] - mu)^2)) / sum(n[ok]))
+		x <- (m[, i] - mu) / (if (is.finite(s) && s > 0) s else 1) # variable constante: no influye
+		x[is.na(x)] <- 0 # sin datos en el segmento: la media de la variable
+		x
+	})
+	d <- dist(z)
+	w <- sqrt(2 * outer(n, n) / outer(n, n, '+')) * as.matrix(d)
+	list(tree=hclust(as.dist(w), "ward.D2", members=n), dist=d, z=z, n=n)
+}
+
+# Consolidación con k-medias ponderadas por el nº de píxeles ('ward_area_kmeans'): cada segmento pasa al
+# HFT de media más próxima, hasta que no cambia ninguno; los HFTs conservan los números de cl
+wkmeans <- function(z, n, cl, iter=100) {
+	for (it in seq_len(iter)) {
+		lev <- sort(unique(cl))
+		cen <- rowsum(z * n, cl) / as.vector(rowsum(n, cl))
+		d2 <- sapply(seq_len(nrow(cen)), function(j) colSums((t(z) - cen[j, ])^2))
+		new <- lev[max.col(-d2, ties.method='first')]
+		if (all(new == cl)) break
+		cl <- new
+	}
+	cl
+}
+
+# Clasificación de los segmentos en k HFTs con el árbol de class_tree()
+classify_k <- function(ct, k, method) {
+	cl <- cutree(ct$tree, k=k)
+	if (method == 'ward_area_kmeans') cl <- wkmeans(ct$z, ct$n, cl)
+	cl
 }
 
 # Sumas de los píxeles de cada segmento para cada variable (centrada): nº de píxeles, suma y suma de
@@ -199,6 +247,17 @@ method_label <- switch(thr_method,
 	crossing_first = 'first crossing of the curves',
 	paste('fixed threshold', thr_method))
 
+# Método de clasificación de los segmentos en HFTs (CLASS_METHOD en config.py)
+class_method <- read_config('CLASS_METHOD')
+if (is.na(class_method) || class_method == '') class_method <- 'ward_area'
+if (!class_method %in% c('ward_area', 'ward_area_kmeans', 'ward')) {
+	stop(paste0("CLASS_METHOD en config.py debe ser 'ward_area', 'ward_area_kmeans' o 'ward', no '", class_method, "'"))
+}
+class_label <- switch(class_method,
+	ward_area = 'Ward weighted by area on standardized means',
+	ward_area_kmeans = 'Ward weighted by area on standardized means + weighted k-means',
+	ward = 'Ward on means and variances rescaled 0-1')
+
 # Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
 # o STUDY_AREA de config.py, y SCENARIO de config.py ('base' si falta o está vacío)
 area <- if (file.exists('csv/study_area.csv')) readLines('csv/study_area.csv', n=1, warn=FALSE) else read_config('STUDY_AREA')
@@ -312,8 +371,9 @@ for (pmx in 1:mx) {
 	num_vars <- (ncol(hri) - 3) / 3
 	maxnclas <- num_vars - 1
 
-	try(dmh <- segm_dist(hri))
-	hclust(dmh, "ward.D2") -> hclust_mh
+	ct <- class_tree(hri, class_method)
+	dmh <- ct$dist
+	hclust_mh <- ct$tree
 	cophval <- 0
 	try(chcl <- cophenetic(hclust_mh))
 	try(cophval <- cor(chcl, dmh))
@@ -391,6 +451,13 @@ for (pmx in 1:mx) {
 			ncl <- length(unique(hclust_mean))
 		}
 
+		# 'ward_area_kmeans': los segmentos se reasignan al HFT de media más próxima (los colores y el orden
+		# siguen los del árbol, y los recuadros del dendrograma muestran los HFTs antes de reasignarlos)
+		if (class_method == 'ward_area_kmeans' && ncl > 1 && ncl < nrow(hri)) {
+			hclust_mean <- wkmeans(ct$z, ct$n, hclust_mean)
+			ncl <- length(unique(hclust_mean))
+		}
+
 		# Varianza de los píxeles explicada por los HFTs de este corte (media y por variable)
 		if (!is.null(ss_sel)) {
 			r2v <- r2_groups(ss_sel, hclust_mean)
@@ -399,7 +466,7 @@ for (pmx in 1:mx) {
 		}
 
 		# Colores del mapa: Set1 hasta 8 HFTs, interpolados si hay más; con SIMIL = 3, jerárquicos
-		kolsn <- if (ncl <= length(kols)) kols else colorRampPalette(kols)(ncl)
+		kolsn <- if (max(hclust_mean) <= length(kols)) kols else colorRampPalette(kols)(max(hclust_mean))
 		if (!is.null(hier_cols[[cn]])) kolsn <- hier_cols[[cn]]
 		# Orden de los HFTs en leyendas y ejes: con colores jerárquicos el del dendrograma (los tonos de un
 		# mismo color quedan juntos), si no el numérico
@@ -410,7 +477,7 @@ for (pmx in 1:mx) {
 			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn), ' | ', ncl, ' HFTs')
 
 			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
-			try(plot(hclust_mh, hang=-1, main=park, sub=cophval)); try(rect.hclust(hclust_mh, k=ncl))
+			try(plot(hclust_mh, hang=-1, main=park, sub=cophval, xlab=class_label)); try(rect.hclust(hclust_mh, k=ncl))
 			dev.off()
 
 			# --- NMDS DE LOS SEGMENTOS (las mismas distancias que la clasificación) ---
@@ -681,8 +748,8 @@ for (pmx in 1:mx) {
 	}
 
 	# --- VARIANZA DE LOS PÍXELES EXPLICADA POR LOS HFTs (R2) SEGÚN EL NÚMERO DE HFTs, EN CADA UMBRAL ---
-	# El árbol de Ward de cada umbral cortado en 2, 3, ... HFTs; los puntos son los HFTs de los cortes del
-	# umbral elegido. Muestra si, con el mismo número de HFTs, otro umbral recogería más varianza
+	# Los segmentos de cada umbral clasificados (CLASS_METHOD) en 2, 3, ... HFTs; los puntos son los HFTs de
+	# los cortes del umbral elegido. Muestra si, con el mismo número de HFTs, otro umbral recogería más varianza
 	if (!is.null(ss_sel)) {
 		kmax <- max(30, cut_r2$hfts + 5)
 		curves <- NULL
@@ -691,10 +758,10 @@ for (pmx in 1:mx) {
 			if (!file.exists(hf) || !file.exists(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))) next
 			hri_t <- if (tk == res) hri else read.table(hf, sep=' ', header=T)
 			if (nrow(hri_t) < 3) next
-			tree_t <- if (tk == res) hclust_mh else hclust(segm_dist(hri_t), "ward.D2")
+			ct_t <- if (tk == res) ct else class_tree(hri_t, class_method)
 			ss_t <- if (tk == res) ss_sel else segm_sums(segm_cells(park, tk, hri_t, pixgrid), pixvals, nrow(hri_t))
 			nh <- 2:min(nrow(hri_t) - 1, kmax)
-			r2m <- do.call(rbind, lapply(nh, function(h) r2_groups(ss_t, cutree(tree_t, k=h))))
+			r2m <- do.call(rbind, lapply(nh, function(h) r2_groups(ss_t, classify_k(ct_t, h, class_method))))
 			colnames(r2m) <- var_names
 			curves <- rbind(curves, data.frame(threshold=tk / 10, segments=nrow(hri_t),
 			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
@@ -721,8 +788,9 @@ for (pmx in 1:mx) {
 			                          nudge_y=-0.04, min.segment.length=0, fill=alpha('white', 0.9)) +
 			scale_colour_manual(values=thr_cols, labels=thr_labels, breaks=levels(curves$thr), name='Threshold (segments, R2 of the segments)') +
 			scale_x_continuous(breaks=seq(0, max(curves$hfts), 5), minor_breaks=seq_len(max(curves$hfts))) +
-			labs(title=area, subtitle=paste0('ID ', park, ' | pixel variance explained by the HFTs (R2, mean of the variables) when the Ward tree\n',
-			                                 'of each threshold is cut into 2 to ', max(curves$hfts), ' HFTs | selected threshold ', sel, ': ', method_label),
+			labs(title=area, subtitle=paste0('ID ', park, ' | pixel variance explained by the HFTs (R2, mean of the variables) when the segments of\n',
+			                                 'each threshold are classified into 2 to ', max(curves$hfts), ' HFTs (', class_label, ')\n',
+			                                 'selected threshold ', sel, ': ', method_label),
 			     x='Number of HFTs', y='R2 of the HFTs') +
 			theme_bw(base_size=13)
 		ggsave(file.path(outroot, paste0('r2_', park, '_hfts.png')), r2p, width=11, height=7, dpi=300)

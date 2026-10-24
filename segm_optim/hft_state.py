@@ -193,7 +193,7 @@ def step_inputs(step, cfg=None, state=None):
 	elif step == 'moranvar':
 		inputs = opts(('THRESHOLD_METHOD', 'f'), ('THRESHOLD_ALPHA', 0.5), ('MORAN_NEIGHBOURS', 'rook'))
 	else:
-		inputs = opts(('SIMIL', 2))
+		inputs = opts(('SIMIL', 2), ('CLASS_METHOD', 'ward_area'))
 		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
 	inputs['code'] = _code_sig(CODE[step])
 	return inputs
