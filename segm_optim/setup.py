@@ -89,7 +89,7 @@ def read_variables():
 		srs = ds.GetSpatialRef()
 		if srs is None:
 			fail(f'{f} has no CRS')
-		# RESOLUTION, PA_BUFFER and the noise added to the pixel values (ehab_segm_core.py) are in map units
+		# RESOLUTION and PA_BUFFER are in map units, and in degrees the pixels are neither square nor of equal area
 		if srs.IsGeographic():
 			fail(f'{f} has a geographic CRS ({srs.GetName()}): reproject the variables to a projected CRS '
 			     'in metres (e.g. UTM), for example with gdalwarp -t_srs EPSG:<code>')

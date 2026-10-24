@@ -182,14 +182,15 @@ every step, option and output of the HFT module in detail.
    when its name is that of the study area file.
 
 4. Edit `palist.csv` to process only some of the IDs, and check the other
-   options in `config.py` (`PA_BUFFER`, `SMALL_SEGM_RADIUS`, `SIMIL`,
-   `STAT_AGG`, ...). The output
+   options in `config.py` (`PA_BUFFER`, `SMALL_SEGM_RADIUS`,
+   `THRESHOLD_METHOD`, `SIMIL`, `STAT_AGG`, ...). The output
    folders of `segm_optim` (`csv`, `shp`, `tiffs`, `results`) are created
    automatically.
 
 5. The results of each study area (HFT maps and shapefiles, radar plots,
    boxplots of the pixel values of each variable by HFT, heatmaps of the HFT
-   profiles, PCA biplots of the HFTs and the variables, the other plots,
+   profiles, PCA biplots of the HFTs and the variables, the variance of the
+   variables explained by the HFTs, the other plots,
    `overall_optim_thresholds.csv` and `processing_metadata.txt`) are saved in
    a folder of their study area and **scenario** (`SCENARIO` in `config.py`,
    `base` by default), `results/<study area>/<scenario>` (e.g.
@@ -273,8 +274,8 @@ python3 run_hft.py   # every step that is needed, in order
 ```
 python3 segmentation_pca_par.py  # segments at 9 thresholds
 python3 get_mean_median_var.py   # statistics of every segment
-python3 moranvar.py              # Moran's I and variance, then runs moranvar_plots.R:
-                                 # optimal threshold, HFTs and plots
+python3 moranvar.py              # Moran's I, variance and threshold, then runs
+                                 # moranvar_plots.R: HFTs and plots
 ```
 
 Every step records what it was run with (`run_state.json`), so you never have
@@ -333,10 +334,8 @@ The variables must:
   otherwise);
 - be in a **projected CRS in metres** (e.g. UTM); `setup.py` stops with a
   geographic CRS (longitude and latitude in degrees). `RESOLUTION` and
-  `PA_BUFFER` are in map units, and the statistics step adds a random noise of
-  up to `1 / RESOLUTION` to the pixel values (see
-  [A4](#a4-statistics-of-the-segments)): with pixels of 10 m this is at most
-  0.1, but with pixels of 0.0001° it would be up to 10 000;
+  `PA_BUFFER` are in map units, and in degrees the pixels are neither square
+  on the ground nor of the same area everywhere;
 - have a **NoData value** set in the file for the pixels without data. Without
   it every pixel counts as data (e.g. `-9999` or `0` in the sea), and
   `setup.py` warns about it;
@@ -491,6 +490,9 @@ are in Spanish; this table explains each option in English. The options marked
 | `PA_BUFFER` | you | `500` | Distance (map units, rounded up to whole pixels) by which the bounding box of each ID is grown. `0`: the bounding box only. |
 | `SEGM_PCA` | you | `True` | Input of the segmentation. `True`: the first three axes of a standardised PCA of the variables of `ENV_VARS0`. `False`: the variables of `ENV_VARS0` themselves, without PCA (default `True` when the option is missing). |
 | `SMALL_SEGM_RADIUS` | you | `10` | Radius, in pixels, used to merge the segments smaller than the minimum size into a neighbouring segment (default `5` when the option is missing). |
+| `THRESHOLD_METHOD` | you | `'f'` | How the segmentation threshold is chosen among 0.1 to 0.9: `'f'`, `'gs'`, `'gs_fixed'`, `'crossing'`, `'crossing_first'`, or a number for a fixed threshold (e.g. `0.5`). See below and [A5](#a5-optimal-segmentation-threshold). |
+| `THRESHOLD_ALPHA` | you | `0.5` | Only with `'f'`: weight of the variance inside the segments against Moran's I (`1` the same, `0.5` half, `2` double). |
+| `MORAN_NEIGHBOURS` | you | `'rook'` | Neighbours of a segment for Moran's I: `'rook'` the segments that share an edge with it, `'queen'` also those that only touch a corner. |
 | `SIMIL` | you | `3` | How the classification tree is cut into HFTs: `1`, `2` or `3` (see below). |
 | `STAT_AGG` | you | `'mean'` | Statistic of each variable in each segment: `'mean'` or `'median'`. |
 | `SCENARIO` | you (or `run_hft.py`) | `'base'` | Name of the scenario: the results are written to `results/<STUDY_AREA>/<SCENARIO>`. Letters, digits, `-` and `_`; empty is `base`. |
@@ -524,6 +526,26 @@ Choosing the options:
   radius gathers more nearby fragments into the same segment, so a segment may
   be made of several close patches. See
   [A3](#a3-segmentation-segmentation_pca_parpy).
+- **`THRESHOLD_METHOD`**: every method looks for the threshold whose
+  segments are homogeneous inside (low variance) and different from their
+  neighbours (low Moran's I); they differ in how they weigh both measures.
+  `'f'` (the default, with `THRESHOLD_ALPHA = 0.5`) was the most stable in a
+  test with the Guajares data, and with its threshold (0.5) up to about 10
+  HFTs explain as much of the variance of the pixels as with finer
+  thresholds, from fewer segments (144 against 354 at 0.1). `'gs'` is the classical Global Score and `'gs_fixed'` a
+  version that does not depend on the thresholds tested. `'crossing'` is the
+  original method of eHabitat+, which tends to choose coarse thresholds. A
+  number fixes the threshold (e.g. `0.5`), for example to compare scenarios.
+  [A5](#a5-optimal-segmentation-threshold) explains each method, the test and
+  when to use each one. Changing it repeats only the last two steps.
+- **`THRESHOLD_ALPHA`** (only with `'f'`): below 1 the threshold moves up
+  (fewer, larger segments), above 1 it moves down (more, smaller segments).
+- **`MORAN_NEIGHBOURS`**: when many pixels have no data (e.g. masked water,
+  urban areas or crops), large segments often touch others only at a corner,
+  and with `'rook'` they are left without neighbours, which makes Moran's I of
+  the high thresholds unreliable (in Guajares 23 of the 39 segments of 0.9).
+  `'queen'` counts those corners as neighbours. Each ID writes the number of
+  segments without neighbours in `<id>_optim_thresholds.csv`.
 - **`SIMIL`** (read by `moranvar_plots.R`):
   - `3` (recommended to explore the results): the tree is cut at 25, 50 and
     75 % of its height, giving three classifications from detailed (`p25`,
@@ -559,11 +581,11 @@ Choosing the options:
   differ; in a terminal, it lets you type another scenario name instead (Enter
   replaces them). Without a terminal (e.g. `nohup`) it only warns and goes on.
 
-Two more options are set at the top of `moranvar_plots.R`:
+One more option is set at the top of `moranvar_plots.R` (the option `optim`,
+which chose the threshold there, is now `THRESHOLD_METHOD`):
 
 | Option | Default | Meaning |
 |---|---|---|
-| `optim` | `2` | Selected threshold: `0` fixed 0.5; `1` first crossing of the Moran's I and variance curves; `2` one threshold below the first crossing. |
 | `upper` | `2` | Maximum number of HFTs with `SIMIL` 1 and 2: `1` `ceiling(log10(pixels))`; `2` `ceiling(log6(pixels))`. |
 
 And some environment variables change the defaults of
@@ -615,8 +637,8 @@ example, after changing only `SIMIL`:
 Study area: Guajares_zona_quemada_dNBR2022_10m | scenario: simil2 (results in results/Guajares_zona_quemada_dNBR2022_10m/simil2)
   1. segmentation                               up to date
   2. statistics of the segments                 up to date
-  3. Moran's I and variance of the thresholds   up to date
-  4. threshold, HFTs and plots                  to run: SCENARIO changed ('buffer5k' -> 'simil2'); SIMIL changed (3 -> 2)
+  3. Moran's I, variance and threshold          up to date
+  4. HFTs and plots                             to run: SCENARIO changed ('buffer5k' -> 'simil2'); SIMIL changed (3 -> 2)
 
 To run: Rscript moranvar_plots.R
 ```
@@ -629,8 +651,8 @@ warning.
 |---|---|
 | 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SEGM_PCA`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
 | 8. Statistics of the segments | `STAT_AGG`, `RESOLUTION`, `ENV_VARS`, the files of `../inVars`, `get_mean_median_var.py`, `ehab_segm_core.py` |
-| 9. Moran's I and variance | `moranvar.py` |
-| 9. Threshold, HFTs and plots | `SIMIL`, `SCENARIO`, `moranvar_plots.R` (e.g. its options `optim` and `upper`), `CreateRadialPlot.R` |
+| 9. Moran's I, variance and threshold | `THRESHOLD_METHOD`, `THRESHOLD_ALPHA`, `MORAN_NEIGHBOURS`, `moranvar.py` |
+| 9. HFTs and plots | `SIMIL`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
 
 When an input file (in `../inVars`, or the study area in `pa/`) changed since
 `setup.py` imported it, `run_hft.py` first runs `setup.py` again with the same
@@ -727,16 +749,17 @@ For every ID it:
 
 1. computes, for every variable and threshold, the Moran's I of the segment
    means (how similar neighbouring segments are) and the area-weighted mean
-   of the segment variances (how heterogeneous the segments are), and
-   averages them over the variables (`csv/<id>_moran_mean.csv`,
-   `csv/<id>_var_mean.csv`);
-2. runs `Rscript moranvar_plots.R`, which selects the threshold, classifies
-   its segments into HFTs and writes all the maps, plots and tables to
-   `results/<STUDY_AREA>/<SCENARIO>` (see [A5](#a5-optimal-segmentation-threshold) and
+   of the segment variances (how heterogeneous the segments are);
+2. chooses the threshold with `THRESHOLD_METHOD` and writes the scores of
+   every threshold and the one chosen to `csv/<id>_threshold.csv` (see
+   [A5](#a5-optimal-segmentation-threshold));
+3. runs `Rscript moranvar_plots.R`, which classifies the segments of that
+   threshold into HFTs and writes all the maps, plots and tables to
+   `results/<STUDY_AREA>/<SCENARIO>` (see
    [A6](#a6-classification-of-the-segments-into-hfts)).
 
 To redo only the classification and the plots, for example after changing
-`SIMIL`, `optim` or `upper`, `run_hft.py` runs the R script alone; by hand:
+`SIMIL` or `upper`, `run_hft.py` runs the R script alone; by hand:
 
 ```
 Rscript moranvar_plots.R
@@ -747,7 +770,8 @@ Running `moranvar.py` again replaces its csv files.
 ### Step 10. Check the results
 
 Look first at `results/<STUDY_AREA>/<SCENARIO>/<id>_moran_var_mean.png` (the selected
-threshold) and then, for each cut, at the map, the heatmap and the boxplots.
+threshold) and `r2_<id>_hfts.png` (how much of the variance the HFTs explain)
+and then, for each cut, at the map, the heatmap and the boxplots.
 [Interpreting the outputs](#interpreting-the-outputs) explains every file.
 `python3 run_hft.py --status` tells whether the results are up to date with
 `config.py` and the input data.
@@ -806,7 +830,10 @@ results/<STUDY_AREA>/<SCENARIO>/
 ├── processing_metadata.txt              options used for the run
 ├── overall_optim_thresholds.csv         selected threshold of every ID
 ├── <id>_moran_var_mean.png              threshold selection plot
-├── <id>_optim_thresholds.csv            crossings of the Moran's I and variance curves
+├── <id>_optim_thresholds.csv            Moran's I, variance and score of every threshold
+├── r2_<id>_hfts.png                     variance explained by the HFTs, by number of HFTs
+├── r2_<id>_hfts.csv                     its values, for every threshold and number of HFTs
+├── r2_<id>_cuts.csv                     variance explained by the HFTs of each cut
 └── p25/  p50/  p75/                     one folder per cut of the tree (SIMIL = 3; otherwise
     │                                    these files are directly in <SCENARIO>/)
     ├── park_segm_<id>_<k>_<cut>_class.shp    HFT polygons (with .dbf, .shx, .prj)
@@ -849,7 +876,11 @@ shades of each colour are the HFTs of the finer cuts inside an HFT of `p75`.*
 
 ### Threshold selection plot (`<id>_moran_var_mean.png`)
 
-<img src="docs/img/threshold_selection.png" width="420" alt="Moran's I and variance curves of the nine thresholds, crossing at 7.21">
+<img src="docs/img/threshold_selection.png" width="460" alt="Rescaled Moran's I, variance and score of the F method for the nine thresholds, with the threshold 0.5 selected">
+
+*This figure and the next one come from a run with `PA_BUFFER = 500` and the
+default options of `THRESHOLD_METHOD`; the other figures of this section, from
+the run with `PA_BUFFER = 5000` and the original method (threshold 0.6).*
 
 - **x axis**: threshold index `k` (1 to 9 for thresholds 0.1 to 0.9).
 - **Black (M.I)**: Moran's I of the segment means, rescaled to 0-1 over the
@@ -858,41 +889,89 @@ shades of each colour are the HFTs of the finer cuts inside an HFT of `p75`.*
 - **Green (Var)**: area-weighted variance inside the segments, rescaled to 0-1
   and inverted, averaged over the variables. 1: the most homogeneous segments
   (lowest threshold), 0: the most heterogeneous ones (highest threshold).
-- **Blue (Aver)**: mean of both, shown for reference only (it is not used).
-- **Red points**: crossings of the black and green curves.
+- **Blue (Score)**: the score of `THRESHOLD_METHOD` for each threshold,
+  rescaled so that the best one is 1 (not drawn with `'crossing'` or a fixed
+  threshold).
+- **Red points** (only with `'crossing'` and `'crossing_first'`): crossings of
+  the black and green curves.
+- **Dashed line**: the selected threshold. The subtitle names the method.
 
 Low thresholds give many small, homogeneous segments (green near 1) that are
 similar to their neighbours (black high). As the threshold grows, the segments
 merge and become more heterogeneous (green goes down), while neighbouring
 segments become more different (black goes down) until they are so large
-that Moran's I grows again. The selected threshold is the first crossing
-rounded and minus one threshold (`optim = 2`), to stay on the side of the
-more homogeneous segments. In the example the curves cross at `k = 7.21`, so
-the selected threshold is `k = 7 - 1 = 6` (0.6), with 104 segments (371 at
-0.1 and 37 at 0.9).
+that Moran's I grows again. The methods look for the best balance between
+both (see [A5](#a5-optimal-segmentation-threshold)). In the example, `'f'`
+selects 0.5 (144 segments): Moran's I has dropped to almost its lowest value
+and the segments are still fairly homogeneous. At 0.9 (39 segments) Moran's I rises again, partly
+because 23 of the segments have no neighbour (`MORAN_NEIGHBOURS`).
 
-Check that the curves look like this: if they do not cross, the threshold 0.5
-is used; if they cross several times, the first crossing is used. With
-`optim` (top of `moranvar_plots.R`) you can take the threshold at the crossing
-(`1`) or a fixed 0.5 (`0`) and run `Rscript moranvar_plots.R` again.
-
-The number of segments of each threshold is in the second column of
-`csv/<id>_movar_thresholds.csv` (threshold index, number of segments, number
-of pixels).
+Check that the blue curve has a clear maximum. When two thresholds score
+almost the same (0.4 and 0.5 here), either is defensible: compare them in the
+next figure and look at their segmentations (`shp/park_segm_<id>_<k>.shp`) in
+QGIS. To use another threshold, change `THRESHOLD_METHOD` (e.g. to `0.4`)
+and run `python3 run_hft.py`.
 
 ### Threshold tables (`<id>_optim_thresholds.csv`, `overall_optim_thresholds.csv`)
 
-- `<id>_optim_thresholds.csv`: one row per crossing, with its position (`x`,
-  threshold index, e.g. `7.21`) and the value of the curves there (`y`). `5
-  NA` when the curves do not cross.
+- `<id>_optim_thresholds.csv` (a copy of `csv/<id>_threshold.csv`): one row
+  per threshold with `threshold` (index `k`), `segments`, `isolated`
+  (segments without neighbours for Moran's I), `moran` (mean of `|I|` over
+  the variables), `var_rel` (variance inside the segments over the total
+  variance of the pixels, mean over the variables), `moran_norm` and
+  `var_norm` (the black and green curves), `score` (score of the method; `NA`
+  with `'crossing'` or a fixed threshold) and `selected` (1 for the threshold
+  used).
 - `overall_optim_thresholds.csv`: one row per ID with the threshold used (e.g.
-  `1 0.6`). The HFTs are the segments of this threshold.
+  `1 0.5`). The HFTs are the segments of this threshold.
+
+### Variance explained by the HFTs (`r2_<id>_hfts.png`)
+
+<img src="docs/img/r2_hfts.png" width="640" alt="R2 of the HFTs against their number for the nine thresholds, with the cuts p25, p50 and p75 of the threshold 0.5">
+
+How much of the variation of the variables in the area the HFTs capture. For
+each variable, R² is the part of the variance of its pixel values that lies
+between the HFTs (the eta² of an analysis of variance with the HFT as factor,
+the same eta2 as in the heatmap); the figure shows its mean over the
+variables. 0: the HFTs do not differ at all; 1: every HFT is uniform.
+
+- **Each line is a threshold**: the Ward tree of its segments (built as in
+  [A6](#a6-classification-of-the-segments-into-hfts)) cut into 2, 3, ... HFTs.
+  Light blue: fine thresholds; dark blue: coarse ones; thick orange: the
+  selected threshold.
+- **Orange points**: the HFTs of the cuts of the selected threshold (`p25`,
+  `p50` and `p75` with `SIMIL = 3`), with their number and R².
+- **Legend**: number of segments of each threshold and R² of the segments
+  themselves, the most the HFTs of that threshold could reach.
+
+R² always grows with the number of HFTs, so compare the thresholds at the
+same number of HFTs (vertically). A curve below the others means that the
+segments of that threshold mix different conditions and give worse HFTs. In
+the example the thresholds 0.1 to 0.5 give about the same R² up to about 10
+HFTs, the finest ones gain a little with more HFTs, and 0.6 to 0.9 give
+clearly less. Along the selected curve, the number of HFTs where it
+flattens is the one beyond which more HFTs add little.
+
+The values are modest (0.31 for the 8 HFTs of `p50`) because some variables
+vary mostly between neighbouring pixels: in `r2_<id>_cuts.csv` the R² of
+`p50` is 0.53 and 0.57 for temperature and precipitation, 0.28 to 0.36 for
+the vegetation and water indices, and 0.06 and 0.04 for slope and TWI.
+
+- `r2_<id>_hfts.csv`: one row per threshold and number of HFTs, with
+  `threshold`, `segments`, `r2_segments`, `hfts`, `r2` (mean) and the R² of
+  every variable.
+- `r2_<id>_cuts.csv`: one row per cut of the selected threshold, with `cut`,
+  `hfts`, `r2` and the R² of every variable.
+
+They are computed from the pixel values of `../inVars` (skipped if the files
+are not there), so they are exact with `STAT_AGG = 'mean'` and `'median'`
+(see [A7](#a7-how-the-figures-are-computed)).
 
 ### Run metadata (`processing_metadata.txt`)
 
-Date, study area, IDs processed, every option of `config.py` and the options
-`optim` and `upper` of `moranvar_plots.R`. Keep it with the results to know
-how they were produced.
+Date, study area, IDs processed, every option of `config.py` and the option
+`upper` of `moranvar_plots.R`. Keep it with the results to know how they
+were produced.
 
 ### Classification tree (`hclust_<id>_<k>_<cut>_segms_mean.png`)
 
@@ -1059,13 +1138,16 @@ A practical order to read the results of one ID:
 
 1. `<id>_moran_var_mean.png`: is the selected threshold sensible? Look at the
    segmentation of that threshold (`shp/park_segm_<id>_<k>.shp`) in QGIS.
-2. `hclust_...png` and the maps of the three cuts: which level of detail suits
-   your purpose (`p75` broad, `p50` intermediate, `p25` detailed)?
-3. For the chosen cut, the heatmap and the boxplots: name each HFT by the
+2. `r2_<id>_hfts.png`: do the HFTs of the selected threshold capture as much
+   of the variance as those of other thresholds with the same number of HFTs?
+3. `hclust_...png` and the maps of the three cuts: which level of detail suits
+   your purpose (`p75` broad, `p50` intermediate, `p25` detailed)? The R² of
+   each cut, and where the curve flattens, help to decide.
+4. For the chosen cut, the heatmap and the boxplots: name each HFT by the
    variables that set it apart (high eta2, colours far from white).
-4. The PCA biplot and the NMDS: are the HFTs distinct, or do some of them
+5. The PCA biplot and the NMDS: are the HFTs distinct, or do some of them
    overlap so much that they could be merged (a coarser cut)?
-5. Use `park_segm_<id>_<k>_<cut>_class.shp` for the maps and analyses that
+6. Use `park_segm_<id>_<k>_<cut>_class.shp` for the maps and analyses that
    follow.
 
 ## Annex: how the HFT model works
@@ -1088,9 +1170,9 @@ flowchart TD
         SEGOUT[/"shp/park_segm_ID_K.shp<br>tiffs/pa_SEGMID.tif<br>csv/park_ID_K.csv"/]
         STAT["<b>get_mean_median_var.py</b> + ehab_segm_core.py<br>mean or median, variance and size<br>of every variable in every segment"]
         HRI[/"csv/park_ID_hri_resultsK.csv"/]
-        MOR["<b>moranvar.py</b><br>Moran's I of the segment means and<br>area-weighted variance, per variable and threshold"]
-        MOROUT[/"csv/ID_moran_mean.csv, csv/ID_var_mean.csv<br>shp/park_segm_ID_K_diss.shp"/]
-        RPLOT["<b>moranvar_plots.R</b><br>optimal threshold, Ward classification<br>of its segments into HFTs, maps and plots"]
+        MOR["<b>moranvar.py</b><br>Moran's I of the segment means and<br>area-weighted variance, per variable and threshold;<br>choice of the threshold (THRESHOLD_METHOD)"]
+        MOROUT[/"csv/ID_threshold.csv, csv/ID_moran_mean.csv, csv/ID_var_mean.csv<br>shp/park_segm_ID_K_diss.shp"/]
+        RPLOT["<b>moranvar_plots.R</b><br>Ward classification of the segments<br>of the chosen threshold into HFTs,<br>maps, plots and R² of the HFTs"]
         SEG --> SEGOUT --> STAT --> HRI --> MOR --> MOROUT --> RPLOT
     end
     RES[/"results/STUDY_AREA/SCENARIO/<br>p25, p50, p75 with SIMIL = 3"/]
@@ -1259,19 +1341,7 @@ segment `s`:
 2. turns the NoData values into gaps and fills them by linear interpolation
    between the pixels before and after them (in row order). A variable without
    any data in the segment is written as `None`;
-3. adds a small uniform random noise, drawn with a random generator seeded
-   with the `segm_id` (so the same segment always gets the same noise):
-
-   ```math
-   x' = x + \frac{u}{\text{RESOLUTION}}, \qquad u \sim U(0, 1)
-   ```
-
-   With 10 m pixels the noise is below 0.1, so it raises the means by 0.05 on
-   average and the variances by about `1 / (12 · RESOLUTION²)` (0.0008). Both
-   shifts are almost the same for every segment, so they hardly change the
-   Moran's I, the rescaled variance or the classification (A5 and A6), which a
-   constant shift does not change at all;
-4. computes, in double precision and without rounding, the statistic (mean or
+3. computes, in double precision and without rounding, the statistic (mean or
    median) `m_s`, the population variance `σ²_s` and `σ²_s · n_s`.
 
 The results are written to `csv/park_<id>_hri_results<k>.csv` (replacing the
@@ -1293,14 +1363,21 @@ segmentation has segments that are internally homogeneous (low variance
 inside them) and different from their neighbours (low spatial autocorrelation
 between them). Low thresholds give homogeneous segments that resemble their
 neighbours; high thresholds give segments that differ from their neighbours
-but are heterogeneous inside.
+but are heterogeneous inside. `moranvar.py` measures both for the nine
+segmentations of every ID and chooses one with `THRESHOLD_METHOD`.
 
-`moranvar.py` computes, for every variable `v` and threshold `k`:
+#### Measures of every threshold
+
+For every variable `v` and threshold `k`:
 
 1. **Neighbours.** The polygons of `shp/park_segm_<id>_<k>.shp` are dissolved
-   by `segm_id` (one multipolygon per segment, saved as `..._diss.shp`), and
-   two segments are neighbours if they share an edge (rook contiguity,
-   `libpysal.weights.Rook`), with row-standardised weights `w_ij`.
+   by `segm_id` (one multipolygon per segment, saved as `..._diss.shp`). Two
+   segments are neighbours if they share an edge (`MORAN_NEIGHBOURS = 'rook'`,
+   `libpysal.weights.Rook`) or, with `'queen'`, also if they only touch at a
+   corner (`libpysal.weights.Queen`), with row-standardised weights `w_ij`.
+   A segment without neighbours counts in `n` and in the denominator of
+   Moran's I but not in its numerator; their number is the column `isolated`
+   of `csv/<id>_threshold.csv`.
 2. **Moran's I** of the segment means `x_s` of the variable (`esda.Moran`),
    taken in absolute value:
 
@@ -1309,13 +1386,22 @@ but are heterogeneous inside.
              \frac{\sum_i \sum_j w_{ij}\,(x_i-\bar{x})(x_j-\bar{x})}{\sum_i (x_i-\bar{x})^2}
    ```
 
-3. **Area-weighted variance** of the segments:
+3. **Area-weighted variance** inside the segments (`n_s` pixels):
 
    ```math
    V_{v,k} = \frac{\sum_s n_s\,\sigma^2_{s,v}}{\sum_s n_s}
    ```
 
-4. **Rescaling over the thresholds** (0 if all thresholds give the same
+4. **Total variance of the pixels**, the variance inside the segments plus
+   the variance between their means (exact with `STAT_AGG = 'mean'`; with
+   `'median'` the medians are used instead of the means):
+
+   ```math
+   V^{tot}_{v,k} = V_{v,k} + \frac{\sum_s n_s\,(x_s - \bar{x})^2}{\sum_s n_s},
+   \qquad \bar{x} = \frac{\sum_s n_s\,x_s}{\sum_s n_s}
+   ```
+
+5. **Rescaling over the thresholds** (0 if all thresholds give the same
    value), so that both measures are comparable and between 0 and 1:
 
    ```math
@@ -1328,9 +1414,9 @@ but are heterogeneous inside.
    at the threshold with the most homogeneous segments. They are saved per
    variable (one row per variable) in `csv/<id>_moran_segm.csv`,
    `csv/<id>_var_segm.csv` and, their mean, `csv/<id>_movar_segmsum.csv`.
-5. **Mean over the variables** (`n_v` variables), saved in
-   `csv/<id>_moran_mean.csv`, `csv/<id>_var_mean.csv` and
-   `csv/<id>_movar_results.csv`:
+6. **Mean over the variables** (`n_v` variables, ignoring those without
+   data), saved in `csv/<id>_moran_mean.csv`, `csv/<id>_var_mean.csv` and
+   `csv/<id>_movar_results.csv` (`Aver`, kept for reference):
 
    ```math
    MI_k = \frac{1}{n_v}\sum_v MI_{v,k}, \qquad
@@ -1338,22 +1424,134 @@ but are heterogeneous inside.
    Aver_k = \frac{MI_k + VAR_k}{2}
    ```
 
-Then `moranvar_plots.R` finds where `MI_k - VAR_k` changes sign between two
-consecutive thresholds `a` and `b` and interpolates the crossing linearly:
+Every variable weighs the same in the scores below, whatever its units.
+
+#### Methods (`THRESHOLD_METHOD`)
+
+**`'f'` (default): F-function of Johnson et al. (2015).** The same function
+as `optimization_function=f` of the GRASS addon `i.segment.uspo`. With
+`H_k = 1 - MI_k` (1: the neighbours differ the most) and `α =
+THRESHOLD_ALPHA`, the threshold with the highest
+
+```math
+F_k = (1 + \alpha^2)\,\frac{VAR_k\,H_k}{\alpha^2\,H_k + VAR_k}
+```
+
+is chosen. `F` is a weighted harmonic mean of the homogeneity of the segments
+and of their difference from their neighbours: it is high only when both are
+high, so it penalises the thresholds that are good in one sense only (`F = 0`
+at the highest threshold, where `VAR = 0`). `α` sets the weight of `VAR`
+against `H`: with `α = 1` both weigh the same; as `α` grows `F` tends to
+`VAR` and favours homogeneous segments (lower thresholds); as it decreases
+`F` tends to `H` and favours segments that differ from their neighbours
+(higher thresholds). The default `α = 0.5` comes from the test below.
+
+**`'gs'`: Global Score of Espindola et al. (2006).** The same as
+`optimization_function=sum` of `i.segment.uspo`: the threshold with the
+lowest
+
+```math
+GS_k = (1 - VAR_k) + MI_k
+```
+
+The classical method, useful to compare with other studies. Being a sum,
+a threshold can win with a very good value of one measure and a poor one of
+the other.
+
+**`'gs_fixed'`: Global Score with fixed bounds.** The threshold with the
+lowest
+
+```math
+GS^{fix}_k = \frac{1}{n_v}\sum_v \left( \frac{V_{v,k}}{V^{tot}_{v,k}} + |I_{v,k}| \right)
+```
+
+The rescaling of `MI` and `VAR` uses the lowest and highest values of the
+thresholds tested, so the score of a threshold, and sometimes the threshold
+chosen, change when other thresholds are added or removed (Böck et al.,
+2017). Here both terms have fixed bounds instead: `V / V^tot` goes from 0
+(every pixel its own segment) to 1 (a single segment) and is `1 - R²` of the
+segments, and `|I|` is at most about 1. The scores are then comparable between
+IDs and study areas. Its weakness is the other side of the same coin: the two
+terms can span very different ranges, and then one of them decides
+(Georganos et al., 2018); in Guajares `V / V^tot` went from 0.43 to 0.69 and
+`|I|` from 0.26 to 0.48.
+
+**`'crossing'`: first crossing of the curves minus one threshold (the
+original method of eHabitat+), and `'crossing_first'`: the first crossing.**
+Where `MI_k - VAR_k` changes sign between two consecutive thresholds `a` and
+`b`, the crossing is interpolated linearly:
 
 ```math
 x = a + \frac{VAR_a - MI_a}{(MI_b - MI_a) - (VAR_b - VAR_a)}\,(b - a)
 ```
 
-and selects, from the first crossing `x_1`, the threshold index
+and, from the first crossing `x_1`, the threshold index is
 
 ```math
-k^* = \mathrm{round}(x_1) - 1 \quad (\text{optim} = 2), \qquad
-k^* = \mathrm{round}(x_1) \quad (\text{optim} = 1), \qquad
-k^* = 5 \quad (\text{optim} = 0 \text{ or no crossing})
+k^* = \mathrm{round}(x_1) - 1 \quad (\texttt{'crossing'}), \qquad
+k^* = \mathrm{round}(x_1) \quad (\texttt{'crossing\_first'})
 ```
 
-taking the evaluated threshold closest to `k*`. The threshold is `k*/10`.
+(0.5 if the curves do not cross). Use it to reproduce results of earlier
+versions. Two properties make it less reliable than the others: the crossing
+is where `MI_k + (1 - VAR_k) = 1`, not where that sum (the Global Score) is
+lowest; and, since `VAR` is 1 at the lowest threshold tested and 0 at the
+highest, the curves almost always cross near the end, so the threshold
+chosen tends to follow the highest threshold tested (in Guajares it chose 0.7
+when testing 0.1 to 0.9, 0.6 with 0.1 to 0.8 and 0.5 with 0.1 to 0.7).
+
+**A number (e.g. `0.5`): a fixed threshold**, to impose one or to compare
+scenarios with the same threshold.
+
+With all the methods the evaluated threshold closest to the result is used,
+and ties go to the lowest threshold. `csv/<id>_threshold.csv` keeps the
+scores of every threshold and the one chosen (copied to
+`<id>_optim_thresholds.csv` with the results).
+
+#### Test with the Guajares data
+
+The methods were compared on ID 1 of the Guajares example (`PA_BUFFER = 500`,
+7 variables): with the thresholds 0.1 to 0.9, with four shorter ranges
+(0.1-0.8, 0.2-0.9, 0.1-0.7 and 0.3-0.9), leaving out each variable in turn,
+and with other neighbours for Moran's I. Then the segments of 0.4, 0.5 and
+0.7 were classified into HFTs and compared with the R² of
+[`r2_<id>_hfts.png`](#variance-explained-by-the-hfts-r2_id_hftspng).
+
+| `THRESHOLD_METHOD` | 0.1 to 0.9 | Other ranges | Without one variable | `'queen'` | 4 nearest segments |
+|---|---|---|---|---|---|
+| `'f'`, `α = 0.5` | **0.5** | 0.5 | 0.5 | 0.6 | 0.6 |
+| `'f'`, `α = 1` | 0.4 | 0.4-0.5 | 0.4-0.5 | 0.6 | 0.6 |
+| `'f'`, `α = 2` | 0.3 | 0.3-0.4 | 0.3-0.4 | 0.5 | 0.4 |
+| `'gs'` | 0.4 | 0.4-0.5 | 0.4-0.5 | 0.6 | 0.4 |
+| `'gs_fixed'` | 0.5 | 0.5 | 0.4-0.5 | 0.6 | 0.5 |
+| `'crossing'` | 0.7 | 0.5-0.7 | 0.7 | 0.8 | 0.7 |
+| `'crossing_first'` | 0.8 | 0.6-0.8 | 0.8 | 0.9 | 0.8 |
+
+- `'f'` with `α = 0.5` chose the same threshold in all the ranges and without
+  any of the variables; `'gs_fixed'` almost always. Both chose 0.5.
+- With the same number of HFTs, the HFTs of 0.1 to 0.5 explain about the
+  same variance up to about 10 HFTs, and those of 0.6 to 0.9 clearly less
+  (see the figure of `r2_<id>_hfts.png`). 0.5 is the coarsest threshold
+  that keeps the R² of the finer ones, from 144 segments instead of 354 at
+  0.1. The HFT maps of 0.4 and 0.7 had little in common (adjusted Rand index
+  0.13 for `p50`), so the choice matters.
+- The crossing methods chose 0.7-0.8, at the coarse end, and moved with the
+  highest threshold tested.
+- With `'queen'`, Moran's I keeps decreasing up to 0.9 instead of rising at
+  the end, and all the methods but the crossing ones chose 0.5-0.6.
+
+This is one study area: check `<id>_moran_var_mean.png` and
+`r2_<id>_hfts.png` with your data. `'gs_fixed'` is a good alternative when
+the scores have to be compared between IDs, `'gs'` to compare with other
+studies that use the Global Score, and a fixed threshold to compare scenarios.
+
+The GRASS addon `i.segment.uspo` computes `'gs'` and `'f'` itself, running
+`i.segment` for every threshold. It is not used here because it measures the
+raw output of `i.segment` (before the merging of small segments and
+`CLIP_TO_PA`) on the layers of the segmentation (PC1 to PC3) and averages
+their variances before rescaling, so the layer with the largest variance
+decides; here the same functions are applied to the final segments and to
+every variable rescaled on its own.
 
 ### A6. Classification of the segments into HFTs
 
@@ -1404,7 +1602,25 @@ internal heterogeneity, with the same weight for every variable.
 
 ### A7. How the figures are computed
 
-- **Threshold plot**: `MI_k`, `VAR_k`, `Aver_k` and the crossings of A5.
+- **Threshold plot**: `MI_k`, `VAR_k` and the score of the method of A5
+  (rescaled to 0-1, 1 at the best threshold), or the crossings with
+  `'crossing'` and `'crossing_first'`.
+- **R² of the HFTs** (`r2_<id>_hfts.png`): the segments of every threshold
+  are rasterised on the grid of the first variable and, for every segment
+  `s` and variable `v`, the number of pixels `n_s`, the sum `S_s` and the sum
+  of squares `Q_s` of the pixel values (centred on their mean) are added up.
+  The Ward tree of the threshold (A6) is cut into 2, 3, ... HFTs and, for
+  every partition, with `N_h` and `S_h` the sums over the segments of HFT `h`
+  and `N`, `S`, `Q` over all of them:
+
+  ```math
+  R^2_v = \frac{\sum_h S_h^2 / N_h - S^2 / N}{Q - S^2 / N}
+  ```
+
+  which is the `eta²` of the heatmap; the figure shows its mean over the
+  variables. The R² of the segments (each segment its own HFT) is the
+  highest that the HFTs of a threshold can reach. Being computed from the
+  pixels, it does not depend on `STAT_AGG`.
 - **Dendrogram**: the tree of A6 with `rect.hclust()` boxes for the HFTs of
   the cut; the subtitle is the cophenetic correlation.
 - **Map and shapefile**: `shp/park_segm_<id>_<k*>_diss.shp` joined with the
@@ -1457,7 +1673,8 @@ internal heterogeneity, with the same weight for every variable.
 | `csv/park_<id>_hri_results<k>.csv` | statistics | Statistics of every segment (A4). |
 | `csv/ecoregs_done<k>.csv` | statistics | Log of the thresholds processed. |
 | `shp/park_segm_<id>_<k>_diss.shp` | moranvar.py | Segments dissolved by `segm_id`. |
-| `csv/<id>_movar_thresholds.csv` | moranvar.py | Threshold, number of segments and of pixels (one row per variable and threshold). |
+| `csv/<id>_movar_thresholds.csv` | moranvar.py | Threshold, number of segments and of pixels (one row per threshold). |
+| `csv/<id>_threshold.csv` | moranvar.py | Measures and score of every threshold and the one chosen (A5), read by `moranvar_plots.R`. |
 | `csv/<id>_moran_segm.csv`, `_var_segm.csv`, `_movar_segmsum.csv` | moranvar.py | `MI`, `VAR` and their mean per variable (rows) and threshold (columns). |
 | `csv/<id>_moran_mean.csv`, `_var_mean.csv`, `_movar_results.csv` | moranvar.py | `MI_k`, `VAR_k` and `Aver_k` per threshold. |
 
@@ -1468,9 +1685,8 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 ### A9. Reproducibility
 
 - The seed map of the segmentation (`seed=10`), the `segm_id` of the
-  segments, the noise of A4 (seeded with the `segm_id`), `metaMDS` and
-  `envfit` (`set.seed(1)`) are the same on every run, so the same inputs give
-  the same results.
+  segments, `metaMDS` and `envfit` (`set.seed(1)`) are the same on every run,
+  so the same inputs give the same results.
 - `processing_metadata.txt` records the options of every run, and
   `run_state.json` the inputs of every step.
 
@@ -1479,12 +1695,12 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 - The nine thresholds (0.1 to 0.9), the three principal components (with
   `SEGM_PCA = True`) and the `i.segment` parameters (`region_growing`,
   `euclidean`, 20 iterations, 10000 MB of memory) are fixed in
-  `segmentation_pca_par.py`; `optim` and `upper` are set in
+  `segmentation_pca_par.py`; `upper` is set in
   `moranvar_plots.R`.
 - With `SEGM_PCA = True` at least three variables are needed (three
   principal components); with `SEGM_PCA = False` one is enough.
 - The CRS must be projected (`setup.py` stops with a geographic CRS), in
-  metres (see the noise of A4).
+  metres.
 - The parallelism is over the IDs: one ID uses one core.
 - The boxplots, heatmap and PCA biplot read the whole rasters of `../inVars`
   into memory.
@@ -1501,8 +1717,8 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 - for every study area, what `setup.py` imported: its options and the size
   and modification time of every file of `../inVars` and of the study area
   file;
-- for every step (segmentation, statistics, Moran's I and variance,
-  classification and plots), the inputs it was run with (the table of step 6:
+- for every step (segmentation, statistics, Moran's I, variance and threshold,
+  HFTs and plots), the inputs it was run with (the table of step 6:
   options of `config.py`, `palist.csv`, input files and a hash of its own
   code), a hash of those inputs together with the inputs of all the steps
   before it, and whether it finished;
@@ -1528,6 +1744,20 @@ first step that is out of date and all the steps after it, and
   (2006). Parameter selection for region-growing image segmentation
   algorithms using spatial autocorrelation. *International Journal of Remote
   Sensing*, 27(14), 3035-3040.
+- Böck, S., Immitzer, M., & Atzberger, C. (2017). On the objectivity of the
+  objective function: problems with unsupervised segmentation evaluation
+  based on Global Score and a possible remedy. *Remote Sensing*, 9(8), 769.
+  https://doi.org/10.3390/rs9080769
+- Georganos, S., Lennert, M., Grippa, T., Vanhuysse, S., Johnson, B., &
+  Wolff, E. (2018). Normalization in unsupervised segmentation parameter
+  optimization: a solution based on local regression trend analysis.
+  *Remote Sensing*, 10(2), 222. https://doi.org/10.3390/rs10020222
+- Johnson, B. A., Bragais, M., Endo, I., Magcale-Macandog, D. B., &
+  Macandog, P. B. M. (2015). Image segmentation parameter optimization
+  considering within- and between-segment heterogeneity at multiple scale
+  levels: test case for mapping residential areas using Landsat imagery.
+  *ISPRS International Journal of Geo-Information*, 4(4), 2292-2305.
+  https://doi.org/10.3390/ijgi4042292
 - Murtagh, F., & Legendre, P. (2014). Ward's hierarchical agglomerative
   clustering method: which algorithms implement Ward's criterion? *Journal of
   Classification*, 31, 274-295.

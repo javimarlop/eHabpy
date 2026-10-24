@@ -158,8 +158,6 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
 
             if xoff_test >= 0 and yoff_test >= 0:
                 results = {}
-                # Ruido con semilla fija por segmento: los mismos valores en cada ejecución
-                rng = np.random.default_rng(int(pa))
 
                 # Bucle dinámico para procesar todas las capas ambientales
                 for idx, var in enumerate(ENV_VARS.keys()):
@@ -182,7 +180,6 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
                         results[var] = {'mean': 'None', 'var': 'None', 'var2': 'None'}
                     else:
                         var_pa[mask2var] = np.interp(np.flatnonzero(mask2var), np.flatnonzero(~mask2var), var_pa[~mask2var])
-                        var_pa = rng.random(len(var_pa)) / res + var_pa
 
                         # Sin redondear: con 2 decimales las varianzas de índices entre -1 y 1 (~0.01) perdían precisión
                         var_mean = float(aggfun(var_pa))

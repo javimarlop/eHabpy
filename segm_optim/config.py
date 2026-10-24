@@ -63,6 +63,32 @@ SEGM_PCA = True
 # la distancia que esté. 5 = 5 x RESOLUTION (50 m con píxeles de 10 m).
 SMALL_SEGM_RADIUS = 10
 
+# ELECCIÓN DEL UMBRAL DE SEGMENTACIÓN (moranvar.py), entre los nueve de 0.1 a 0.9, con el I de
+# Moran de las medias de los segmentos (MI, bajo = segmentos distintos de sus vecinos) y la
+# varianza dentro de ellos (V, baja = segmentos homogéneos) de cada variable. Ver README, A5:
+# 'f'              = Máximo de la función F de Johnson et al. (2015), como i.segment.uspo de
+#                    GRASS, con MI y V reescalados a 0-1 entre los umbrales y THRESHOLD_ALPHA.
+# 'gs'             = Mínimo de MI + V reescalados (Global Score de Espindola et al., 2006).
+# 'gs_fixed'       = Mínimo de V / varianza total + |I de Moran|, sin reescalar entre los
+#                    umbrales: no depende de qué umbrales se prueben.
+# 'crossing'       = Primer cruce de las curvas de MI y V reescaladas menos un umbral (el método
+#                    original de eHabitat+).
+# 'crossing_first' = Primer cruce de las curvas, sin restar un umbral.
+# Un número        = Umbral fijo (p. ej. 0.5).
+# En la prueba con Guajares, 'f' con alfa 0.5 fue el más estable y eligió el umbral cuyos HFTs
+# explican más varianza de los píxeles.
+THRESHOLD_METHOD = 'f'
+
+# PESO DE V FRENTE A MI EN 'f': 1 = el mismo peso; 0.5 = V pesa la mitad (umbrales más altos,
+# menos segmentos); 2 = V pesa el doble (umbrales más bajos, más segmentos).
+THRESHOLD_ALPHA = 0.5
+
+# VECINOS PARA EL I DE MORAN:
+# 'rook'  = Segmentos que comparten un borde.
+# 'queen' = También los que solo se tocan en una esquina: con muchos píxeles sin datos entre los
+#           segmentos deja menos segmentos sin vecinos.
+MORAN_NEIGHBOURS = 'rook'
+
 # NÚMERO DE HFTs (corte del árbol de clasificación jerárquica en moranvar_plots.R):
 # 1 = Corta en el percentil 25 de las alturas de fusión, con límite superior de HFTs.
 # 2 = No agrupa segmentos: el número de HFTs lo fijan los límites superiores

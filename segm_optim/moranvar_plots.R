@@ -70,6 +70,43 @@ box_stats <- function(x) {
 	c(ymin = min(x[x >= q[1] - 1.5 * iqr]), lower = q[1], middle = q[2], upper = q[3], ymax = max(x[x <= q[3] + 1.5 * iqr]))
 }
 
+# Distancias entre los segmentos para la clasificación: estadístico (media o mediana) y varianza de cada
+# variable, reescalados a 0-1 entre los segmentos
+segm_dist <- function(hri) {
+	nv <- (ncol(hri) - 3) / 3
+	vegdist(as.data.frame(lapply(hri[, 3:(2 + 2 * nv)], rescale01)), "euclidean", na.rm=T)
+}
+
+# Sumas de los píxeles de cada segmento para cada variable (centrada): nº de píxeles, suma y suma de
+# cuadrados. Con ellas la varianza explicada (R2) de cualquier agrupación de los segmentos es exacta,
+# tanto con STAT_AGG = 'mean' como 'median'. seg: segmento (1 a nseg) de cada píxel, NA fuera de ellos
+segm_sums <- function(seg, pix, nseg) {
+	lapply(seq_len(ncol(pix)), function(i) {
+		ok <- !is.na(seg) & !is.na(pix[, i])
+		x <- pix[ok, i] - mean(pix[ok, i])
+		g <- seg[ok]
+		tot <- function(v) { out <- numeric(nseg); r <- rowsum(v, g); out[as.integer(rownames(r))] <- r; out }
+		list(n=tot(rep(1, length(x))), s=tot(x), q=tot(x^2))
+	})
+}
+
+# Segmento (fila de hri) de cada píxel de la malla de las variables, del umbral tk (NA fuera de los segmentos)
+segm_cells <- function(park, tk, hri, grid) {
+	v <- terra::vect(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))
+	v$row <- match(as.character(v$segm_id), format(hri$segm_id, scientific=FALSE, trim=TRUE))
+	terra::values(terra::rasterize(v, grid, field='row'), mat=FALSE)
+}
+
+# R2 de cada variable: varianza de los píxeles entre los grupos (cl: grupo de cada segmento) / varianza total
+r2_groups <- function(ss, cl) {
+	sapply(ss, function(v) {
+		n <- rowsum(v$n, cl)
+		s <- rowsum(v$s, cl)
+		corr <- sum(v$s)^2 / sum(v$n)
+		(sum(s^2 / n, na.rm=TRUE) - corr) / (sum(v$q) - corr)
+	})
+}
+
 # Función para buscar y leer dinámicamente cualquier formato vectorial en la carpeta 'pa'
 # (con varios, el que tiene el nombre del área de estudio, como en setup.py)
 find_and_read_pa_vector <- function(pa_dir = "pa", park_id = NULL, area = NULL) {
@@ -146,11 +183,21 @@ read_config_num <- function(name, default) {
 	if (is.na(val)) default else val
 }
 
-optim <- 2 # 0: fijo, 1: óptimo, 2: un paso superior
 simil <- read_config_num('SIMIL', 2) # ver SIMIL en config.py
 upper <- 2 # 1: default, 2: límite superior incrementado
 
 if (!simil %in% 1:3) stop("SIMIL en config.py debe ser 1, 2 o 3")
+
+# Método con el que moranvar.py eligió el umbral (THRESHOLD_METHOD en config.py), para los títulos
+thr_method <- read_config('THRESHOLD_METHOD')
+if (is.na(thr_method) || thr_method == '') thr_method <- 'f'
+method_label <- switch(thr_method,
+	f = sprintf('F of Johnson et al. (2015), alpha = %g', read_config_num('THRESHOLD_ALPHA', 0.5)),
+	gs = 'Global Score of Espindola et al. (2006)',
+	gs_fixed = 'Global Score with fixed bounds',
+	crossing = 'first crossing of the curves - 1',
+	crossing_first = 'first crossing of the curves',
+	paste('fixed threshold', thr_method))
 
 # Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
 # o STUDY_AREA de config.py, y SCENARIO de config.py ('base' si falta o está vacío)
@@ -193,7 +240,6 @@ writeLines(c(
 	cfg,
 	'',
 	'## moranvar_plots.R',
-	paste('optim =', optim, '# 0: fixed threshold 0.5, 1: first Moran/variance crossing, 2: first crossing - 1'),
 	paste('upper =', upper, '# max. HFTs (SIMIL 1 and 2): 1: log10(n. pixels), 2: log6(n. pixels)')
 ), file.path(outroot, 'processing_metadata.txt'))
 
@@ -201,26 +247,12 @@ for (pmx in 1:mx) {
 	park = ecox_list[pmx]
 	print(paste("Procesando park ID:", park))
 	
-	name <- paste('csv/', park, '_movar_results.csv', sep='')
-	if (!file.exists(name)) next
-	
-	df0 <- read.table(name, sep=' ', header=F)
-	df1 <- df0[!is.nan(df0$V2),]
-	fthr <- 0
-	if (dim(df1)[1] == 0) { fthr <- 1; print("Using a fixed threshold") }
-
-	namem <- paste('csv/', park, '_moran_mean.csv', sep='')
-	df0m <- read.table(namem, sep=' ', header=F)
-	namev <- paste('csv/', park, '_var_mean.csv', sep='')
-	df0v <- read.table(namev, sep=' ', header=F)
-
-	# moranvar.py appends to these files on every run: keep one row per threshold (the latest)
-	df0 <- df0[!duplicated(df0$V1, fromLast=TRUE), ]
-	df0m <- df0m[!duplicated(df0m$V1, fromLast=TRUE), ]
-	df0v <- df0v[!duplicated(df0v$V1, fromLast=TRUE), ]
-	df0 <- df0[order(df0$V1), ]
-	df0m <- df0m[order(df0m$V1), ]
-	df0v <- df0v[order(df0v$V1), ]
+	# Umbral elegido por moranvar.py (THRESHOLD_METHOD en config.py) y puntuaciones de cada umbral
+	namet <- paste('csv/', park, '_threshold.csv', sep='')
+	if (!file.exists(namet)) { print(paste("WARNING: no threshold chosen by moranvar.py, park skipped:", namet)); next }
+	thr_tab <- read.table(namet, sep=' ', header=TRUE)
+	thr_all <- thr_tab$threshold # thresholds actually evaluated (some may be missing)
+	res <- thr_tab$threshold[thr_tab$selected == 1][1]
 
 	name2 <- paste('csv/', park, '_movar_thresholds.csv', sep='')
 	df02 <- read.table(name2, sep=' ', header=F)
@@ -228,43 +260,39 @@ for (pmx in 1:mx) {
 	if (upper == 2) { upplim <- ceiling(log(df02[1,3], 6)) }
 	print(paste('Upper limit is ', upplim, sep=''))
 
-	x1 <- df0m$V2
-	x2 <- df0v$V2
-	thr <- df0m$V1 # thresholds actually evaluated (some may be missing)
-
-	# Crossing points, interpolated on the threshold values (not on row positions)
-	above <- x1 > x2
-	intersect.points <- which(diff(above) != 0)
-	x1.slopes <- x1[intersect.points + 1] - x1[intersect.points]
-	x2.slopes <- x2[intersect.points + 1] - x2[intersect.points]
-	t.points <- (x2[intersect.points] - x1[intersect.points]) / (x1.slopes - x2.slopes)
-	x.points <- thr[intersect.points] + t.points * (thr[intersect.points + 1] - thr[intersect.points])
-	y.points <- x1[intersect.points] + (x1.slopes * t.points)
-
-	newtot <- df0$V2
-	uppv <- 1
-	
-	png(file.path(outroot, paste(park, '_moran_var_mean.png', sep='')))
-	plot(df0m$V1, df0m$V2, ylim=c(0, uppv), col=1, typ='o', ylab='Moran I. and Variance', xlab='Similarity threshold (x 0.1)', main=park)
-	lines(df0v$V1, df0v$V2, col=3, typ='o')
-	lines(df0$V1, newtot, col=4, typ='o')
-	points(x.points, y.points, col='red')
-	legend("top", leg=c('M.I', 'Var', 'Aver'), col=c(1,3,4), lt = 1)
+	# Curvas reescaladas (media de las variables) y puntuación del método, con el umbral elegido
+	x1 <- thr_tab$moran_norm
+	x2 <- thr_tab$var_norm
+	png(file.path(outroot, paste(park, '_moran_var_mean.png', sep='')), width=640, height=540)
+	par(mar=c(4.5, 4.5, 4.5, 1))
+	plot(thr_all, x1, ylim=c(0, 1.35), col=1, typ='o', pch=19, xaxt='n', xlab='Similarity threshold (x 0.1)',
+	     ylab="Rescaled Moran's I, variance and score", main=paste0(park, ': selected threshold 0.', res))
+	axis(1, at=thr_all)
+	mtext(method_label, side=3, line=0.4)
+	lines(thr_all, x2, col=3, typ='o', pch=19)
+	leg <- c("M.I: Moran's I (low: neighbours differ)", 'Var: 1 - variance (high: homogeneous segments)')
+	legcol <- c(1, 3)
+	if (!all(is.na(thr_tab$score))) {
+		sc <- rescale01(thr_tab$score)
+		if (thr_method %in% c('gs', 'gs_fixed')) sc <- 1 - sc # 1 = mejor umbral
+		lines(thr_all, sc, col=4, typ='o', pch=19, lwd=2)
+		leg <- c(leg, 'Score of the method, rescaled (1: best)')
+		legcol <- c(legcol, 4)
+	}
+	if (thr_method %in% c('crossing', 'crossing_first')) {
+		# Cruces de las curvas, interpolados sobre los umbrales (como en moranvar.py)
+		ip <- which(diff(x1 > x2) != 0)
+		tp <- (x2[ip] - x1[ip]) / ((x1[ip + 1] - x1[ip]) - (x2[ip + 1] - x2[ip]))
+		points(thr_all[ip] + tp * (thr_all[ip + 1] - thr_all[ip]), x1[ip] + (x1[ip + 1] - x1[ip]) * tp, col='red', pch=19)
+		leg <- c(leg, 'Crossings')
+		legcol <- c(legcol, 'red')
+	}
+	abline(v=res, lty=2, col='grey40')
+	legend('top', legend=leg, col=legcol, lty=1, pch=19, bty='n', cex=0.9)
 	dev.off()
 
-	res <- 5
-	res0 <- as.data.frame(cbind(5, NA))
-
-	if (length(x.points) > 0) {
-		if (optim == 1) { res <- round(x.points[1]) }
-		if (optim == 2) { res <- round(x.points[1]) - 1 }
-		# Use the closest evaluated threshold (optim = 2 can give 0 when the curves cross near 1)
-		res <- thr[which.min(abs(thr - res))]
-		res0 <- as.data.frame(cbind(x.points, y.points))
-	}
-
 	k <- paste('0.', res, sep='')
-	write.table(res0, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', col.names=F, row.names=F)
+	write.table(thr_tab, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', row.names=F, quote=F)
 
 	# One row per park: replace the previous row of this park instead of appending a duplicate
 	overall <- file.path(outroot, 'overall_optim_thresholds.csv')
@@ -284,9 +312,7 @@ for (pmx in 1:mx) {
 	num_vars <- (ncol(hri) - 3) / 3
 	maxnclas <- num_vars - 1
 
-	skaled <- as.data.frame(lapply(hri[, 3:(2 + 2 * num_vars)], rescale01))
-	
-	try(dmh <- vegdist(skaled, "euclidean", na.rm=T))
+	try(dmh <- segm_dist(hri))
 	hclust(dmh, "ward.D2") -> hclust_mh
 	cophval <- 0
 	try(chcl <- cophenetic(hclust_mh))
@@ -315,6 +341,13 @@ for (pmx in 1:mx) {
 			if (!is.na(ev$nodata[i])) pixvals[which(pixvals[, i] == ev$nodata[i]), i] <- NA
 		}
 		pixarea <- terra::values(terra::cellSize(pixgrid, unit = 'ha', mask = FALSE), mat = FALSE)
+	}
+
+	# Sumas de los píxeles de los segmentos del umbral elegido, para el R2 de los HFTs de cada corte
+	ss_sel <- NULL
+	cut_r2 <- NULL
+	if (!is.null(pixvals) && file.exists(file.path('shp', paste0('park_segm_', park, '_', res, '_diss.shp')))) {
+		ss_sel <- segm_sums(segm_cells(park, res, hri, pixgrid), pixvals, nrow(hri))
 	}
 
 	# SIMIL = 3: colores jerárquicos entre los cortes (ver hier_colours), solo para cortes con más de un HFT
@@ -356,6 +389,13 @@ for (pmx in 1:mx) {
 		if (simil != 3 && ncl > maxnclas) {
 			cutree(hclust_mh, k=maxnclas) -> hclust_mean
 			ncl <- length(unique(hclust_mean))
+		}
+
+		# Varianza de los píxeles explicada por los HFTs de este corte (media y por variable)
+		if (!is.null(ss_sel)) {
+			r2v <- r2_groups(ss_sel, hclust_mean)
+			cut_r2 <- rbind(cut_r2, data.frame(cut=cn, hfts=ncl, r2=mean(r2v, na.rm=TRUE),
+			                                   as.list(setNames(r2v, var_names)), check.names=FALSE))
 		}
 
 		# Colores del mapa: Set1 hasta 8 HFTs, interpolados si hay más; con SIMIL = 3, jerárquicos
@@ -638,6 +678,54 @@ for (pmx in 1:mx) {
 				}
 			}
 		}
+	}
+
+	# --- VARIANZA DE LOS PÍXELES EXPLICADA POR LOS HFTs (R2) SEGÚN EL NÚMERO DE HFTs, EN CADA UMBRAL ---
+	# El árbol de Ward de cada umbral cortado en 2, 3, ... HFTs; los puntos son los HFTs de los cortes del
+	# umbral elegido. Muestra si, con el mismo número de HFTs, otro umbral recogería más varianza
+	if (!is.null(ss_sel)) {
+		kmax <- max(30, cut_r2$hfts + 5)
+		curves <- NULL
+		for (tk in thr_all) {
+			hf <- paste('csv/park_', park, '_hri_results', tk, '.csv', sep='')
+			if (!file.exists(hf) || !file.exists(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))) next
+			hri_t <- if (tk == res) hri else read.table(hf, sep=' ', header=T)
+			if (nrow(hri_t) < 3) next
+			tree_t <- if (tk == res) hclust_mh else hclust(segm_dist(hri_t), "ward.D2")
+			ss_t <- if (tk == res) ss_sel else segm_sums(segm_cells(park, tk, hri_t, pixgrid), pixvals, nrow(hri_t))
+			nh <- 2:min(nrow(hri_t) - 1, kmax)
+			r2m <- do.call(rbind, lapply(nh, function(h) r2_groups(ss_t, cutree(tree_t, k=h))))
+			colnames(r2m) <- var_names
+			curves <- rbind(curves, data.frame(threshold=tk / 10, segments=nrow(hri_t),
+			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
+			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), r2m, check.names=FALSE))
+		}
+		write.table(curves, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
+		write.table(cut_r2, file.path(outroot, paste0('r2_', park, '_cuts.csv')), sep=' ', row.names=F, quote=F)
+
+		# Umbrales en una rampa de azules (claro: 0.1, oscuro: 0.9) y el elegido en naranja y más grueso
+		curves$thr <- factor(sprintf('%.1f', curves$threshold))
+		sel <- sprintf('%.1f', res / 10)
+		thr_cols <- setNames(colorRampPalette(c('#86b6ef', '#0d366b'))(nlevels(curves$thr)), levels(curves$thr))
+		thr_cols[sel] <- '#eb6834'
+		seg_info <- unique(curves[, c('thr', 'segments', 'r2_segments')])
+		thr_labels <- setNames(paste0(seg_info$thr, ': ', seg_info$segments, ' segments, R2 ', sprintf('%.2f', seg_info$r2_segments),
+		                              ifelse(seg_info$thr == sel, ' (selected)', '')), seg_info$thr)
+		cut_pts <- data.frame(hfts=cut_r2$hfts, r2=cut_r2$r2,
+		                      label=paste0(if (simil == 3) paste0(cut_r2$cut, ': ') else '', cut_r2$hfts, ' HFTs, R2 ', sprintf('%.2f', cut_r2$r2)))
+		r2p <- ggplot(curves, aes(x=hfts, y=r2, colour=thr)) +
+			geom_line(data=curves[curves$thr != sel, ], linewidth=0.6) +
+			geom_line(data=curves[curves$thr == sel, ], linewidth=1.5) +
+			geom_point(data=cut_pts, aes(x=hfts, y=r2), inherit.aes=FALSE, colour='#eb6834', size=3.5) +
+			ggrepel::geom_label_repel(data=cut_pts, aes(x=hfts, y=r2, label=label), inherit.aes=FALSE, size=3.5, seed=1,
+			                          nudge_y=-0.04, min.segment.length=0, fill=alpha('white', 0.9)) +
+			scale_colour_manual(values=thr_cols, labels=thr_labels, breaks=levels(curves$thr), name='Threshold (segments, R2 of the segments)') +
+			scale_x_continuous(breaks=seq(0, max(curves$hfts), 5), minor_breaks=seq_len(max(curves$hfts))) +
+			labs(title=area, subtitle=paste0('ID ', park, ' | pixel variance explained by the HFTs (R2, mean of the variables) when the Ward tree\n',
+			                                 'of each threshold is cut into 2 to ', max(curves$hfts), ' HFTs | selected threshold ', sel, ': ', method_label),
+			     x='Number of HFTs', y='R2 of the HFTs') +
+			theme_bw(base_size=13)
+		ggsave(file.path(outroot, paste0('r2_', park, '_hfts.png')), r2p, width=11, height=7, dpi=300)
 	}
 }
 

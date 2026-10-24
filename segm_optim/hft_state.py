@@ -45,8 +45,8 @@ STEPS = [
 	('segm', 'segmentation', 'python3 segmentation_pca_par.py', ['segmentation_pca_par.py']),
 	('stats', 'statistics of the segments', 'python3 get_mean_median_var.py',
 	 ['get_mean_median_var.py', 'ehab_segm_core.py']),
-	('moranvar', "Moran's I and variance of the thresholds", 'python3 moranvar.py', ['moranvar.py']),
-	('plots', 'threshold, HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'CreateRadialPlot.R']),
+	('moranvar', "Moran's I, variance and threshold", 'python3 moranvar.py', ['moranvar.py']),
+	('plots', 'HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'CreateRadialPlot.R']),
 ]
 NAMES = [s[0] for s in STEPS]
 LABEL = {s[0]: s[1] for s in STEPS}
@@ -191,7 +191,7 @@ def step_inputs(step, cfg=None, state=None):
 		for p in cfg.get('ENV_VARS', {}).values():
 			inputs['inVars/' + p['file']] = file_sig(os.path.join(INVARS, p['file']))
 	elif step == 'moranvar':
-		inputs = {}
+		inputs = opts(('THRESHOLD_METHOD', 'f'), ('THRESHOLD_ALPHA', 0.5), ('MORAN_NEIGHBOURS', 'rook'))
 	else:
 		inputs = opts(('SIMIL', 2))
 		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
