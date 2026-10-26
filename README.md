@@ -531,6 +531,7 @@ are in Spanish; this table explains each option in English. The options marked
 | `CLIP_TO_PA` | you | `False` | `False`: segments and HFTs cover the whole bounding box plus `PA_BUFFER`. `True`: only the pixels inside the polygons of each ID. |
 | `PA_BUFFER` | you | `500` | Distance (map units, rounded up to whole pixels) by which the bounding box of each ID is grown. `0`: the bounding box only. |
 | `SEGM_PCA` | you | `True` | Input of the segmentation. `True`: the first three axes of a standardised PCA of the variables of `ENV_VARS0`. `False`: the variables of `ENV_VARS0` themselves, without PCA (default `True` when the option is missing). |
+| `CLIP_PERCENTILE` | you | `0` | Clipping of the extreme values before the segmentation and the classification: every layer of `i.segment` (PC1-PC3, or the variables with `SEGM_PCA = False`) and every variable of the classification is clipped to its percentiles `CLIP_PERCENTILE` and `100 - CLIP_PERCENTILE` (e.g. `0.5`: 0.5 to 99.5 %). `0`: no clipping. The plots and the statistics of the HFTs always use the original values. |
 | `SMALL_SEGM_RADIUS` | you | `10` | Radius, in pixels, used to merge the segments smaller than the minimum size into a neighbouring segment (default `5` when the option is missing). |
 | `THRESHOLD_METHOD` | you | `'f'` | How the segmentation threshold is chosen among 0.1 to 0.9: `'f'`, `'gs'`, `'gs_fixed'`, `'crossing'`, `'crossing_first'`, or a number for a fixed threshold (e.g. `0.5`). See below and [A5](#a5-optimal-segmentation-threshold). |
 | `THRESHOLD_ALPHA` | you | `0.5` | Only with `'f'`: weight of the variance inside the segments against Moran's I (`1` the same, `0.5` half, `2` double). |
@@ -544,6 +545,29 @@ are in Spanish; this table explains each option in English. The options marked
 
 Choosing the options:
 
+- **`CLIP_PERCENTILE`**: `i.segment` scales every layer to its range (minimum
+  to maximum) and the classification standardises every variable with its
+  standard deviation, so a few extreme pixels set how much each layer weighs:
+  a variable with a long tail (e.g. TWI, whose range is 13 standard
+  deviations in the Guajares example, against 5 to 8 for the others) is
+  squeezed into a small part of its range and hardly counts. Clipping every
+  layer to its percentiles (e.g. `0.5`, the 0.5 and 99.5 % percentiles of the
+  working region for the segmentation and of the pixels of the segments for
+  the classification) makes the weights follow the spread of the bulk of the
+  values. Only the segmentation and the classification tree use the clipped
+  values: the statistics of the segments, the threshold selection, the R² and
+  all the plots use the original ones. In a test with the Guajares example,
+  `0.5` gave a few more segments at every threshold, a little more
+  homogeneous for the same number of segments (part of the pixel variance
+  between segments 0.511 instead of 0.501 at threshold 0.5, mostly slope: 0.33
+  instead of 0.27), but the selected threshold moved from 0.5 to 0.6 and the
+  map of the HFTs of `p25` changed a lot (adjusted Rand index 0.38), without
+  better HFTs overall (R² 0.37 instead of 0.38, mean Jeffries-Matusita
+  distance 1.63 instead of 1.59, minimum 0.58 instead of 0.78). In the
+  classification alone it hardly changed the HFTs (same R² with the same
+  number of HFTs), only the heights of the tree and so the number of HFTs of
+  some cuts. So it is left at `0` by default; use it to check how sensitive
+  the results are to the extreme values.
 - **`PA_BUFFER`** adds context around each study area: the PCA, the
   segmentation and the classification then describe the landscape around it
   too, and the HFTs inside are compared with those around. A larger buffer
@@ -716,10 +740,10 @@ warning.
 
 | Step | Runs again when this changed (or a step before it ran again) |
 |---|---|
-| 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SEGM_PCA`, `SMALL_SEGM_RADIUS`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
+| 7. Segmentation | `GRASSDB`, `GRASSLOC`, `STUDY_AREA`, `COL_ID`, `RESOLUTION`, `ENV_VARS0`, `CLIP_TO_PA`, `PA_BUFFER`, `SEGM_PCA`, `SMALL_SEGM_RADIUS`, `CLIP_PERCENTILE`, `palist.csv`, the data imported by `setup.py`, `segmentation_pca_par.py` |
 | 8. Statistics of the segments | `STAT_AGG`, `RESOLUTION`, `ENV_VARS`, the files of `../inVars`, `get_mean_median_var.py`, `ehab_segm_core.py` |
 | 9. Moran's I, variance and threshold | `THRESHOLD_METHOD`, `THRESHOLD_ALPHA`, `MORAN_NEIGHBOURS`, `moranvar.py` |
-| 9. HFTs and plots | `SIMIL`, `CLASS_METHOD`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
+| 9. HFTs and plots | `SIMIL`, `CLASS_METHOD`, `CLIP_PERCENTILE`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
 
 When an input file (in `../inVars`, or the study area in `pa/`) changed since
 `setup.py` imported it, or `INVARS_FOLDER` changed, `run_hft.py` first runs
@@ -1434,6 +1458,10 @@ flowchart TD
    the group to the range of the whole map, which for the copies is the
    range in the working region, as for the components; with the maps of
    `PERMANENT` it would be the range of the whole raster.
+   With `CLIP_PERCENTILE > 0` every layer of the group is first clipped to
+   its percentiles `CLIP_PERCENTILE` and `100 - CLIP_PERCENTILE` in the
+   working region (`r.quantile`, then `r.mapcalc` into `pax_<id>_clip1`,
+   `_clip2`, ...), so that its range is not set by a few extreme pixels.
 5. **Region growing at nine thresholds.** `i.segment` (`method=region_growing`,
    `similarity=euclidean`, `iterations=20`, `memory=10000`) merges
    neighbouring segments that are each other's most similar neighbour while
@@ -1728,7 +1756,11 @@ z_{s,v} = \frac{m_{s,v} - \bar m_v}{\sigma_v}, \qquad
 ```
 
 A variable constant in the whole area gets `z = 0` and does not count; a
-segment without data in a variable gets the mean of the variable. The
+segment without data in a variable gets the mean of the variable. With
+`CLIP_PERCENTILE > 0` the statistic and the variance of every segment used
+here are computed again from its pixels, each variable clipped to its
+percentiles in the pixels of all the segments; the plots keep the original
+values. The
 segments are then joined with Ward's criterion weighting each one by its
 number of pixels `n_s`: at every step the two groups `A` and `B` whose union
 least increases the sum of squares of the pixels within the groups,

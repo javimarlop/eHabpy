@@ -212,6 +212,35 @@ classify_k <- function(ct, k, method) {
 	cl
 }
 
+# CLIP_PERCENTILE: cada variable recortada a sus percentiles p y 100 - p en los píxeles de los segmentos (inseg),
+# para la clasificación: unos pocos píxeles extremos no deciden la desviación típica con que se tipifica
+clip_pixels <- function(pix, inseg, p) {
+	for (i in seq_len(ncol(pix))) {
+		q <- quantile(pix[inseg, i], c(p, 100 - p) / 100, na.rm=TRUE, names=FALSE)
+		pix[, i] <- pmin(pmax(pix[, i], q[1]), q[2])
+	}
+	pix
+}
+
+# hri con el estadístico (media, o mediana con STAT_AGG = 'median') y la varianza de cada variable en cada
+# segmento calculados con los píxeles recortados (seg: fila de hri de cada píxel), para class_tree()
+clip_hri <- function(hri, seg, pixc, median_stat) {
+	nv <- (ncol(hri) - 3) / 3
+	ss <- segm_sums(seg, pixc, nrow(hri))
+	for (i in seq_len(nv)) {
+		ok <- !is.na(seg) & !is.na(pixc[, i])
+		m <- ss[[i]]$s / ss[[i]]$n # media de cada segmento, centrada en la de todos sus píxeles
+		hri[, 2 + i] <- m + mean(pixc[ok, i])
+		if (median_stat) {
+			med <- tapply(pixc[ok, i], seg[ok], median)
+			hri[, 2 + i] <- NA
+			hri[as.integer(names(med)), 2 + i] <- med
+		}
+		hri[, 2 + nv + i] <- ss[[i]]$q / ss[[i]]$n - m^2
+	}
+	hri
+}
+
 # Sumas de los píxeles de cada segmento para cada variable (centrada): nº de píxeles, suma y suma de
 # cuadrados. Con ellas la varianza explicada (R2) de cualquier agrupación de los segmentos es exacta,
 # tanto con STAT_AGG = 'mean' como 'median'. seg: segmento (1 a nseg) de cada píxel, NA fuera de ellos
@@ -345,6 +374,12 @@ class_label <- switch(class_method,
 	ward_area_kmeans = 'Ward weighted by area on standardized means + weighted k-means',
 	ward = 'Ward on means and variances rescaled 0-1')
 
+# Recorte de los valores extremos para la clasificación (CLIP_PERCENTILE en config.py; 0 = sin recorte)
+clip_pct <- read_config_num('CLIP_PERCENTILE', 0)
+if (clip_pct < 0 || clip_pct >= 50) stop(paste('CLIP_PERCENTILE en config.py debe ir de 0 a menos de 50, no', clip_pct))
+if (clip_pct > 0) class_label <- paste0(class_label, ', variables clipped to percentiles ', clip_pct, '-', 100 - clip_pct)
+median_stat <- identical(read_config('STAT_AGG'), 'median')
+
 # Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
 # o STUDY_AREA de config.py, y SCENARIO de config.py; si falta o está vacío, el nombre de la subcarpeta de las
 # variables (INVARS_FOLDER, con _ en vez de los caracteres que no son letras, números, - o _), como
@@ -466,13 +501,6 @@ for (pmx in 1:mx) {
 	num_vars <- (ncol(hri) - 3) / 3
 	maxnclas <- num_vars - 1
 
-	ct <- class_tree(hri, class_method)
-	dmh <- ct$dist
-	hclust_mh <- ct$tree
-	cophval <- 0
-	try(chcl <- cophenetic(hclust_mh))
-	try(cophval <- cor(chcl, dmh))
-
 	# Valores de las variables en cada píxel (../inVars), para los boxplots por HFT
 	var_names <- sub("pamean$", "", names(hri)[3:(2 + num_vars)])
 	ev <- read_env_vars()
@@ -504,6 +532,23 @@ for (pmx in 1:mx) {
 		seg_sel <- segm_cells(park, res, hri, pixgrid)
 		ss_sel <- segm_sums(seg_sel, pixvals, nrow(hri))
 	}
+
+	# Clasificación de los segmentos (CLASS_METHOD) y, con CLIP_PERCENTILE, con los estadísticos de los píxeles
+	# recortados (solo para el árbol: las gráficas y los estadísticos de los HFTs usan todos los valores)
+	pixclip <- NULL
+	if (clip_pct > 0) {
+		if (is.null(seg_sel)) {
+			print('WARNING: CLIP_PERCENTILE needs the pixel values of ../inVars: the segments are classified without clipping')
+		} else {
+			pixclip <- clip_pixels(pixvals, !is.na(seg_sel), clip_pct)
+		}
+	}
+	ct <- class_tree(if (is.null(pixclip)) hri else clip_hri(hri, seg_sel, pixclip, median_stat), class_method)
+	dmh <- ct$dist
+	hclust_mh <- ct$tree
+	cophval <- 0
+	try(chcl <- cophenetic(hclust_mh))
+	try(cophval <- cor(chcl, dmh))
 
 	# --- CORRELACIÓN ENTRE LAS VARIABLES ---
 	# Correlación de Pearson entre cada par de variables en los píxeles de los segmentos (con datos en las dos),
@@ -863,8 +908,9 @@ for (pmx in 1:mx) {
 			if (!file.exists(hf) || !file.exists(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))) next
 			hri_t <- if (tk == res) hri else read.table(hf, sep=' ', header=T)
 			if (nrow(hri_t) < 3) next
-			ct_t <- if (tk == res) ct else class_tree(hri_t, class_method)
-			ss_t <- if (tk == res) ss_sel else segm_sums(segm_cells(park, tk, hri_t, pixgrid), pixvals, nrow(hri_t))
+			seg_t <- if (tk == res) seg_sel else segm_cells(park, tk, hri_t, pixgrid)
+			ct_t <- if (tk == res) ct else class_tree(if (is.null(pixclip)) hri_t else clip_hri(hri_t, seg_t, pixclip, median_stat), class_method)
+			ss_t <- if (tk == res) ss_sel else segm_sums(seg_t, pixvals, nrow(hri_t))
 			nh <- 2:min(nrow(hri_t) - 1, kmax)
 			r2m <- do.call(rbind, lapply(nh, function(h) r2_groups(ss_t, classify_k(ct_t, h, class_method))))
 			colnames(r2m) <- var_names

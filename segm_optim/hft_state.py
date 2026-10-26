@@ -220,10 +220,16 @@ def step_inputs(step, cfg=None, state=None):
 	def opts(*names):
 		return {n: repr(cfg.get(n, d)) for n, d in names}
 
+	# options added later, only recorded when they are not at their default (so that adding them did not
+	# make the steps already run out of date)
+	def later(*names):
+		return {n: repr(cfg.get(n)) for n, d in names if cfg.get(n, d) != d}
+
 	if step == 'segm':
 		inputs = opts(('GRASSDB', None), ('GRASSLOC', None), ('STUDY_AREA', None), ('COL_ID', None),
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
+		inputs.update(later(('CLIP_PERCENTILE', 0)))
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []
 		inputs['palist.csv'] = ' '.join(sorted(set(ids)))
 		inputs['imported data'] = setup_digest(cfg, state)
@@ -235,6 +241,7 @@ def step_inputs(step, cfg=None, state=None):
 		inputs = opts(('THRESHOLD_METHOD', 'f'), ('THRESHOLD_ALPHA', 0.5), ('MORAN_NEIGHBOURS', 'rook'))
 	else:
 		inputs = opts(('SIMIL', 2), ('CLASS_METHOD', 'ward_area'))
+		inputs.update(later(('CLIP_PERCENTILE', 0)))
 		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
 	inputs['code'] = _code_sig(CODE[step])
 	return inputs
@@ -272,7 +279,8 @@ def _diff(step, old, new):
 			if k in old and k in new:  # files added or left out: already in 'ENV_VARS changed'
 				out.append(f'{k} changed')
 		else:
-			out.append(f'{k} changed ({_short(old.get(k))} -> {_short(new.get(k))})')
+			show = lambda v: 'not set' if v is None else _short(v)  # options of later() at their default
+			out.append(f'{k} changed ({show(old.get(k))} -> {show(new.get(k))})')
 	return out
 
 

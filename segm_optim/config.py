@@ -64,6 +64,17 @@ PA_BUFFER = 500
 # así que las unidades de las variables no influyen.
 SEGM_PCA = True
 
+# RECORTE DE LOS VALORES EXTREMOS (percentil, de 0 a menos de 50):
+# 0   = Sin recorte.
+# > 0 = Antes de la segmentación cada capa de i.segment (PC1-PC3 o las variables, según SEGM_PCA) y antes de
+#       la clasificación cada variable se recortan a sus percentiles CLIP_PERCENTILE y 100 - CLIP_PERCENTILE
+#       (p. ej. 0.5: los valores por debajo del percentil 0.5 pasan a valer el percentil 0.5, y los de por
+#       encima del 99.5, el 99.5). i.segment escala cada capa a su rango y la clasificación tipifica cada
+#       variable con su desviación típica, así que unos pocos píxeles extremos cambian cuánto pesa cada capa:
+#       con el recorte, una variable con una cola larga (p. ej. TWI) no queda casi sin peso. Las gráficas y los
+#       estadísticos de los HFTs usan siempre todos los valores originales.
+CLIP_PERCENTILE = 0
+
 # RADIO PARA UNIR SEGMENTOS PEQUEÑOS (en píxeles, así depende del tamaño de píxel):
 # los segmentos con menos píxeles que minarea (raíz cuadrada del nº de píxeles con datos de
 # la región) se unen al segmento más frecuente de los mayores que ellos a esta distancia o

@@ -27,6 +27,9 @@ FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.env
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
+CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
+if not 0 <= CLIP_PERCENTILE < 50:
+	sys.exit(f'ERROR: CLIP_PERCENTILE in config.py must be from 0 to less than 50, not {CLIP_PERCENTILE}')
 
 SEGM_VARS = [v.strip() for v in ','.join(ENV_VARS0).split(',') if v.strip()]
 FIRST_VAR = SEGM_VARS[0]  # its valid pixels define the analysed area
@@ -246,6 +249,17 @@ def fsegm(pa):
 			for i, var in enumerate(SEGM_VARS, 1):
 				grass.run_command('r.mapcalc', expression=f'{pa44x}_{i} = {var}', overwrite=True)
 				segm_input.append(f"{pa44x}_{i}")
+		# CLIP_PERCENTILE: each layer clipped to its percentiles in the working region, so that its range (with
+		# which i.segment scales it) is not set by a few extreme pixels; NULL cells stay NULL
+		if CLIP_PERCENTILE > 0:
+			clipped = []
+			for i, layer in enumerate(segm_input, 1):
+				q = grass.read_command('r.quantile', input=layer, percentiles=f'{CLIP_PERCENTILE},{100 - CLIP_PERCENTILE}', quiet=True)
+				lo, hi = [float(line.split(':')[2]) for line in q.split()]
+				out = f'{pa44x}_clip{i}'
+				grass.run_command('r.mapcalc', expression=f'{out} = max({lo!r}, min({hi!r}, "{layer}"))', overwrite=True)
+				clipped.append(out)
+			segm_input = clipped
 		grass.run_command('i.group', group='segm', input=','.join(segm_input))
 
 		j = 0
