@@ -498,9 +498,40 @@ for (pmx in 1:mx) {
 
 	# Sumas de los píxeles de los segmentos del umbral elegido, para el R2 de los HFTs de cada corte
 	ss_sel <- NULL
+	seg_sel <- NULL
 	cut_r2 <- NULL
 	if (!is.null(pixvals) && file.exists(file.path('shp', paste0('park_segm_', park, '_', res, '_diss.shp')))) {
-		ss_sel <- segm_sums(segm_cells(park, res, hri, pixgrid), pixvals, nrow(hri))
+		seg_sel <- segm_cells(park, res, hri, pixgrid)
+		ss_sel <- segm_sums(seg_sel, pixvals, nrow(hri))
+	}
+
+	# --- CORRELACIÓN ENTRE LAS VARIABLES ---
+	# Correlación de Pearson entre cada par de variables en los píxeles de los segmentos (con datos en las dos),
+	# en el orden de ENV_VARS. Las variables muy correlacionadas repiten el mismo gradiente, que cuenta más de una
+	# vez en la clasificación (cada variable tipificada pesa lo mismo); |r| >= 0.7 en negrita
+	if (!is.null(seg_sel) && num_vars > 1) {
+		cm <- suppressWarnings(cor(pixvals[!is.na(seg_sel), , drop=FALSE], use='pairwise.complete.obs'))
+		dimnames(cm) <- list(var_names, var_names)
+		write.table(data.frame(var=var_names, cm, check.names=FALSE), file.path(outroot, paste0('cor_', park, '_vars.csv')),
+		            sep=' ', row.names=F, quote=F)
+		cor_labels <- short_labels(var_names)
+		low <- which(lower.tri(cm), arr.ind=TRUE)
+		cd <- data.frame(x=factor(cor_labels[low[, 2]], levels=cor_labels[-num_vars]),
+		                 y=factor(cor_labels[low[, 1]], levels=rev(cor_labels[-1])), r=cm[low])
+		corp <- ggplot(cd, aes(x=x, y=y)) +
+			geom_tile(aes(fill=r), colour='white', linewidth=0.8) +
+			geom_text(aes(label=sprintf('%.2f', r), colour=ifelse(abs(r) > 0.6, 'white', 'black'),
+			              fontface=ifelse(abs(r) >= 0.7, 'bold', 'plain')), size=4) +
+			scale_colour_identity() +
+			scale_fill_gradient2(low='#2166AC', mid='white', high='#B2182B', limits=c(-1, 1), na.value='grey90', name='r') +
+			scale_x_discrete(position='top') +
+			coord_equal() +
+			labs(title=area, subtitle=paste0('ID ', park, ' | Pearson correlation between the variables in the pixels of the segments\n',
+			                                 '|r| >= 0.7 in bold: such variables repeat the same gradient, which counts more than once in the classification'),
+			     x=NULL, y=NULL) +
+			theme_minimal(base_size=13) +
+			theme(panel.grid=element_blank(), axis.text.x.top=element_text(size=10), axis.text.y=element_text(size=10))
+		ggsave(file.path(outroot, paste0('cor_', park, '_vars.png')), corp, width=3 + 1.6 * num_vars, height=2.5 + 1.3 * num_vars, dpi=300)
 	}
 
 	# SIMIL = 3: colores jerárquicos entre los cortes (ver hier_colours), solo para cortes con más de un HFT

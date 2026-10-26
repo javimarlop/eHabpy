@@ -192,8 +192,9 @@ every step, option and output of the HFT module in detail.
 
 5. The results of each study area (HFT maps and shapefiles, radar plots,
    boxplots of the pixel values of each variable by HFT, heatmaps of the HFT
-   profiles, PCA biplots of the HFTs and the variables, the variance of the
-   variables explained by the HFTs, the other plots,
+   profiles, PCA biplots of the HFTs and the variables, the correlation
+   between the variables, the variance of the variables explained by the
+   HFTs, the other plots,
    `overall_optim_thresholds.csv` and `processing_metadata.txt`) are saved in
    a folder of their study area and **scenario** (`SCENARIO` in `config.py`;
    if empty, the name of `INVARS_FOLDER`, or `base`),
@@ -904,6 +905,8 @@ results/<STUDY_AREA>/<SCENARIO>/
 ├── r2_<id>_hfts.png                     variance explained by the HFTs, by number of HFTs
 ├── r2_<id>_hfts.csv                     its values, for every threshold and number of HFTs
 ├── r2_<id>_cuts.csv                     variance explained by the HFTs of each cut
+├── cor_<id>_vars.png                    correlation between the variables
+├── cor_<id>_vars.csv                    its values
 ├── hft_tree_<id>_<k>.png                tree of the HFTs of the five cuts (SIMIL = 3)
 ├── hft_tree_<id>_<k>.csv                HFT of every cut that contains each HFT of p10
 └── p10/ p25/ p50/ p75/ p90/             one folder per cut of the tree (SIMIL = 3; otherwise
@@ -1010,6 +1013,25 @@ and run `python3 run_hft.py`.
   used).
 - `overall_optim_thresholds.csv`: one row per ID with the threshold used (e.g.
   `1 0.5`). The HFTs are the segments of this threshold.
+
+### Correlation between the variables (`cor_<id>_vars.png`)
+
+<img src="docs/img/cor_vars.png" width="560" alt="Lower triangle of the correlations between the seven variables, with the three vegetation indices strongly correlated">
+
+The Pearson correlation `r` between every pair of variables, in the pixels of
+the segments of the selected threshold and in the order of `ENV_VARS`: red
+for positive, blue for negative, and in bold when `|r| >= 0.7`.
+
+Look at it before reading the HFTs. The classification gives every variable
+the same weight (in units of its standard deviation), so variables that are
+strongly correlated repeat the same gradient, which then counts more than
+once. In the example the three vegetation indices (NDVImax, NDVImin and NDWI,
+`r` = 0.73 to 0.88) make vegetation count about three times, and temperature
+and precipitation (`r` = -0.65) partly repeat the climate gradient. If that is
+not wanted, leave out the variables that repeat another one, or keep one per
+group, and compare the HFTs with those of all the variables (e.g. in a
+subfolder of `inVars` with `INVARS_FOLDER`). `cor_<id>_vars.csv` has the
+whole matrix.
 
 ### Variance explained by the HFTs (`r2_<id>_hfts.png`)
 
@@ -1273,7 +1295,8 @@ A practical order to read the results of one ID:
    detailed)? The suggested cut, the R² of each cut and where the curve
    bends help to decide.
 4. For the chosen cut, the heatmap and the boxplots: name each HFT by the
-   variables that set it apart (high eta2, colours far from white).
+   variables that set it apart (high eta2, colours far from white), keeping in
+   mind which variables repeat the same gradient (`cor_<id>_vars.png`).
 5. The PCA biplot: are the HFTs distinct, or do some of them
    overlap so much that they could be merged (a coarser cut)?
 6. Use `park_segm_<id>_<k>_<cut>_class.shp` for the maps and analyses that
@@ -1915,6 +1938,10 @@ compact HFTs but, by construction, less separable ones.
   \eta^2_v = \frac{\sum_h n_h\,(\bar x_{h,v} - \bar x_v)^2}{\sum_i (x_{i,v} - \bar x_v)^2}
   ```
 
+- **Correlation between the variables** (`cor_<id>_vars.png`): `cor()` of
+  the pixel values inside the segments of the selected threshold, with the
+  pixels with data in both variables of each pair
+  (`use = 'pairwise.complete.obs'`).
 - **PCA biplot**: eigen-decomposition of the correlation matrix of the
   standardised pixels (complete cases). The centroids are the mean scores of
   the pixels of every HFT, the ellipses those of a bivariate normal with the
