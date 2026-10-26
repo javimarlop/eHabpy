@@ -346,11 +346,18 @@ class_label <- switch(class_method,
 	ward = 'Ward on means and variances rescaled 0-1')
 
 # Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
-# o STUDY_AREA de config.py, y SCENARIO de config.py ('base' si falta o está vacío)
+# o STUDY_AREA de config.py, y SCENARIO de config.py; si falta o está vacío, el nombre de la subcarpeta de las
+# variables (INVARS_FOLDER, con _ en vez de los caracteres que no son letras, números, - o _), como
+# scenario_name() de hft_state.py, o 'base' si las variables están directamente en ../inVars
 area <- if (file.exists('csv/study_area.csv')) readLines('csv/study_area.csv', n=1, warn=FALSE) else read_config('STUDY_AREA')
 if (is.na(area) || area == '') stop("No se encuentra el área de estudio: falta STUDY_AREA en config.py")
 scenario <- read_config('SCENARIO')
-if (is.na(scenario) || scenario == '') scenario <- 'base'
+if (is.na(scenario) || scenario == '') {
+	folder <- read_config('INVARS_FOLDER')
+	Encoding(folder) <- 'UTF-8' # config.py está en UTF-8: una ñ es un carácter, como en Python
+	folder <- if (is.na(folder)) '' else gsub('\\\\', '/', gsub('^[/\\\\]+|[/\\\\]+$', '', trimws(folder)))
+	scenario <- if (folder == '') 'base' else gsub('[^A-Za-z0-9_-]', '_', folder, perl=TRUE)
+}
 if (!grepl('^[A-Za-z0-9_-]+$', scenario) || grepl('_previous$', scenario)) {
 	stop(paste0("SCENARIO en config.py ('", scenario, "') solo puede tener letras, números, - y _, y no puede acabar en _previous"))
 }

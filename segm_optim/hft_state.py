@@ -8,8 +8,9 @@ own code. Before running, a step checks that the steps before it are up to
 date with the current inputs and, if they are not, stops saying which script
 to run. run_hft.py uses the same record to run only the steps that are needed.
 It also records the inputs that produced the results of every scenario
-(SCENARIO in config.py, results in results/<STUDY_AREA>/<SCENARIO>), to warn
-when a scenario name is used again with other options.
+(SCENARIO in config.py, or the name of INVARS_FOLDER; results in
+results/<STUDY_AREA>/<SCENARIO>), to warn when a scenario name is used again
+with other options.
 
     python3 hft_state.py              # status of every step
 
@@ -24,6 +25,7 @@ import glob
 import hashlib
 import json
 import os
+import posixpath
 import re
 import runpy
 import sys
@@ -91,8 +93,14 @@ def write_option(name, value):
 		f.write(set_option(text, name, value))
 
 
+def invars_folder(cfg):
+	"""Subfolder of ../inVars with the variables (INVARS_FOLDER in config.py); '' for ../inVars itself."""
+	return str(cfg.get('INVARS_FOLDER') or '').strip().strip('/\\').replace('\\', '/')
+
+
 def scenario_name(cfg):
-	return str(cfg.get('SCENARIO') or DEFAULT_SCENARIO)
+	"""SCENARIO of config.py; if empty, the name of INVARS_FOLDER (as in moranvar_plots.R), or 'base'."""
+	return str(cfg.get('SCENARIO') or re.sub(r'[^A-Za-z0-9_-]', '_', invars_folder(cfg)) or DEFAULT_SCENARIO)
 
 
 def scenario_error(name):
@@ -124,8 +132,19 @@ def vector_sigs(path):
 	return {os.path.basename(stem + e): file_sig(stem + e) for e in parts if os.path.exists(stem + e)}
 
 
-def raster_files():
-	return sorted(os.path.basename(f) for f in glob.glob(os.path.join(INVARS, '*')) if f.lower().endswith(RASTER_EXT))
+def raster_files(folder=''):
+	"""GeoTIFFs of ../inVars/FOLDER, as paths relative to ../inVars ('/' as separator)."""
+	return sorted(posixpath.join(folder, os.path.basename(f)) for f in glob.glob(os.path.join(INVARS, folder, '*'))
+	              if f.lower().endswith(RASTER_EXT) and os.path.isfile(f))
+
+
+def in_folder(files, folder):
+	"""Entries of FILES (paths relative to ../inVars) that are directly in ../inVars/FOLDER."""
+	return {f: v for f, v in files.items() if posixpath.dirname(f) == folder}
+
+
+def where(folder):
+	return f'inVars/{folder}' if folder else 'inVars'
 
 
 def _hash(obj):
@@ -150,15 +169,38 @@ def set_setup(area, rec):
 	save(state)
 
 
-def setup_changes(cfg=None, state=None):
-	"""Input files changed since setup.py imported them (empty when setup.py left no record)."""
+def setup_digest(cfg=None, state=None):
+	"""Hash of what setup.py imported for the variables of INVARS_FOLDER and the study area."""
 	cfg = read_config() if cfg is None else cfg
 	rec = get_setup(cfg.get('STUDY_AREA'), state)
 	if not rec:
+		return 'unknown'
+	# the record keeps the files of every folder imported; only those of INVARS_FOLDER count
+	rec = {k: v for k, v in rec.items() if k != 'invars_folder'}
+	rec['variables'] = in_folder(rec.get('variables', {}), invars_folder(cfg))
+	return _hash(rec)
+
+
+def setup_changes(cfg=None, state=None):
+	"""Why setup.py has to be run again: INVARS_FOLDER changed, or input files changed since setup.py
+	imported them (only the first when setup.py left no record)."""
+	cfg = read_config() if cfg is None else cfg
+	folder = invars_folder(cfg)
+	# the variables of config.py (ENV_VARS, filled by setup.py) must be those of INVARS_FOLDER
+	used = {posixpath.dirname(p['file']) for p in cfg.get('ENV_VARS', {}).values()}
+	if used and used != {folder}:
+		return [f"INVARS_FOLDER changed: the variables of config.py are those of {', '.join(map(where, sorted(used)))}, "
+		        f"not of {where(folder)}"]
+	rec = get_setup(cfg.get('STUDY_AREA'), state)
+	if not rec:
 		return []
+	if rec.get('invars_folder', '') != folder:
+		return [f"INVARS_FOLDER changed ({where(rec.get('invars_folder', ''))} -> {where(folder)})"]
+	if not os.path.isdir(os.path.join(INVARS, folder)):
+		return [f'{where(folder)} not found']
 	out = []
-	now = {f: file_sig(os.path.join(INVARS, f)) for f in raster_files()}
-	old = rec.get('variables', {})
+	now = {f: file_sig(os.path.join(INVARS, f)) for f in raster_files(folder)}
+	old = in_folder(rec.get('variables', {}), folder)
 	for f in sorted(set(now) | set(old)):
 		if f not in old:
 			out.append(f'new file inVars/{f}')
@@ -184,8 +226,7 @@ def step_inputs(step, cfg=None, state=None):
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []
 		inputs['palist.csv'] = ' '.join(sorted(set(ids)))
-		setup = get_setup(cfg.get('STUDY_AREA'), state)
-		inputs['imported data'] = _hash(setup) if setup else 'unknown'
+		inputs['imported data'] = setup_digest(cfg, state)
 	elif step == 'stats':
 		inputs = opts(('STAT_AGG', 'mean'), ('RESOLUTION', None), ('ENV_VARS', {}))
 		for p in cfg.get('ENV_VARS', {}).values():
@@ -228,7 +269,8 @@ def _diff(step, old, new):
 		elif k == 'imported data':
 			out.append('input data imported again by setup.py')
 		elif k.startswith('inVars/'):
-			out.append(f'{k} changed')
+			if k in old and k in new:  # files added or left out: already in 'ENV_VARS changed'
+				out.append(f'{k} changed')
 		else:
 			out.append(f'{k} changed ({_short(old.get(k))} -> {_short(new.get(k))})')
 	return out
@@ -339,7 +381,8 @@ def reset(first='segm'):
 def print_status(cfg=None, state=None):
 	cfg = read_config() if cfg is None else cfg
 	state = load() if state is None else state
-	print(f"Study area: {cfg.get('STUDY_AREA')} | scenario: {scenario_name(cfg)} (results in {results_dir(cfg)})")
+	print(f"Study area: {cfg.get('STUDY_AREA')} | variables: {where(invars_folder(cfg))} | "
+	      f"scenario: {scenario_name(cfg)} (results in {results_dir(cfg)})")
 	changes = setup_changes(cfg, state)
 	if changes:
 		print(f"   input data: to import again with setup.py ({'; '.join(changes)})")

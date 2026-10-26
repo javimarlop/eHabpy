@@ -146,7 +146,10 @@ every step, option and output of the HFT module in detail.
 1. Copy all input variables (GeoTIFF, all with the same CRS and pixel size)
    to an `inVars` folder next to `segm_optim` (`../inVars` seen from
    `segm_optim`). The map name of each variable is its file name
-   (`precip.tif` → `precip`).
+   (`precip.tif` → `precip`). To try another set of variables without
+   removing these, copy it to a subfolder of `inVars` and set
+   `INVARS_FOLDER` in `config.py` to its name: its results go to a scenario
+   with that name (see [Several sets of variables](#several-sets-of-variables-invars_folder)).
 
 2. Copy the vector file of the study area (`.gpkg`, `.shp` or `.geojson`) to
    the `segm_optim/pa` folder. Its file name is also the name of the GRASS
@@ -192,10 +195,10 @@ every step, option and output of the HFT module in detail.
    profiles, PCA biplots of the HFTs and the variables, the variance of the
    variables explained by the HFTs, the other plots,
    `overall_optim_thresholds.csv` and `processing_metadata.txt`) are saved in
-   a folder of their study area and **scenario** (`SCENARIO` in `config.py`,
-   `base` by default), `results/<study area>/<scenario>` (e.g.
-   `results/guajares/base`), so that the results of different options can be
-   kept apart. They are kept when another study area or scenario is
+   a folder of their study area and **scenario** (`SCENARIO` in `config.py`;
+   if empty, the name of `INVARS_FOLDER`, or `base`),
+   `results/<study area>/<scenario>` (e.g. `results/guajares/base`), so that
+   the results of different options can be kept apart. They are kept when another study area or scenario is
    processed. When the same scenario is processed again, its previous results
    are moved to `results/<study area>/<scenario>_previous`. The intermediate
    folders `csv`, `shp` and `tiffs` only hold the last run.
@@ -298,6 +301,7 @@ are connected and which files each one reads and writes.
 ```
 eHabpy/
 ├── inVars/                        <- your input variables (GeoTIFF)
+│   └── <INVARS_FOLDER>/           <- optional: other sets of variables, one subfolder each
 └── segm_optim/                    <- run every command from here
     ├── config.py                  options of the model
     ├── setup.py                   step 3
@@ -311,7 +315,7 @@ eHabpy/
     ├── pa/                        <- the vector file of your study area
     ├── csv/  shp/  tiffs/         intermediate files (only of the last study area processed)
     └── results/<STUDY_AREA>/      final results, one folder per study area
-        ├── <SCENARIO>/            one folder per scenario (base by default)
+        ├── <SCENARIO>/            one folder per scenario (base, or the name of INVARS_FOLDER, by default)
         └── <SCENARIO>_previous/   results of the run of the scenario before the last one
 
 ~/grassdata/                       GRASS database (GRASSDB in config.py)
@@ -377,9 +381,43 @@ Things to keep in mind when preparing them:
   segmentation works on standardised principal components, and the
   classification rescales every statistic to 0-1.
 - **Redundant variables.** In the classification every variable counts with
-  its mean and its variance, so two strongly correlated variables give twice
-  the weight to the same gradient. Leave out variables that repeat the
-  information of another one.
+  its mean (and its variance with `CLASS_METHOD = 'ward'`), so two strongly
+  correlated variables give twice the weight to the same gradient. Leave out
+  variables that repeat the information of another one.
+
+#### Several sets of variables (`INVARS_FOLDER`)
+
+To try another set of variables (e.g. without TWI, or with other indices)
+without removing or moving the files of `inVars`, copy the GeoTIFFs of the
+new set to a subfolder of `inVars`, with the same requirements as above, and
+set `INVARS_FOLDER` in `config.py` to its name:
+
+```
+inVars/
+├── 1_ndvi.tif  2_slope.tif  3_temp.tif  4_twi.tif     INVARS_FOLDER = ''
+└── sin_twi/
+    └── 1_ndvi.tif  2_slope.tif  3_temp.tif           INVARS_FOLDER = 'sin_twi'
+```
+
+Then run `python3 run_hft.py`. Seeing that `INVARS_FOLDER` changed, it first
+runs `setup.py`, which imports the variables of the subfolder into the GRASS
+project with the name of the folder in front of the map names
+(`sin_twi_1_ndvi`, so they do not replace those of other folders) and fills
+`ENV_VARS0`, `ENV_VARS` (with the files as `sin_twi/1_ndvi.tif`) and
+`RESOLUTION` with them. Then it runs every step again. With `SCENARIO = ''`
+(the default) the results go to the scenario named after the folder,
+`results/<STUDY_AREA>/sin_twi`, next to those of the other sets (`base` for
+the files directly in `inVars`). Characters other than letters, digits, `-`
+and `_` in the folder name become `_` in the scenario name. Setting `SCENARIO`
+gives the results another name, e.g. to run the same set of variables with
+other options.
+
+To go back, set `INVARS_FOLDER = ''` (or the name of another folder) and run
+`python3 run_hft.py` again: `setup.py` fills `config.py` with those variables
+again, importing only the files that changed since they were imported. Only
+the GeoTIFFs directly in the chosen folder are used; the other subfolders of
+`inVars` are ignored. The intermediate files (`csv`, `shp`, `tiffs`) only hold
+the last run, so every change of folder repeats the segmentation.
 
 #### Study area (`segm_optim/pa`)
 
@@ -423,8 +461,9 @@ python3 setup.py
 `setup.py`:
 
 1. reads the CRS, pixel size and NoData value of every `../inVars/*.tif`
-   and checks that the CRS is projected and that the CRS and the pixel size
-   are the same for all of them;
+   (`../inVars/<INVARS_FOLDER>/*.tif` with `INVARS_FOLDER`) and checks that
+   the CRS is projected and that the CRS and the pixel size are the same for
+   all of them;
 2. creates the GRASS project `GRASSDB/<study area>` with the CRS of the
    variables (if it does not exist yet; an existing project must have the same
    CRS);
@@ -436,7 +475,9 @@ python3 setup.py
    `COL_ID`, `RESOLUTION` and `ENV_VARS` of `config.py`. The other options
    and the comments are kept;
 6. records the size and date of every file it imported in `run_state.json`,
-   so the other steps know when an input file changes.
+   so the other steps know when an input file changes (also those of other
+   folders of `inVars` imported before, so it knows when their maps are up to
+   date).
 
 Its options (`python3 setup.py --help`):
 
@@ -467,7 +508,7 @@ Running it again only imports what is not in the project yet and the files
 that changed since it imported them (e.g. a GeoTIFF replaced by a new version),
 and keeps an existing `palist.csv` (it warns if `palist.csv` has IDs that are
 not in the study area). `run_hft.py` runs it by itself, with the same options,
-when an input file changes. If you were given a ready-made GRASS project, copy
+when an input file or `INVARS_FOLDER` changes. If you were given a ready-made GRASS project, copy
 its whole folder into your GRASS database: it is used when its name is that of
 the study area file.
 
@@ -485,7 +526,7 @@ are in Spanish; this table explains each option in English. The options marked
 | `COL_ID` | setup | `'cat'` | Integer column of the study area with the IDs processed separately. |
 | `RESOLUTION` | setup | `10` | Pixel size of the variables, in map units. Also the pixel size of the segmentation. |
 | `ENV_VARS0` | setup | all variables | Variables of the segmentation (of its PCA with `SEGM_PCA = True`), as one comma-separated string in a list. **Its first variable defines the analysed pixels.** |
-| `ENV_VARS` | setup | all variables | For each variable (GRASS map name): its file in `../inVars` and its NoData value. Used for the statistics, the classification and the plots. |
+| `ENV_VARS` | setup | all variables | For each variable (GRASS map name): its file in `../inVars` (`<INVARS_FOLDER>/<file>` for a subfolder) and its NoData value. Used for the statistics, the classification and the plots. |
 | `CLIP_TO_PA` | you | `False` | `False`: segments and HFTs cover the whole bounding box plus `PA_BUFFER`. `True`: only the pixels inside the polygons of each ID. |
 | `PA_BUFFER` | you | `500` | Distance (map units, rounded up to whole pixels) by which the bounding box of each ID is grown. `0`: the bounding box only. |
 | `SEGM_PCA` | you | `True` | Input of the segmentation. `True`: the first three axes of a standardised PCA of the variables of `ENV_VARS0`. `False`: the variables of `ENV_VARS0` themselves, without PCA (default `True` when the option is missing). |
@@ -496,7 +537,8 @@ are in Spanish; this table explains each option in English. The options marked
 | `CLASS_METHOD` | you | `'ward_area'` | How the segments are classified into HFTs: `'ward_area'` (Ward weighted by area on standardised means), `'ward_area_kmeans'` (the same and then weighted k-means) or `'ward'` (the original method). See below and [A6](#a6-classification-of-the-segments-into-hfts). |
 | `SIMIL` | you | `3` | How the classification tree is cut into HFTs: `1`, `2` or `3` (see below). |
 | `STAT_AGG` | you | `'mean'` | Statistic of each variable in each segment: `'mean'` or `'median'`. |
-| `SCENARIO` | you (or `run_hft.py`) | `'base'` | Name of the scenario: the results are written to `results/<STUDY_AREA>/<SCENARIO>`. Letters, digits, `-` and `_`; empty is `base`. |
+| `INVARS_FOLDER` | you | `''` | Subfolder of `../inVars` with the variables to use, to keep several sets of variables (see [Several sets of variables](#several-sets-of-variables-invars_folder)). `''`: the GeoTIFFs directly in `../inVars`. Changing it runs `setup.py` and every step again. |
+| `SCENARIO` | you (or `run_hft.py`) | `''` | Name of the scenario: the results are written to `results/<STUDY_AREA>/<SCENARIO>`. Letters, digits, `-` and `_`. Empty: the name of `INVARS_FOLDER`, or `base` when it is empty. |
 | `FORCE_RESTART` | you | `False` | `False`: the segmentation resumes an interrupted run (skipping the IDs in `csv/segm_done.csv`) only if nothing it depends on changed; otherwise it starts from scratch. `True`: always start the segmentation from scratch, deleting `csv`, `shp` and `tiffs`. |
 
 Choosing the options:
@@ -587,6 +629,8 @@ Choosing the options:
   with `PA_BUFFER = 500` as scenario `buffer500` and once with `PA_BUFFER =
   5000` as `buffer5k`, and both sets of results stay in
   `results/<STUDY_AREA>/buffer500` and `results/<STUDY_AREA>/buffer5k`.
+  Left empty, it is the name of `INVARS_FOLDER` (or `base`), so each set of
+  variables gets its own scenario.
   `run_hft.py` shows the scenario before starting and lets you type another
   name (Enter keeps it), or takes it from `--scenario NAME` without asking;
   the name is saved in `config.py`. Changing only the name runs only the last
@@ -631,7 +675,9 @@ python3 run_hft.py                      # run it (asks the scenario first)
 python3 run_hft.py --scenario buffer5k  # run it with this scenario, without asking
 ```
 
-First, `run_hft.py` shows the scenario (`SCENARIO` in `config.py`) and, when
+First, `run_hft.py` runs `setup.py` if an input file or `INVARS_FOLDER`
+changed since it was last run. Then it shows the scenario (`SCENARIO` in
+`config.py`, or the name of `INVARS_FOLDER` if empty) and, when
 it runs in a terminal, lets you type another name (Enter keeps it); the name
 is saved in `config.py` and the results go to
 `results/<STUDY_AREA>/<SCENARIO>`. If that scenario already has results made
@@ -654,7 +700,7 @@ It also sets `ulimit -n 8192` and `PYTHONNOUSERSITE=1` for the scripts. For
 example, after changing only `SIMIL`:
 
 ```
-Study area: Guajares_zona_quemada_dNBR2022_10m | scenario: simil2 (results in results/Guajares_zona_quemada_dNBR2022_10m/simil2)
+Study area: Guajares_zona_quemada_dNBR2022_10m | variables: inVars | scenario: simil2 (results in results/Guajares_zona_quemada_dNBR2022_10m/simil2)
   1. segmentation                               up to date
   2. statistics of the segments                 up to date
   3. Moran's I, variance and threshold          up to date
@@ -675,8 +721,9 @@ warning.
 | 9. HFTs and plots | `SIMIL`, `CLASS_METHOD`, `SCENARIO`, `moranvar_plots.R` (e.g. its option `upper`), `CreateRadialPlot.R` |
 
 When an input file (in `../inVars`, or the study area in `pa/`) changed since
-`setup.py` imported it, `run_hft.py` first runs `setup.py` again with the same
-options, which imports the files that changed. The other options of
+`setup.py` imported it, or `INVARS_FOLDER` changed, `run_hft.py` first runs
+`setup.py` again with the same options, which imports the files that changed
+(or those of the new folder) and fills `config.py` with them. The other options of
 `config.py` (e.g. `FORCE_RESTART`) do not make any step run. To run again from
 a step even if it is up to date, use `--from` with `segm`, `stats`,
 `moranvar` or `plots`, e.g. `python3 run_hft.py --from stats`.
@@ -814,15 +861,16 @@ and then, for each cut, at the map, the heatmap and the boxplots.
 |---|---|
 | `No module named 'grass'` | The environment is not active (`conda activate ehabpy`), or GRASS is not found: see [Before running](#before-running). |
 | `ERROR: GRASS project not found: ...` | `GRASSDB` / `GRASSLOC` in `config.py` do not point to the project: run `python3 setup.py`. `GRASSDB` is the GRASS database, not the GRASS installation folder. |
-| `ERROR: no GeoTIFF files (.tif) found in .../inVars` | The variables must be in `inVars` next to `segm_optim` (`../inVars` seen from `segm_optim`). |
+| `ERROR: no GeoTIFF files (.tif) found in .../inVars` | The variables must be in `inVars` next to `segm_optim` (`../inVars` seen from `segm_optim`), or in its subfolder `INVARS_FOLDER`. |
+| `INVARS_FOLDER = '...' in config.py: folder ... not found` | `INVARS_FOLDER` must be the name of a subfolder of `../inVars` (`''` for the files directly in it). |
 | `... has a geographic CRS` | Reproject the variables to a projected CRS in metres, e.g. `gdalwarp -t_srs EPSG:32630` (step 1). |
 | `... have different CRS` / `pixel size of ...` | Reproject or resample the variables to the same CRS and pixel size (e.g. with `gdalwarp`, step 1). |
 | `several vector files in .../pa` / `has several layers` | Choose the study area with `--study-area` or the layer with `--layer`. |
 | `column ... not found` / `... but the IDs must be integers` | Choose an integer ID column with `--col-id` (`cat` for one ID per polygon). |
 | `ERROR: run the ... first (...)` | A step before the one you ran is out of date; the message says why. Run `python3 run_hft.py`, or the command given in the message. |
-| `ERROR: the input data changed since setup.py imported them` | A file of `../inVars` or the study area file changed: run `python3 run_hft.py` (it runs `setup.py`) or `python3 setup.py`. |
+| `ERROR: the input data changed since setup.py imported them` | A file of `../inVars` or the study area file changed, or `INVARS_FOLDER` changed: run `python3 run_hft.py` (it runs `setup.py`) or `python3 setup.py`. |
 | `The segmentation is up to date ...: nothing to do` | Not an error. To repeat it anyway: `python3 run_hft.py --from segm`. |
-| `... is not a valid scenario name` | Use only letters, digits, `-` and `_` in `SCENARIO` (or `--scenario`), and do not end it in `_previous`. |
+| `... is not a valid scenario name` | Use only letters, digits, `-` and `_` in `SCENARIO` (or `--scenario`), and do not end it in `_previous` (nor the name of `INVARS_FOLDER` when `SCENARIO` is empty). |
 | `WARNING: results/.../<SCENARIO> already has results made with other options` | Not an error: the scenario name was used before with the options listed. Type another name, or let them be moved to `<SCENARIO>_previous`. |
 | `module 'numpy' has no attribute ...` or other errors importing numpy / scipy | Python packages of `~/.local` are loaded instead of those of the environment: `export PYTHONNOUSERSITE=1` (`run_hft.py` does it by itself). |
 | `Too many open files` | `run_hft.py` raises the limit by itself; to run the scripts by hand, run `ulimit -n 8192` first in the same terminal. |
@@ -1275,12 +1323,13 @@ flowchart TD
 `segmentation_pca_par.py`, `get_mean_median_var.py` and `moranvar.py` (or only
 `moranvar_plots.R`) in this order, starting from the first one that is out of
 date according to `run_state.json` (A11), and runs `setup.py` first when an
-input file changed. The scripts can also be run one by one: each one checks in
+input file or `INVARS_FOLDER` changed. The scripts can also be run one by one: each one checks in
 `run_state.json` that the steps before it are up to date.
 
 ### A2. Setup (setup.py)
 
-1. Lists `../inVars/*.tif` (and `.tiff`) and, for each one, reads its CRS,
+1. Lists `../inVars/*.tif` (and `.tiff`; those of `../inVars/<INVARS_FOLDER>`
+   with that option, named `<INVARS_FOLDER>_<file name>` in GRASS) and, for each one, reads its CRS,
    pixel size and NoData value with GDAL (first band). It stops if two files
    give the same map name, if a file has no CRS or a geographic one, if the
    CRS differ (compared with `IsSame`, ignoring the axis order) or if the
@@ -1929,8 +1978,9 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 
 `hft_state.py` keeps `run_state.json`, with:
 
-- for every study area, what `setup.py` imported: its options and the size
-  and modification time of every file of `../inVars` and of the study area
+- for every study area, what `setup.py` imported: its options, the folder
+  of `../inVars` used (`INVARS_FOLDER`) and the size and modification time of
+  every file of `../inVars` (of every folder imported) and of the study area
   file;
 - for every step (segmentation, statistics, Moran's I, variance and threshold,
   HFTs and plots), the inputs it was run with (the table of step 6:

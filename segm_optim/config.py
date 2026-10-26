@@ -23,11 +23,20 @@ ENV_VARS = { # REQUIRED
     ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
 }
 
+# CARPETA DE LAS VARIABLES DE ENTRADA: subcarpeta de ../inVars con los GeoTIFF de las variables,
+# para probar otro conjunto de variables sin borrar ni mover las anteriores (p. ej. 'sin_twi' para
+# ../inVars/sin_twi). '' = los GeoTIFF que están directamente en ../inVars.
+# Al cambiarla, run_hft.py ejecuta antes setup.py, que importa en GRASS las variables de esa carpeta
+# (con su nombre delante, p. ej. sin_twi_ndvi) y rellena ENV_VARS0, ENV_VARS y RESOLUTION, y después
+# repite todos los pasos. Con SCENARIO = '' los resultados van al escenario con el nombre de la carpeta.
+INVARS_FOLDER = ''
+
 # ESCENARIO: nombre de la subcarpeta de los resultados, results/<STUDY_AREA>/<SCENARIO>
 # (letras, números, - y _), para guardar aparte los resultados de distintas opciones.
 # run_hft.py lo muestra y permite cambiarlo antes de empezar (o --scenario NOMBRE), y avisa
-# si ya hay resultados de ese escenario hechos con otras opciones. '' = 'base'.
-SCENARIO = 'base'
+# si ya hay resultados de ese escenario hechos con otras opciones.
+# '' = el nombre de INVARS_FOLDER (otros caracteres pasan a _), o 'base' si está vacía.
+SCENARIO = ''
 
 # REINICIAR DESDE CERO (segmentation_pca_par.py):
 # True  = Borra los archivos de control y csv/shp/tiffs y repite la segmentación desde el principio.

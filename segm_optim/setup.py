@@ -7,8 +7,12 @@ Run once from the segm_optim folder, after copying the input variables
 
     python3 setup.py
 
+With INVARS_FOLDER in config.py it takes the variables of that subfolder of
+../inVars instead (and run_hft.py runs it again when INVARS_FOLDER changes).
+
 It
-  1. reads the CRS, resolution and NoData value of every ../inVars/*.tif,
+  1. reads the CRS, resolution and NoData value of every ../inVars/*.tif
+     (../inVars/<INVARS_FOLDER>/*.tif),
   2. creates the GRASS project GRASSDB/<study area> with the CRS of the
      variables (if it does not exist yet): the project and the map of the
      study area are both named after the study area file,
@@ -18,6 +22,9 @@ It
      ENV_VARS in config.py; the other options are kept as they are,
   6. records what it imported in run_state.json (see hft_state.py).
 
+The map name of each variable is its file name, preceded by INVARS_FOLDER
+for the files of a subfolder (sin_twi/ndvi.tif -> sin_twi_ndvi), so the
+variables of several folders can be in the project at the same time.
 Running it again only imports the maps that are not in the project yet and
 those whose file changed since setup.py imported it (recorded in
 run_state.json); --overwrite imports all of them again.
@@ -28,6 +35,7 @@ import argparse
 import glob
 import math
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -55,9 +63,11 @@ def fail(msg):
 	sys.exit('ERROR: ' + msg)
 
 
-def grass_name(path):
-	"""GRASS map name from a file name: letters, digits and _, starting with a letter."""
-	name = re.sub(r'\W', '_', os.path.splitext(os.path.basename(path))[0], flags=re.ASCII)
+def grass_name(path, folder=''):
+	"""GRASS map name from a file name (after FOLDER, the subfolder of ../inVars, if any): letters, digits
+	and _, starting with a letter."""
+	stem = os.path.splitext(os.path.basename(path))[0]
+	name = re.sub(r'\W', '_', f'{folder}_{stem}' if folder else stem, flags=re.ASCII)
 	return name if name[:1].isalpha() else 'v_' + name
 
 
@@ -74,15 +84,16 @@ def same_crs(a, b):
 	return bool(a.IsSame(b, SAME_CRS)) or a.ExportToProj4() == b.ExportToProj4()
 
 
-def read_variables():
-	"""CRS, resolution and NoData value of every GeoTIFF in ../inVars."""
-	files = sorted(f for f in glob.glob(os.path.join(INVARS, '*')) if f.lower().endswith(RASTER_EXT))
+def read_variables(folder):
+	"""CRS, resolution and NoData value of every GeoTIFF in ../inVars/FOLDER."""
+	indir = os.path.join(INVARS, folder)
+	files = sorted(f for f in glob.glob(os.path.join(indir, '*')) if f.lower().endswith(RASTER_EXT) and os.path.isfile(f))
 	if not files:
-		fail(f'no GeoTIFF files (.tif) found in {INVARS}')
+		fail(f'no GeoTIFF files (.tif) found in {indir}')
 
 	variables = {}
 	for f in files:
-		name = grass_name(f)
+		name = grass_name(f, folder)
 		if name in variables:
 			fail(f"{variables[name]['file']} and {os.path.basename(f)} give the same map name '{name}': rename one of them")
 		ds = gdal.Open(f)
@@ -97,7 +108,7 @@ def read_variables():
 		if ds.RasterCount > 1:
 			print(f'WARNING: {os.path.basename(f)} has {ds.RasterCount} bands, only the first one is used')
 		variables[name] = {
-			'file': os.path.basename(f),
+			'file': posixpath.join(folder, os.path.basename(f)),  # relative to ../inVars
 			'path': f,
 			'srs': srs,
 			'res': (abs(gt[1]), abs(gt[5])),
@@ -189,11 +200,16 @@ def main():
 	args = parser.parse_args()
 
 	# 1. Check the input data before creating anything
-	variables, res = read_variables()
+	folder = hft_state.invars_folder(hft_state.read_config())
+	indir = os.path.join(INVARS, folder)
+	if not os.path.isdir(indir) or os.path.commonpath([os.path.realpath(indir), os.path.realpath(INVARS)]) != os.path.realpath(INVARS):
+		fail(f'INVARS_FOLDER = {folder!r} in config.py: folder {indir} not found; it must be a subfolder of {INVARS} '
+		     "('' for the files directly in it)")
+	variables, res = read_variables(folder)
 	old_order = list(getattr(config, 'ENV_VARS', {}))
 	order = [n for n in old_order if n in variables] + [n for n in variables if n not in old_order]
 	ref = variables[order[0]]
-	print(f'Variables in {INVARS}: {", ".join(order)}')
+	print(f'Variables in {indir}: {", ".join(order)}')
 	print(f'Resolution: {fmt_num(res)} | CRS: {ref["srs"].GetName()}')
 
 	sa_file = find_study_area(args.study_area)
@@ -303,13 +319,16 @@ def main():
 		f.write(text)
 	print('config.py: ENV_VARS = {\n' + '\n'.join(entries) + '\n}')
 
-	# 6. What was imported, so that the other steps know when the input data change
+	# 6. What was imported, so that the other steps know when the input data change. The files of the
+	#    other folders of ../inVars imported before are kept, to know whether their maps are up to date
+	others = {f: s for f, s in old_sigs.items() if posixpath.dirname(f) != folder}
 	hft_state.set_setup(study_area, {
+		'invars_folder': folder,
 		'grassdb': args.grassdb,
 		'study_area_file': os.path.abspath(sa_file) if sa_file else None,
 		'layer': layer,
 		'col_id': args.col_id,
-		'variables': {variables[n]['file']: hft_state.file_sig(variables[n]['path']) for n in order},
+		'variables': dict(others, **{variables[n]['file']: hft_state.file_sig(variables[n]['path']) for n in order}),
 		'study_area': hft_state.vector_sigs(sa_file) if sa_file else None,
 	})
 
