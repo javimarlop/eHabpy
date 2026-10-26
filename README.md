@@ -867,8 +867,7 @@ results/<STUDY_AREA>/<SCENARIO>/
     ├── radarplot_<id>_<k>_<cut>_segms_mean.png  relative profile of the HFTs
     ├── boxplot_<id>_<k>_<cut>_hft_pixels.png    pixel values of each variable by HFT
     ├── heatmap_<id>_<k>_<cut>_hft_profiles.png  median of each variable by HFT
-    ├── pca_biplot_<id>_<k>_<cut>_hft.png        PCA of the pixels with the HFTs
-    └── NMDS_<id>_<k>_<cut>_segms_mean.png       ordination of the segments
+    └── pca_biplot_<id>_<k>_<cut>_hft.png        PCA of the pixels with the HFTs
 ```
 
 Next to it, `results/<STUDY_AREA>` holds the folders of the other scenarios
@@ -1124,11 +1123,11 @@ segment and these fields:
 | one field per variable | Relative profile of the HFT (the values of the radar plot, 0-1). The names are shortened to 10 characters by the shapefile format, in the order of `ENV_VARS` (e.g. `G_1_NDV`). |
 
 To use it in QGIS: *Symbology → Categorized* on `hclst_m`. The area of each
-HFT is in the legend of the boxplots and of the NMDS (or with the field
-calculator, `$area / 10000` for hectares, and *Statistics by categories*). The
-shapefile can be used to stratify field sampling by HFT, to report the
-habitat composition of the study area, or to compare the HFTs with other maps
-(vegetation, land cover, fire severity, ...).
+HFT is in the legend of the boxplots and the rows of the heatmap (or with the
+field calculator, `$area / 10000` for hectares, and *Statistics by
+categories*). The shapefile can be used to stratify field sampling by HFT, to
+report the habitat composition of the study area, or to compare the HFTs with
+other maps (vegetation, land cover, fire severity, ...).
 
 ### Radar plot (`radarplot_<id>_<k>_<cut>_segms_mean.png`)
 
@@ -1204,38 +1203,13 @@ variance explained by each component is in the panel titles (39.0, 23.4 and
 - **Arrows**: the variables. Their direction is that of the increase of the
   variable and their length its correlation with the components; arrows
   pointing the same way are correlated variables. An HFT lying in the
-  direction of an arrow has high values of that variable.
+  direction of an arrow has high values of that variable. A long arrow means
+  that the variable is well represented in that plane, not that it separates
+  the HFTs: that is its eta2 in the heatmap.
 
 In the example the three vegetation indices point together along PC1 (they
 carry the same information), with the green HFT on their side, and
 temperature points towards HFTs 4 and 2.
-
-### NMDS of the segments (`NMDS_<id>_<k>_<cut>_segms_mean.png`)
-
-![NMDS of the segments coloured by HFT](docs/img/nmds_p50.png)
-
-A non-metric multidimensional scaling of the segments using the distances
-between them that the classification uses (standardised means with
-`'ward_area'`; means and variances rescaled to 0-1 with `'ward'`), so it
-shows how the classification sees the segments.
-
-- **Points**: segments, coloured by HFT and sized by area, joined by a thin
-  line to the centroid of their HFT (labelled box).
-- **Ellipses** (with 10 HFTs or fewer, for HFTs with 4 segments or more):
-  about 68 % of the segments of each HFT.
-- **Arrows**: the variables (segment means) fitted to the ordination with
-  `vegan::envfit`: the direction in which each variable increases, with a
-  length proportional to its correlation with the ordination; `r2` in the
-  label is the share of the variable explained by the two axes. Grey arrows
-  and labels are not significant (p >= 0.05, 999 permutations).
-- **Stress** (in the subtitle): how well the two axes keep the distances
-  between segments. As a rule of thumb, below 0.1 is good, 0.1 to 0.2 is
-  usable and above 0.2 should be read with care (0.193 in the example).
-
-Well separated groups of points mean distinct HFTs; segments far from their
-centroid or among the points of another HFT are transitional. In the example
-the vegetation indices (r2 = 0.87 to 0.93) organise the segments, and slope
-(r2 = 0.02) is not significant.
 
 ### Putting it together
 
@@ -1252,7 +1226,7 @@ A practical order to read the results of one ID:
    bends help to decide.
 4. For the chosen cut, the heatmap and the boxplots: name each HFT by the
    variables that set it apart (high eta2, colours far from white).
-5. The PCA biplot and the NMDS: are the HFTs distinct, or do some of them
+5. The PCA biplot: are the HFTs distinct, or do some of them
    overlap so much that they could be merged (a coarser cut)?
 6. Use `park_segm_<id>_<k>_<cut>_class.shp` for the maps and analyses that
    follow.
@@ -1727,7 +1701,7 @@ internal heterogeneity. The Euclidean distances between the vectors
 
 The **cophenetic correlation** of the tree, shown in the dendrogram plot, is
 computed against the Euclidean distances between the segments in the
-variables of the method (`z` or `f`), which are also those of the NMDS.
+variables of the method (`z` or `f`).
 
 #### Test with the Guajares data
 
@@ -1899,11 +1873,6 @@ compact HFTs but, by construction, less separable ones.
   `sqrt(qchisq(0.5, 2))`), and the arrows the loadings (eigenvectors times the
   square root of the eigenvalues, i.e. the correlations between variables and
   components), all scaled together to the size of the plot.
-- **NMDS**: `vegan::metaMDS` (2 dimensions, `set.seed(1)`) on the distances
-  between the segments of the classification (A6); centroids are the mean position of the
-  segments of every HFT and ellipses normal at the 68 % level
-  (`stat_ellipse`); vectors from `vegan::envfit` of the segment means with
-  999 permutations (`set.seed(1)`), drawn with length `sqrt(r2)`.
 
 ### A8. Intermediate files
 
@@ -1930,9 +1899,9 @@ emptied when the segmentation starts from scratch). `run_state.json` (in
 
 ### A9. Reproducibility
 
-- The seed map of the segmentation (`seed=10`), the `segm_id` of the
-  segments, `metaMDS` and `envfit` (`set.seed(1)`) are the same on every run,
-  so the same inputs give the same results.
+- The seed map of the segmentation (`seed=10`) and the `segm_id` of the
+  segments are the same on every run, so the same inputs give the same
+  results.
 - `processing_metadata.txt` records the options of every run, and
   `run_state.json` the inputs of every step.
 

@@ -165,7 +165,7 @@ segm_dist <- function(hri) {
 }
 
 # Árbol de la clasificación de los segmentos según CLASS_METHOD (ver config.py) y distancias entre ellos
-# (para la correlación cofenética y el NMDS). Con 'ward_area' y 'ward_area_kmeans', Ward ponderado por el
+# (para la correlación cofenética). Con 'ward_area' y 'ward_area_kmeans', Ward ponderado por el
 # nº de píxeles de cada segmento sobre su estadístico de cada variable tipificado con la desviación típica
 # de los píxeles (dentro + entre segmentos): con la distancia de Ward entre grupos y members = nº de
 # píxeles, hclust da el mismo árbol que el Ward de todos los píxeles partiendo de los segmentos
@@ -465,10 +465,6 @@ for (pmx in 1:mx) {
 	cophval <- 0
 	try(chcl <- cophenetic(hclust_mh))
 	try(cophval <- cor(chcl, dmh))
-	# metaMDS parte de configuraciones aleatorias: con la misma semilla sale igual en cada ejecución
-	mds_mh <- NULL
-	set.seed(1)
-	try(mds_mh <- metaMDS(dmh, trace=FALSE))
 
 	# Valores de las variables en cada píxel (../inVars), para los boxplots por HFT
 	var_names <- sub("pamean$", "", names(hri)[3:(2 + num_vars)])
@@ -592,65 +588,6 @@ for (pmx in 1:mx) {
 			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
 			try(plot(hclust_mh, hang=-1, main=park, sub=cophval, xlab=class_label)); try(rect.hclust(hclust_mh, k=ncl))
 			dev.off()
-
-			# --- NMDS DE LOS SEGMENTOS (las mismas distancias que la clasificación) ---
-			# Cada segmento coloreado por su HFT y con tamaño según su superficie, unido al centroide del
-			# HFT; elipses (68 %) con 10 HFTs o menos; variables ajustadas como vectores con envfit
-			if (!is.null(mds_mh)) {
-				nm <- data.frame(x=mds_mh$points[, 1], y=mds_mh$points[, 2], HFT=hclust_mean)
-				nm_hfts <- hft_order[hft_order %in% nm$HFT]
-				nm$HFT <- factor(nm$HFT, levels=nm_hfts)
-				nm$ha <- hri$sumpamask * cell_ha
-				nm_ha <- tapply(nm$ha, nm$HFT, sum)
-				nm_labels <- paste0(nm_hfts, ': ', format(round(nm_ha), big.mark=',', trim=TRUE), ' ha (', round(100 * nm_ha / sum(nm_ha), 1), ' %)')
-				nm_cols <- setNames(kolsn[nm_hfts], nm_hfts)
-				cent <- aggregate(cbind(cx=x, cy=y) ~ HFT, nm, mean)
-				nm <- merge(nm, cent, by='HFT')
-				ext <- max(abs(c(nm$x, nm$y)))
-
-				# Variables (medias de los segmentos) ajustadas a la ordenación: dirección y r2; las no
-				# significativas (p >= 0.05, 999 permutaciones) en gris claro
-				fit <- NULL
-				set.seed(1)
-				try(fit <- envfit(mds_mh, hri[, 3:(2 + num_vars), drop=FALSE], permutations=999, na.rm=TRUE))
-				if (!is.null(fit)) {
-					fv <- data.frame(var=paste0(short_labels(var_names), '\nr2 = ', sprintf('%.2f', fit$vectors$r)),
-					                 x=fit$vectors$arrows[, 1] * sqrt(fit$vectors$r), y=fit$vectors$arrows[, 2] * sqrt(fit$vectors$r),
-					                 signif=fit$vectors$pvals < 0.05)
-					fv[, c('x', 'y')] <- fv[, c('x', 'y')] * 0.9 * ext / max(sqrt(fv$x^2 + fv$y^2), 1e-9)
-					flen <- pmax(sqrt(fv$x^2 + fv$y^2), 1e-9)
-					fv$lx <- fv$x / flen * 1.15 * ext
-					fv$ly <- fv$y / flen * 1.15 * ext
-				}
-
-				nmdsp <- ggplot(nm, aes(x=x, y=y)) +
-					geom_hline(yintercept=0, colour='grey85') + geom_vline(xintercept=0, colour='grey85') +
-					geom_segment(aes(x=cx, y=cy, xend=x, yend=y, colour=HFT), alpha=0.35, linewidth=0.3) +
-					(if (length(nm_hfts) <= 10) stat_ellipse(data=nm[nm$HFT %in% names(which(table(nm$HFT) >= 4)), ],
-					                                         aes(colour=HFT), type='norm', level=0.68, linewidth=0.6)) +
-					geom_point(aes(colour=HFT, size=ha), alpha=0.8)
-				if (!is.null(fit)) {
-					nmdsp <- nmdsp +
-						geom_segment(data=fv, aes(x=x, y=y, xend=lx, yend=ly), colour='grey60', linewidth=0.3, linetype='dotted') +
-						geom_segment(data=fv, aes(x=0, y=0, xend=x, yend=y), colour=ifelse(fv$signif, 'grey20', 'grey70'),
-						             linewidth=0.5, arrow=arrow(length=unit(0.2, 'cm'))) +
-						ggrepel::geom_label_repel(data=fv, aes(x=lx, y=ly, label=var), colour=ifelse(fv$signif, 'black', 'grey55'),
-						                          size=3, lineheight=0.9, seed=1, box.padding=0.25, min.segment.length=Inf,
-						                          max.overlaps=Inf, label.padding=unit(0.15, 'lines'), fill=alpha('white', 0.9))
-				}
-				nmdsp <- nmdsp +
-					geom_label(data=cent, aes(x=cx, y=cy, label=HFT, fill=HFT), fontface='bold', size=3.5, show.legend=FALSE) +
-					scale_colour_manual(values=nm_cols, labels=nm_labels, name='HFT (area)') +
-					scale_fill_manual(values=nm_cols) +
-					scale_size_area(max_size=7, name='Segment area (ha)') +
-					guides(colour=guide_legend(override.aes=list(size=4, alpha=1, linetype=0))) +
-					coord_equal() +
-					labs(title=area, subtitle=paste0(plot_subtitle, sprintf(' | NMDS of the segments, stress = %.3f', mds_mh$stress),
-					                                 if (!is.null(fit)) ' | vectors: variables fitted with envfit (grey: p >= 0.05)'),
-					     x='NMDS1', y='NMDS2') +
-					theme_bw(base_size=13)
-				ggsave(file.path(outdir, paste('NMDS_', park, '_', res, tag, '_segms_mean.png', sep='')), nmdsp, width=12, height=9, dpi=300)
-			}
 
 			hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
 			raw_names <- names(hri)[3:(2 + num_vars)]
