@@ -1,0 +1,74 @@
+# gee_vars.yaml
+# Receta de get_vars_gee.py: variables de entrada descargadas de Google Earth Engine con el catálogo de MonitorEO
+# (OBSNEV). 'python3 get_vars_gee.py --list' muestra las variables del catálogo y 'python3 get_vars_gee.py --dry-run'
+# muestra lo que se descargaría sin descargarlo.
+
+# PROYECTO de Google Cloud registrado en Earth Engine (también --project o la variable de entorno EE_PROJECT).
+project: ''
+
+# CARPETA: subcarpeta de ../inVars con las variables del área de estudio (INVARS_FOLDER en config.py). Las de las
+# ecorregiones van a ../inVars/<folder>/ecoregion, que setup.py no lee.
+folder: gee
+
+# GOOGLE DRIVE (rejillas con drive: true): Earth Engine exporta cada variable con una tarea a esta carpeta de tu Drive,
+# y get_vars_gee.py la importa de la copia local de Google Drive para escritorio (o de drive_dir, la carpeta donde
+# la hayas descargado). Las tareas siguen aunque se pare el script: al volver a ejecutarlo, las espera y las importa.
+drive_folder: eHabitat_GEE
+drive_dir: null         # null = <Google Drive para escritorio>/My Drive/<drive_folder>
+
+# SISTEMA DE REFERENCIA: 'auto' = WGS 84 / UTM de la zona del centro del área de estudio; o un código, p. ej. 'EPSG:25830'.
+crs: auto
+
+# ÁREA DE ESTUDIO (el fichero de pa/, como en setup.py): rectángulo de sus polígonos ampliado en buffer metros
+# (y 2 píxeles más).
+study:
+  resolution: 10        # tamaño de píxel (m)
+  buffer: null          # null = PA_BUFFER de config.py
+  drive: false          # false = descarga directa en teselas; true = exportación a Google Drive (ver drive_folder)
+
+# ECORREGIONES de RESOLVE Ecoregions 2017 (Ecoregions2017) que toca el área de estudio: si toca varias, la unión de
+# todas. Los píxeles fuera de ellas quedan sin datos. Una ecorregión puede ser miles de veces mayor que el área de
+# estudio (la de Guajares tiene 298 000 km2): a 10 m serían 12 GB por variable, a 100 m 120 MB y a 1000 m 1.2 MB.
+ecoregion:
+  resolution: 100       # tamaño de píxel (m); null = no descargar las variables de las ecorregiones
+  drive: true           # exportación a Google Drive: sin límite de tamaño ni de tiempo por tesela
+  crs: null             # null = el del área de estudio; para ecorregiones muy grandes, mejor uno de igual área
+                        # (p. ej. 'EPSG:3035' en Europa)
+
+# OPCIONES COMUNES de las variables (cada variable puede cambiar cualquiera de ellas):
+period: ['2018-01-01', '2021-12-31']   # primer y último día
+season: null            # ['MM-DD', 'MM-DD']: solo esos días de cada año, p. ej. ['06-01', '09-30'] (puede cruzar el año)
+# Filtros por píxel de MonitorEO: quitan de cada imagen los píxeles que marcan sus bandas de calidad (las del catálogo
+# de MonitorEO: SCL en Sentinel-2, salvo las nubes, con Cloud Score+; QA_PIXEL y SR_QA_AEROSOL en Landsat; la banda de
+# calidad de cada producto MODIS).
+# 'auto' = activado salvo en las variables que miden eso (water: NDWI, Chl-a y NDCI; snow: NDSI; aerosols: ARSL).
+quality:
+  clouds: true          # nubes y sombras
+  water: true           # agua
+  snow: true            # nieve
+  aerosols: true        # aerosoles altos (Landsat 8 y 9, y NDVI, EVI y LAI de MODIS; Sentinel-2 no tiene esta banda)
+  cloud_score: 0.6      # nubes de Sentinel-2: Cloud Score+ (cs_cdf) mínimo de un píxel despejado; null = clases de
+                        # SCL, como MonitorEO (en Guajares, Cloud Score+ dio un NDVI p5 más parecido al de referencia)
+  scene_clouds: null    # Sentinel-2 y Landsat: % máximo de nubes de una escena; null = todas
+exclude_landcover: []   # clases de ESA WorldCover 2021 que quedan sin datos: 40 cultivos, 50 urbano, 80 agua, ...
+
+# VARIABLES, en este orden (el prefijo 1_, 2_, ... de los ficheros; la primera define los píxeles analizados).
+# Cada una es:
+#  - una variable del catálogo de MonitorEO: index, sensor (Sentinel-2, Landsat o Modis) y metric (y collection
+#    cuando el catálogo tiene varias para esa variable y sensor, p. ej. MODIS/061/MYD13Q1)
+#  - otra colección de Earth Engine: collection, band y metric (scale y offset opcionales)
+#  - una imagen fija (o una colección de teselas, que se unen): image y band (scale y offset opcionales;
+#    terrain: slope o aspect para la pendiente o la orientación en grados)
+# metric: mean, median, mode, min, max, sum, std, count o pN (percentil N: p5, p95, ...). Una lista da un fichero
+#   por métrica.
+# temporal: period = la métrica sobre todas las imágenes del periodo (por defecto)
+#           annual = la métrica de cada año y después interannual (mean por defecto) entre los años
+#           monthly, 16-day = la métrica de cada mes (o 16 días), interannual entre los años de cada mes del año
+#                    y la media de los meses
+# name: nombre del fichero (por defecto variable_sensor_métrica)
+variables:
+  - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}  # NDVI máximo y mínimo
+  - {index: LSWI, sensor: Sentinel-2, metric: median}     # LSWI = NDWI de Gao (NIR y SWIR1)
+  - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}  # pendiente (grados)
+  - {name: temp, image: WORLDCLIM/V1/BIO, band: bio01, scale: 0.1}        # temperatura media anual (ºC, 1960-1990)
+  - {name: precip, image: WORLDCLIM/V1/BIO, band: bio12}                  # precipitación anual (mm, 1960-1990)

@@ -29,5 +29,7 @@ pre4root*
 processing_metadata.txt
 run_state.json
 run_state.json.tmp
+gee_vars.json
+gee_vars.json.tmp
 # example figures of the README (all other graphs stay ignored)
 !docs/img/*.png

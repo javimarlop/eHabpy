@@ -21,6 +21,10 @@ geopandas>=0.13      # polygon dissolve in moranvar.py (replaces fiona+shapely+i
 libpysal>=4.7        # spatial weights  (was: pysal.rook_from_shapefile)
 esda>=2.4            # Moran's I        (was: pysal.Moran)
 
+# Input variables from Google Earth Engine (segm_optim/get_vars_gee.py, monitoreo/)
+earthengine-api>=1.0
+pyyaml>=6.0
+
 # GDAL Python bindings — install via conda or system packages, e.g.:
 #   conda install -c conda-forge gdal
 # gdal>=3.4

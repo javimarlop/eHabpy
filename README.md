@@ -116,7 +116,8 @@ Alternatively, install the pieces yourself:
 - **GDAL 3** command-line utilities and Python bindings (`osgeo`).
 - **Python 3.10–3.12** packages (see `requirements.txt`):
   `pip install -r requirements.txt`
-  (numpy, scipy, joblib, tqdm, geopandas, libpysal, esda; GDAL via conda/system).
+  (numpy, scipy, joblib, tqdm, geopandas, libpysal, esda, and earthengine-api
+  and pyyaml for `get_vars_gee.py`; GDAL via conda/system).
 - **R 4.x** with: `sf`, `terra`, `vegan`, `ade4`, `ggplot2`, `reshape2`,
   `RColorBrewer`.
 
@@ -150,6 +151,9 @@ every step, option and output of the HFT module in detail.
    removing these, copy it to a subfolder of `inVars` and set
    `INVARS_FOLDER` in `config.py` to its name: its results go to a scenario
    with that name (see [Several sets of variables](#several-sets-of-variables-invars_folder)).
+   Or download them from Google Earth Engine, for the study area and its
+   ecoregions, with `get_vars_gee.py` (after step 2; see
+   [Variables from Google Earth Engine](#variables-from-google-earth-engine-get_vars_geepy)).
 
 2. Copy the vector file of the study area (`.gpkg`, `.shp` or `.geojson`) to
    the `segm_optim/pa` folder. Its file name is also the name of the GRASS
@@ -303,8 +307,12 @@ are connected and which files each one reads and writes.
 eHabpy/
 ├── inVars/                        <- your input variables (GeoTIFF)
 │   └── <INVARS_FOLDER>/           <- optional: other sets of variables, one subfolder each
+│       └── ecoregion/             <- variables of the ecoregions (get_vars_gee.py)
+├── monitoreo/                     Python core of MonitorEO (used by get_vars_gee.py)
 └── segm_optim/                    <- run every command from here
     ├── config.py                  options of the model
+    ├── get_vars_gee.py            optional, step 1: variables from Google Earth Engine
+    ├── gee_vars.yaml              its recipe
     ├── setup.py                   step 3
     ├── palist.csv                 IDs to process (written by setup.py, step 5)
     ├── run_hft.py                 step 6: runs the steps 7 to 9 that are needed
@@ -437,6 +445,164 @@ the last run, so every change of folder repeats the segmentation.
 - **The HFTs cover the bounding box of each ID grown by `PA_BUFFER`**, not
   only the inside of its polygons (unless `CLIP_TO_PA = True`). The outline of
   the study area is drawn on the maps for reference.
+
+#### Variables from Google Earth Engine (`get_vars_gee.py`)
+
+Instead of preparing the GeoTIFFs yourself, `get_vars_gee.py` can compute and
+download them with Google Earth Engine, using the catalog of variables of
+[MonitorEO](https://ee-ugr-default-project.projects.earthengine.app/view/monitoreo-obsnev)
+(OBSNEV): NDVI, EVI, NDWI, LSWI, NDSI, NDCI, albedo, land surface temperature,
+evapotranspiration, LAI, ... of Sentinel-2, Landsat and MODIS, and any other
+collection or image of Earth Engine (e.g. a DEM and its slope, or climate).
+You choose the variables, the period, the season and one or several metrics
+for each variable. It writes them, ready for `setup.py`, on two grids:
+
+- the **study area**: the polygons of `pa/` grown by `PA_BUFFER`, with a fine
+  pixel size, in `inVars/<folder>` (set `INVARS_FOLDER` to that folder);
+- the **ecoregions** of RESOLVE Ecoregions 2017 (the Ecoregions2017 layer)
+  that the study area touches (their union if it is in several), with a
+  coarser pixel size, in `inVars/<folder>/ecoregion`, with the polygons of the
+  ecoregions in `ecoregions.gpkg`. The pixels outside the ecoregions are
+  NoData. `setup.py` does not read this subfolder.
+
+An ecoregion is usually thousands of times bigger than the study area: the
+Guajares study area has 54 km² and its ecoregion (Iberian sclerophyllous and
+semi-deciduous forests) 297 956 km², so a variable of the ecoregion takes
+12 GB at 10 m, 120 MB at 100 m and 1.2 MB at 1 km. Hence the two pixel sizes.
+
+**Before the first run** you need a Google Cloud project registered in Earth
+Engine (free for non-commercial use, see
+https://developers.google.com/earth-engine/guides/access) and to sign in once:
+
+```
+earthengine authenticate
+```
+
+The project goes in `project:` of the recipe, in `--project` or in the
+environment variable `EE_PROJECT`. The `ehabpy` environment includes
+`earthengine-api` and `pyyaml`; in an environment created before, add them
+with `conda install -c conda-forge earthengine-api pyyaml`.
+
+**The recipe** is `segm_optim/gee_vars.yaml` (its comments are in Spanish,
+like those of `config.py`; `--recipe` reads another one):
+
+```yaml
+project: my-earth-engine-project
+folder: gee                        # inVars/gee and inVars/gee/ecoregion
+drive_folder: eHabitat_GEE         # folder of Google Drive for the grids with drive: true
+drive_dir: null                    # null = that folder in Google Drive for desktop
+crs: auto                          # WGS 84 / UTM of the study area, or e.g. 'EPSG:25830'
+study:
+  resolution: 10                   # pixel size (m)
+  buffer: null                     # null = PA_BUFFER of config.py
+  drive: false                     # direct download
+ecoregion:
+  resolution: 100                  # null = no ecoregion
+  crs: null                        # null = that of the study area
+  drive: true                      # export to Google Drive
+period: ['2018-01-01', '2021-12-31']
+season: null                       # e.g. ['06-01', '09-30']: only those days of each year
+quality: {clouds: true, water: true, snow: true, aerosols: true, cloud_score: 0.6, scene_clouds: null}
+exclude_landcover: []              # ESA WorldCover classes set to NoData, e.g. [40, 50, 80]
+variables:
+  - {index: NDVI, sensor: Sentinel-2, metric: [p95, p5]}
+  - {index: LSWI, sensor: Sentinel-2, metric: median}
+  - {index: LST, sensor: Modis, temporal: annual, metric: max, interannual: median}
+  - {name: slope, image: COPERNICUS/DEM/GLO30_2024_1, band: DEM, terrain: slope}
+  - {name: precip, image: WORLDCLIM/V1/BIO, band: bio12}
+```
+
+`period`, `season`, `quality` and `exclude_landcover` apply to every variable
+unless the variable gives its own. Each variable is one of:
+
+| Keys | Variable |
+|---|---|
+| `index`, `sensor` | a variable of the catalog of MonitorEO (`python3 get_vars_gee.py --list`); `collection` chooses one when the catalog has several for that variable and sensor (e.g. `MODIS/061/MYD13Q1`, Aqua, instead of MOD13Q1, Terra) |
+| `collection`, `band` | another image collection of Earth Engine, e.g. `IDAHO_EPSCOR/TERRACLIMATE` and `pr`; optional `scale` and `offset` of the band |
+| `image`, `band` | a fixed image, or a collection of tiles that are mosaicked (e.g. `COPERNICUS/DEM/GLO30_2024_1`); optional `scale`, `offset` and `terrain: slope` or `aspect` (degrees) |
+
+and these options:
+
+| Option | Use |
+|---|---|
+| `metric` | `mean`, `median`, `mode`, `min`, `max`, `sum`, `std`, `count` or `pN` (percentile N, e.g. `p5`, `p95`). A list gives one file per metric |
+| `temporal` | `period` (default): the metric over all the images of the period. `annual`: the metric of each year (or season of each year) and then `interannual` between the years. `monthly` or `16-day`: the metric of each month (or 16 days), `interannual` between the years of each month of the year, and the mean of the months (the *interannual mean* of MonitorEO) |
+| `interannual` | metric between the years (default `mean`) |
+| `quality` | the pixel filters of MonitorEO, all on by default: `clouds` (clouds and shadows), `water`, `snow` and `aerosols` (high aerosol content) remove from every image the pixels flagged by the QA bands of the catalog of MonitorEO: `SCL` for Sentinel-2 (except its clouds, see `cloud_score`), `QA_PIXEL` and `SR_QA_AEROSOL` (Landsat 8 and 9) for Landsat and the QA bands of each MODIS product. Sentinel-2 has no aerosol band. `true`, `false` or `auto` (on, except for the variables that measure what the filter removes: NDWI, Chl-a and NDCI for `water`, NDSI for `snow`, ARSL for `aerosols`; `get_vars_gee.py` warns when one of these filters is on). `cloud_score` (default 0.6) is the minimum Cloud Score+ (`cs_cdf`) of a clear Sentinel-2 pixel; `null` uses the cloud classes of `SCL` instead, as MonitorEO. In the Guajares example Cloud Score+ gave a p5 of NDVI closer to the reference (r = 0.981 against 0.953 with `SCL`), and the same for p95 of NDVI and the median of LSWI (0.954 and 0.946 against 0.955 and 0.950). `scene_clouds` leaves out the Sentinel-2 and Landsat scenes with more cloud cover (%) |
+| `exclude_landcover` | classes of ESA WorldCover 2021 set to NoData (10 trees, 20 shrubs, 30 grassland, 40 crops, 50 built-up, 60 bare, 70 snow, 80 water, 90 wetland, ...), like the mask of water, urban areas and crops of the Guajares variables |
+| `resample` | `auto` (default: bilinear when the pixels of the data are bigger than the output pixels, e.g. MODIS at 10 m), `nearest`, `bilinear` or `bicubic` |
+| `aggregate` | for fixed images on output pixels more than twice as big as theirs: `auto` or `mean` (default: mean of the pixels of the data inside each output pixel, e.g. the mean of the 30 m slopes in 100 m) or `none` |
+| `name` | name of the file (default `<index>_<sensor>_<metric>`, e.g. `NDVI_S2_p95`) |
+
+**Running it**, from `segm_optim`:
+
+```
+python3 get_vars_gee.py --list      # variables of the catalog of MonitorEO
+python3 get_vars_gee.py --dry-run   # grids, sizes, ecoregions and number of images
+python3 get_vars_gee.py --use       # download, and set INVARS_FOLDER in config.py
+python3 run_hft.py
+```
+
+The files are numbered in the order of the recipe (`1_NDVI_S2_p95.tif`,
+`2_NDVI_S2_p5.tif`, ...; `01_`, `02_`, ... with ten or more), so the first
+variable of the recipe is the first variable of the model and defines the
+analysed pixels. They are float32 GeoTIFFs with NoData -9999, in the same CRS
+and on grids whose edges are multiples of the pixel size. `gee_vars.json`, in
+each folder, records what every file was made with (recipe, grid, collection,
+formula and number of images): running `get_vars_gee.py` again only downloads
+the files whose recipe or grid changed (`--overwrite` downloads all of them),
+`--only study` or `--only ecoregion` downloads one grid.
+
+Each grid is downloaded in one of two ways:
+
+- **Directly** (`drive: false`, the default): Earth Engine computes the image
+  on demand in tiles of `--tile` pixels (512), `--workers` (8) at a time, and
+  the script writes them into the GeoTIFF. Each request is limited to about
+  48 MB and a few minutes of computation, so a tile that is too big or too slow
+  is split into four. It is fast for small grids such as the study area, but
+  slow for big ones: 4 years of Sentinel-2 on the Guajares ecoregion at 100 m
+  took more than an hour per variable.
+- **Exported to Google Drive** (`drive: true`, or `--drive` for every grid):
+  each variable is an export task of Earth Engine (`Export.image.toDrive`) to
+  the folder `drive_folder` of the Drive of the Earth Engine account, with no
+  limit of size or time per tile; Earth Engine splits files bigger than
+  16384 pixels into pieces. The tasks run in Earth Engine, also with the
+  computer switched off; they are listed in the Tasks tab of the Code Editor.
+  The script waits for them and imports the files from the local copy of
+  [Google Drive for desktop](https://www.google.com/drive/download/)
+  (`My Drive/<drive_folder>`), joining the pieces onto the grid. When several
+  tasks start before the folder exists, Earth Engine creates one folder of the
+  same name for each of them, shown as `<drive_folder> (1)`, `(2)`, ... by
+  Google Drive for desktop: the script looks in all of them. Without it,
+  download the folder from Drive and give it with `--drive-dir`. Ctrl+C (or
+  `--no-wait`) only stops waiting: running the same command again does not
+  start the tasks again, it waits for them and imports their files. The files
+  stay in Drive: delete them there when they are no longer needed.
+
+Both use the monthly Earth Engine quota of the project (free for
+noncommercial use, see
+[the noncommercial tiers](https://developers.google.com/earth-engine/guides/noncommercial_tiers)).
+
+How the variables are computed:
+
+- Variables of the catalog: the collection, formula, scale and offset of the
+  catalog of MonitorEO, with its pixel filters (in the app they are switched off). The scale and offset are
+  applied to the bands before the formula, so EVI and albedo are computed from
+  reflectances.
+- On pixels bigger than those of the sensor (e.g. Sentinel-2 at 1 km), Earth
+  Engine reads the bands from its pyramids, i.e. averaged over the output
+  pixel: the NDVI of a 1 km pixel is the NDVI of its mean reflectances, not the
+  mean of its 10 m NDVI.
+- There is no TWI in Earth Engine: download the DEM (`image:
+  COPERNICUS/DEM/GLO30_2024_1`, `band: DEM`) and compute it in GRASS (`r.topidx`), or
+  leave it out.
+
+The code that computes the variables is the Python core of MonitorEO, in the
+`monitoreo` folder (next to `segm_optim`), so that other tools can use it.
+Its `catalog.json` is the catalog of the MonitorEO app, read from the source
+of the app by `python3 monitoreo/tools/import_catalog.py` (run it again when
+the catalog of MonitorEO changes). Corrections to the catalog are in `FIXES`
+of `monitoreo/catalog.py` (the scale of LAI is 0.1, not 0.01).
 
 ### Step 2. Activate the environment and create the GRASS database
 

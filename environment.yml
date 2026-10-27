@@ -22,6 +22,8 @@ dependencies:
   - esda>=2.4
   - numba>=0.59          # required by libpysal/esda; keep in sync with numpy
   - grass>=8.3           # GRASS GIS 8 (remove if using a system install)
+  - earthengine-api      # get_vars_gee.py: variables from Google Earth Engine (../monitoreo)
+  - pyyaml               # recipe of get_vars_gee.py (gee_vars.yaml)
   # --- R + packages for the plotting / classification / THDI steps ---
   - r-base>=4.2
   - r-sf
