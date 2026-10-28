@@ -22,8 +22,9 @@ dependencies:
   - esda>=2.4
   - numba>=0.59          # required by libpysal/esda; keep in sync with numpy
   - grass>=8.3           # GRASS GIS 8 (remove if using a system install)
-  - earthengine-api      # get_vars_gee.py: variables from Google Earth Engine (../monitoreo)
+  - earthengine-api      # get_vars_gee.py: variables from Google Earth Engine (package monitoreo, below)
   - pyyaml               # recipe of get_vars_gee.py (gee_vars.yaml)
+  - pip
   # --- R + packages for the plotting / classification / THDI steps ---
   - r-base>=4.2
   - r-sf
@@ -34,3 +35,6 @@ dependencies:
   - r-ggrepel            # variable labels of the PCA biplot
   - r-reshape2
   - r-rcolorbrewer
+  # --- MonitorEO in Python (get_vars_gee.py), from GitHub; get_vars_gee.py keeps it at its last version ---
+  - pip:
+      - monitoreo @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip

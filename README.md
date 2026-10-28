@@ -116,8 +116,9 @@ Alternatively, install the pieces yourself:
 - **GDAL 3** command-line utilities and Python bindings (`osgeo`).
 - **Python 3.10–3.12** packages (see `requirements.txt`):
   `pip install -r requirements.txt`
-  (numpy, scipy, joblib, tqdm, geopandas, libpysal, esda, and earthengine-api
-  and pyyaml for `get_vars_gee.py`; GDAL via conda/system).
+  (numpy, scipy, joblib, tqdm, geopandas, libpysal, esda, and earthengine-api,
+  pyyaml and the MonitorEO package `monitoreo` for `get_vars_gee.py`; GDAL via
+  conda/system).
 - **R 4.x** with: `sf`, `terra`, `vegan`, `ade4`, `ggplot2`, `reshape2`,
   `RColorBrewer`.
 
@@ -308,7 +309,6 @@ eHabpy/
 ├── inVars/                        <- your input variables (GeoTIFF)
 │   └── <INVARS_FOLDER>/           <- optional: other sets of variables, one subfolder each
 │       └── ecoregion/             <- variables of the ecoregions (get_vars_gee.py)
-├── monitoreo/                     Python core of MonitorEO (used by get_vars_gee.py)
 └── segm_optim/                    <- run every command from here
     ├── config.py                  options of the model
     ├── get_vars_gee.py            optional, step 1: variables from Google Earth Engine
@@ -481,7 +481,8 @@ earthengine authenticate
 The project goes in `project:` of the recipe, in `--project` or in the
 environment variable `EE_PROJECT`. The `ehabpy` environment includes
 `earthengine-api` and `pyyaml`; in an environment created before, add them
-with `conda install -c conda-forge earthengine-api pyyaml`.
+with `conda install -c conda-forge earthengine-api pyyaml`. The package of
+MonitorEO, `monitoreo`, is installed by `get_vars_gee.py` itself (see below).
 
 **The recipe** is `segm_optim/gee_vars.yaml` (its comments are in Spanish,
 like those of `config.py`; `--recipe` reads another one):
@@ -543,6 +544,11 @@ python3 get_vars_gee.py --use       # download, and set INVARS_FOLDER in config.
 python3 run_hft.py
 ```
 
+Every run first checks that the installed `monitoreo` package (see below) is
+the last version in GitHub and, if it is not (or it is not installed),
+installs that version with pip in the active environment. Without internet it
+warns and goes on with the installed version; `--no-update` skips the check.
+
 The files are numbered in the order of the recipe (`1_NDVI_S2_p95.tif`,
 `2_NDVI_S2_p5.tif`, ...; `01_`, `02_`, ... with ten or more), so the first
 variable of the recipe is the first variable of the model and defines the
@@ -597,12 +603,18 @@ How the variables are computed:
   COPERNICUS/DEM/GLO30_2024_1`, `band: DEM`) and compute it in GRASS (`r.topidx`), or
   leave it out.
 
-The code that computes the variables is the Python core of MonitorEO, in the
-`monitoreo` folder (next to `segm_optim`), so that other tools can use it.
-Its `catalog.json` is the catalog of the MonitorEO app, read from the source
-of the app by `python3 monitoreo/tools/import_catalog.py` (run it again when
-the catalog of MonitorEO changes). Corrections to the catalog are in `FIXES`
-of `monitoreo/catalog.py` (the scale of LAI is 0.1, not 0.01).
+The code that computes and downloads the variables is the Python package of
+MonitorEO, `monitoreo`
+([github.com/monitoreo-obsnev/monitoreo](https://github.com/monitoreo-obsnev/monitoreo);
+the recipe is its module `monitoreo.recipe`), the same code as the MonitorEO
+plugin of QGIS, its R package and its MCP server for language models, so a
+variable is computed the same way by all of them. `get_vars_gee.py` only adds
+what is particular to eHabitat+: the study area of `pa/`, `PA_BUFFER`, the
+folders of `inVars` and `--use`. The catalog of variables of the package is
+that of the MonitorEO app, read from its source, with some corrections (e.g.
+the scale of LAI is 0.1, not 0.01); see the README of the package. To work on
+the package itself, install a clone of it with `pip install -e <folder>`:
+`get_vars_gee.py` then uses that copy and only warns when it is behind GitHub.
 
 ### Step 2. Activate the environment and create the GRASS database
 

@@ -21,9 +21,11 @@ geopandas>=0.13      # polygon dissolve in moranvar.py (replaces fiona+shapely+i
 libpysal>=4.7        # spatial weights  (was: pysal.rook_from_shapefile)
 esda>=2.4            # Moran's I        (was: pysal.Moran)
 
-# Input variables from Google Earth Engine (segm_optim/get_vars_gee.py, monitoreo/)
+# Input variables from Google Earth Engine (segm_optim/get_vars_gee.py): the package of MonitorEO, from GitHub
+# (get_vars_gee.py keeps it at its last version)
 earthengine-api>=1.0
 pyyaml>=6.0
+monitoreo @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip
 
 # GDAL Python bindings — install via conda or system packages, e.g.:
 #   conda install -c conda-forge gdal
