@@ -270,7 +270,7 @@ base <- ggplot(axis$label) + xlab(NULL) + ylab(NULL) + coord_equal() +
   }
   
   #... + amend Legend title
-  if (plot.legend==TRUE) base  <- base + labs(colour=legend.title,size=legend.text.size)
+  if (plot.legend==TRUE) base  <- base + labs(colour=legend.title)
   
   # ... + circular grid-lines at 'min', 'mid' and 'max' y-axis values
   base <- base +  geom_path(data=gridline$min$path,aes(x=x,y=y),

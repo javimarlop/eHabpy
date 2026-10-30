@@ -27,6 +27,7 @@ dependencies:
   - pip
   # --- R + packages for the plotting / classification / THDI steps ---
   - r-base>=4.2
+  - r-codetools          # recommended package not in conda's r-base (without it terra prints "was not checked for suspicious field assignments")
   - r-sf
   - r-terra
   - r-vegan

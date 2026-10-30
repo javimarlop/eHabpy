@@ -1392,7 +1392,7 @@ segment and these fields:
 | `segm_id` | Segment ID: area ID, threshold index and a 5-digit segment number (`1600001`: area 1, threshold 0.6, segment 1). |
 | `cat`, `label` | Segment number and (empty) label of the GRASS vector. |
 | `cat_pa`, `wdpaid` | Area ID. |
-| one field per variable | Relative profile of the HFT (the values of the radar plot, 0-1). The names are shortened to 10 characters by the shapefile format, in the order of `ENV_VARS` (e.g. `G_1_NDV`). |
+| one field per variable | Relative profile of the HFT (the values of the radar plot, 0-1). The names are shortened to 10 characters by the shapefile format, in the order of `ENV_VARS` (e.g. `G_1_NDV`). When the variable names only differ at the end and the shortened names would not fit, they are `V1_`, `V2_`... followed by the start of the part of the name that differs (e.g. `V1_Clay`). |
 
 To use it in QGIS: *Symbology → Categorized* on `hclst_m`. The area of each
 HFT is in the legend of the boxplots and the rows of the heatmap (or with the

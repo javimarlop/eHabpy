@@ -26,6 +26,17 @@ short_labels <- function(x, width = 18) {
 	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
 }
 
+# Campos de las variables en el shapefile de los HFTs, de 10 caracteres como máximo, únicos y distintos de
+# 'taken': los de abbreviate, como los acortaba sf (p. ej. G_1_NDV), y si alguno no cabe (nombres que solo se
+# distinguen al final) V<n>_ y el principio de la parte del nombre que no comparten todas (n: orden en ENV_VARS)
+dbf_names <- function(x, taken = character(0)) {
+	a <- gsub('.', '_', abbreviate(x, minlength = 7, named = FALSE), fixed = TRUE)
+	if (all(nchar(a) <= 10) && !anyDuplicated(c(a, taken))) return(a)
+	p <- paste0('V', seq_along(x), '_')
+	d <- abbreviate(gsub('\\s+', '_', short_labels(x, width = 1000)), minlength = 7, named = FALSE)
+	paste0(p, substr(gsub('.', '_', d, fixed = TRUE), 1, 10 - nchar(p)))
+}
+
 # Colores jerárquicos para cortes anidados del mismo árbol (SIMIL = 3), como los "tree colors" de Tennekes
 # y de Jonge (2014) en el espacio HCL: los HFTs del corte con menos HFTs se reparten el círculo de tonos, y
 # cada HFT reparte su parte entre los HFTs del corte siguiente que contiene (en proporción a los HFTs del
@@ -708,6 +719,12 @@ for (pmx in 1:mx) {
 				names(scaled0)[1] <- 'hclust_mean'
 				names(scaled0)[kl] <- 'wdpaid'
 				merge(segm_pa_class, scaled0, by='hclust_mean') -> segm_pa_class2
+
+				# Nombres de los campos ya de 10 caracteres como máximo, para que sf no los acorte: los que acortaba
+				# pasaban de 10 con variables que solo se distinguen al final, y st_write fallaba ("Unknown field name")
+				names(segm_pa_class2)[names(segm_pa_class2) == 'hclust_mean'] <- 'hclst_m'
+				iv <- match(names(scaled2)[-1], names(segm_pa_class2))
+				names(segm_pa_class2)[iv] <- dbf_names(names(scaled2)[-1], taken = names(segm_pa_class2)[-iv])
 
 				st_write(segm_pa_class2,
 						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
