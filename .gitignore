@@ -23,3 +23,21 @@ pre4root*
 *.zip
 *.rar
 *.pdf
+.DS_Store
+*.ini
+*.gpkg
+processing_metadata.txt
+run_state.json
+run_state.json.tmp
+gee_vars.json
+gee_vars.json.tmp
+# example figures of the README (all other graphs stay ignored)
+!docs/img/*.png
+# app (app/): its settings and last recipe of MonitorEO, and its icon (all other images stay ignored)
+segm_optim/app_settings.json
+segm_optim/app_settings.json.tmp
+segm_optim/app_recipe.yaml
+!app/ehabitat_app/ui/icon.png
+# record of the version installed by the updates of the app
+.ehabitat_version.json
+.ehabitat_version.json.tmp

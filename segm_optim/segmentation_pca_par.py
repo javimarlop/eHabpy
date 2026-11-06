@@ -1,333 +1,408 @@
 #### Author: Javier Martinez-Lopez (UTF-8) 2014 - 2021
+#### Modernized for Python 3 / GRASS GIS 8 (2024)
 #### License: CC BY-SA 3.0
-#### Control files: 'csv/segm_done.csv'; ongoing.csv; done.csv
-#### Inputs variables: 9 input variables in GRASS GIS; palist.csv; 
-#### Outputs: 9 segmentation shapefiles for each PA in shp folder; raster files based on segments for all PAs in tiffs folder; segmentation (ecoregs) and park segments csv files in csv folder; 
-#### NOtes: configure GRASS GIS environment and database and number of processors (Pool(n) in line 321)
 
-from multiprocessing import cpu_count,Pool,Lock
+from multiprocessing import cpu_count, Pool
 import multiprocessing
 import subprocess
-from datetime import datetime
 import numpy as np
-#from tqdm import *
+from scipy import ndimage
+import math
 import os
 import sys
-import csv
-import gc
+import shutil
 
-#GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"#/home/majavie/grass_last/new/grass7_trunk/dist.x86_64-unknown-linux-gnu"
-#GRASSDBASE = "/home/majavie/hanksgrass7"
-#MYLOC = "global_MW"
-#global mapset
-#mapset = 'm'#ehabitat'
-#col= 'wdpaid'
+import hft_state
 
-#sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
-#import grass.script as grass
-#import grass.script.setup as gsetup
+# Importar configuración global de variables y opciones
+try:
+    from config import ENV_VARS0, RESOLUTION, COL_ID, GRASSDB, GRASSLOC, STUDY_AREA
+except ImportError:
+    print("ERROR: No se encuentra config.py. Asegúrate de crearlo en el mismo directorio.")
+    sys.exit(1)
 
-#gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
-#source = 'wdpa_aug14_100km2_moll'
-print "Extracting list of PAs"
-#pa_list0 = grass. read_command ('v.db.select', map=source,column=col). splitlines ()
-pa_list0 = np.genfromtxt('palist.csv',dtype='string')
-pa_list = np.unique(pa_list0)
-#n = len(pa_list2)
-#pa_list = pa_list2[0:n-2] # testing 5 first!
-#pa_list_tmp = ['6317','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045','6317','2579','372151','979','2013','983','55557661','555555854','132','19984','35002','10908','1111192','984','9632','1083','801','555523378','555545976','555545971','555546231','71213','4840','151315','257','101922','2017','11','68175','643','555542456','4328', '124389','2006','900883','93294','198301','61612','555577555','555556047','555538721','19297','555580364','555540045'] # ]# '95786'
-#pa_list = np.unique(pa_list_tmp)
-print pa_list
+# OPCIONES DE CONFIGURACIÓN
+CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
+FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.environ.get('EHAB_FORCE_RESTART', '') not in ('', '0')
+PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
+SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
+SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
+CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
+if not 0 <= CLIP_PERCENTILE < 50:
+	sys.exit(f'ERROR: CLIP_PERCENTILE in config.py must be from 0 to less than 50, not {CLIP_PERCENTILE}')
+
+SEGM_VARS = [v.strip() for v in ','.join(ENV_VARS0).split(',') if v.strip()]
+FIRST_VAR = SEGM_VARS[0]  # its valid pixels define the analysed area
+
+GRASSDBASE = os.environ.get('GRASSDBASE', os.path.expanduser(GRASSDB))
+MYLOC = os.environ.get('GRASSLOC', GRASSLOC)
+NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1)))
+
+
+def find_gisbase():
+	gb = os.environ.get('GISBASE')
+	if gb:
+		return gb
+	for exe in ('grass', 'grass85', 'grass84', 'grass83', 'grass82', 'grass80'):
+		try:
+			# shell=True on Windows so that grass84.bat & co. are found
+			out = subprocess.check_output([exe, '--config', 'path'], text=True,
+			                              shell=(os.name == 'nt'), stderr=subprocess.DEVNULL)
+			return out.strip().splitlines()[-1]
+		except Exception:
+			continue
+	return None
+
+
+def add_grass_to_path():
+	gisbase = find_gisbase()
+	if gisbase:
+		os.environ['GISBASE'] = gisbase
+		py = os.path.join(gisbase, 'etc', 'python')
+		if py not in sys.path:
+			sys.path.append(py)
+	return gisbase
+
+
+def init_grass(gisdbase, location, mapset):
+	gisbase = add_grass_to_path()
+	import grass.script as grass
+	import grass.script.setup as gsetup
+	try:
+		gsetup.init(gisdbase, location, mapset)
+	except TypeError:
+		gsetup.init(gisbase, gisdbase, location, mapset)
+	return grass, gsetup
+
+
+def clean_previous_results():
+	"""Borra archivos de control y csv/shp/tiffs (results/ no: moranvar_plots.R mueve los resultados
+	anteriores del escenario a results/<STUDY_AREA>/<SCENARIO>_previous cuando escribe los nuevos)."""
+	control_files = ['csv/segm_done.csv', 'ongoing.csv', 'done.csv']
+	for f in control_files:
+		if os.path.exists(f):
+			try:
+				os.remove(f)
+			except Exception as e:
+				print(f"No se pudo eliminar {f}: {e}")
+	hft_state.reset('segm')
+
+	directories = ['csv', 'shp', 'tiffs']
+	for folder in directories:
+		if os.path.exists(folder):
+			for filename in os.listdir(folder):
+				file_path = os.path.join(folder, filename)
+				try:
+					if os.path.isfile(file_path) or os.path.islink(file_path):
+						os.unlink(file_path)
+					elif os.path.isdir(file_path):
+						shutil.rmtree(file_path)
+				except Exception as e:
+					print(f"No se pudo eliminar {file_path}: {e}")
+		else:
+			os.makedirs(folder, exist_ok=True)
+			
+	print("✓ Limpieza completada exitosamente.\n")
+
 
 csvname1 = 'csv/segm_done.csv'
 csvong1 = 'ongoing.csv'
 csvong2 = 'done.csv'
-if os.path.isfile(csvname1) == False:
- os.system('touch '+str(csvname1))
-if os.path.isfile(csvong1) == False:
- os.system('touch '+str(csvname1))
-if os.path.isfile(csvong2) == False:
- os.system('touch '+str(csvname1))
- #wb = open(csvname1,'a')
- ##wb.write('None')
- #wb.write('\n')
- #wb.close()
+# csv, shp y tiffs los comparten todas las áreas de estudio: este archivo dice de cuál son
+csvarea = 'csv/study_area.csv'
+
+
+def merge_small_segments(grass, pa3, minarea):
+	"""Une cada segmento de pa3 con menos de minarea celdas al segmento más frecuente de los
+	mayores que él a SMALL_SEGM_RADIUS píxeles o menos (distancia entre centros de celda), en
+	pasadas repetidas hasta que no cambia nada: los grupos de fragmentos cercanos acaban en un
+	mismo segmento. Los que siguen siendo pequeños (sin ningún segmento mayor tan cerca) se
+	unen después al segmento de minarea celdas o más más cercano, a cualquier distancia.
+	Se hace en memoria y no con un mapa por segmento: con datos enmascarados hay miles de
+	fragmentos aislados y r.patch agotaba los archivos abiertos."""
+	import grass.script.array as garray
+
+	data = np.asarray(garray.array(mapname=pa3, null=0, dtype=np.int32))
+	margin = int(SMALL_SEGM_RADIUS) + 1  # cells around the segment that can be within the radius
+	npass = 0
+	while True:
+		ids, counts = np.unique(data[data > 0], return_counts=True)
+		small = ids[counts < minarea]
+		if npass == 0:
+			nsmall = len(small)
+		size = np.zeros(data.max() + 1, dtype=np.int64)
+		size[ids] = counts
+		lut = np.arange(data.max() + 1, dtype=np.int32)
+		boxes = ndimage.find_objects(data)
+		for s in small:
+			rows, cols = boxes[s - 1]
+			sub = data[max(rows.start - margin, 0):rows.stop + margin, max(cols.start - margin, 0):cols.stop + margin]
+			inside = sub == s
+			near = sub[(ndimage.distance_transform_edt(~inside) <= SMALL_SEGM_RADIUS) & ~inside]
+			near = near[near > 0]
+			# Only larger segments (the larger ID if equal), so two segments never swap their IDs
+			near = near[(size[near] > size[s]) | ((size[near] == size[s]) & (near > s))]
+			if near.size:
+				ids_near, n = np.unique(near, return_counts=True)
+				lut[s] = ids_near[np.argmax(n)]
+		if (lut == np.arange(len(lut))).all():
+			break
+		npass += 1
+		# s -> t -> u in the same pass: s ends up in u
+		while not (lut[lut] == lut).all():
+			lut = lut[lut]
+		data = lut[data]
+	print(f"{pa3}: {nsmall} segments < {minarea} cells, {len(small)} left after {npass} merging passes "
+	      f"(no larger segment within {SMALL_SEGM_RADIUS} pixels)")
+
+	# Those left join the nearest segment with minarea cells or more, at any distance
+	changed = npass > 0
+	big = np.isin(data, ids[counts >= minarea])
+	if len(small) and big.any():
+		dist, (nrow, ncol) = ndimage.distance_transform_edt(~big, return_indices=True)
+		lut = np.arange(data.max() + 1, dtype=np.int32)
+		farthest = 0
+		for s in small:
+			box = boxes[s - 1]
+			inside = data[box] == s
+			d = dist[box][inside]
+			k = np.argmin(d)
+			lut[s] = data[nrow[box][inside][k], ncol[box][inside][k]]
+			farthest = max(farthest, d[k])
+		print(f"{pa3}: {len(small)} small segments joined the nearest segment >= {minarea} cells "
+		      f"(the farthest at {farthest:.1f} pixels)")
+		data = lut[data]
+		changed = True
+	if not changed:
+		return
+	out = garray.array(dtype=np.int32)
+	out[...] = data
+	out.write(mapname=pa3, null=0, overwrite=True)
+
 
 def fsegm(pa):
+	pa_list_done = np.genfromtxt(csvname1, dtype=str) if os.path.exists(csvname1) else np.array([])
+	if pa not in pa_list_done:
+		current = multiprocessing.current_process()
+		mn = current._identity[0]
 
- #gc.collect()
- pa_list_done = np.genfromtxt(csvname1,dtype='string')
- ### mp.current_process().cnt += 1
- if pa not in pa_list_done:
-  current = multiprocessing.current_process()
-  mn = current._identity[0]
-  print 'running:', mn
- #rmk = 'MASK=if(MASK>0,MASK,0)'
- #rmk = 'MASK = if( MASK > 0 , MASK , 0)'
+		# PERMANENT always exists in a GRASS project; each worker then works in its own mapset
+		grass, gsetup = init_grass(GRASSDBASE, MYLOC, 'PERMANENT')
 
-  ##GISBASE = os.environ['GISBASE'] = "/home/majavie/hierba_hanks/grass-7.1.svn"
-  ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn"
-  GISBASE = os.environ['GISBASE'] = "/home/javier/hierba706/grass-7.0.6" # u14.04OK
-  ##GISBASE = os.environ['GISBASE'] = "/home/javier/hierba723/grass-7.2.3" # test
-  #GISBASE = os.environ['GISBASE'] = "/home/javier/hierba/grass-7.1.svn" # u14.04OLD
-  ##GISBASE = os.environ['GISBASE'] = "/usr/lib/grass70" # u12.04
-  GRASSDBASE = "/home/javier/data_linux/ehabgrassdb"
-  MYLOC = "global_MW"
-  mapset = 'm'
+		mapset2 = 'm' + str(mn)
+		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
+		col = COL_ID
+		grass.run_command('g.mapset', mapset=mapset2, flags='c')
 
-  sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
-  import grass.script as grass
-  import grass.script.setup as gsetup
-  gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset)
+		try:
+			gsetup.init(GRASSDBASE, MYLOC, mapset2)
+		except TypeError:
+			gsetup.init(os.environ['GISBASE'], GRASSDBASE, MYLOC, mapset2)
 
-  #sys.path.append(os.path.join(os.environ['GISBASE'], "etc", "python"))
-  #import grass.script as grass
-  #import grass.script.setup as gsetup
+		source = STUDY_AREA
+		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
-  mapset2 = 'm'+str(mn)#ehabitat'
-#  os.system ('rm -rf /home/javier/vboxshare/javier/data_linux/ehabgrassdb/global_MW/'+mapset2)
-  os.system ('rm -rf '+GRASSDBASE+'/global_MW/'+mapset2)
-  ##os.system ('grass70 -c -text /home/majavie/hanksgrass7/global_MW/'+mapset2)
-  col= 'wdpaid'
-  grass.run_command('g.mapset',mapset=mapset2,location='global_MW',gisdbase=GRASSDBASE,flags='c') # '/home/javier/ehabgrassdb'
-  os.system('rm csv/*_'+str(pa)+'_*')
-  os.system('rm shp/*_'+str(pa)+'_*')
+		# Remove leftovers of a previous interrupted run of this area (csv files are appended to)
+		for k in range(1, len(reps) + 1):
+			leftover = 'csv/park_' + str(pa) + '_' + str(k) + '.csv'
+			if os.path.exists(leftover):
+				with open(leftover) as f:
+					for spa in f.read().split():
+						tif = 'tiffs/pa_' + spa + '.tif'
+						if os.path.exists(tif):
+							os.remove(tif)
+				os.remove(leftover)
 
-  gsetup.init(GISBASE, GRASSDBASE, MYLOC, mapset2)
-  print pa, mapset2, grass.gisenv()
-  ong = str(pa)+str(mapset2)+str(grass.gisenv())
-  grass.run_command('g.mapsets',mapset='ehabplus_cs,rasterized_parks,javier',operation='add')
-  source = 'cspas' #'wdpa_aug14_100km2_moll'
+		pa44x = 'pax_' + str(pa)
+		pa0 = 'v0_' + pa
+		opt1 = col + '=' + pa
+		grass.run_command('v.extract', input=source, output=pa0, where=opt1, overwrite=True)
 
-  wb = open(csvong1,'a')
-  wb.write(ong)
-  wb.write('\n')
-  wb.close() 
+		# Región: bounding box del área más el buffer opcional, alineada con la malla de las variables
+		# (align: mismos bordes de píxel y resolución que FIRST_VAR, así los píxeles son los de ../inVars).
+		# grow va en celdas: PA_BUFFER (unidades del mapa) se pasa a celdas redondeando hacia arriba
+		region_kwargs = {'vector': pa0, 'align': FIRST_VAR}
+		if PA_BUFFER > 0:
+			region_kwargs['grow'] = int(math.ceil(PA_BUFFER / RESOLUTION))
 
-  #grass.run_command('g.remove',group='segm')
-  #grass.run_command('r.mask',flags='r')
-  #grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-  #grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
-  #grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
+		grass.run_command('g.region', **region_kwargs)
 
-  reps = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9]
+		same = pa + 'v2_= const'
+		rndmap = 'rndseed=rand(1,10000000000000000000000000)'
+		rndname = 'tiffs/rndseed_' + str(pa) + '.tif'
+		grass.run_command('r.mapcalc', expression=f'const = if(isnull({FIRST_VAR}),null(),1)', overwrite=True)
+		grass.run_command('r.mapcalc', expression=same, overwrite=True)
+		grass.run_command('r.mapcalc', seed=10, expression=rndmap, overwrite=True)
+		grass.run_command('r.out.gdal', input='rndseed', output=rndname, overwrite=True)
 
-  #if os.path.isfile('/home/majavie/hanksgrass7/global_MW/'+mapset2+'/group/segm/REF') == True:
-  # os.system ('rm /home/majavie/hanksgrass7/global_MW/'+mapset2+'/group/segm/REF')
-  print pa
-  pa44 = 'pa_'+str(pa)
-  pa44x = 'pax_'+str(pa)
-  pa0 = 'v0_'+pa
-  opt1 = col+'='+pa
-  grass.run_command('v.extract', input=source, out=pa0, where = opt1,overwrite=True) # check inital region from which to copy from!
-  pa2 = pa+'v2_'
-  pa3 = pa+'v3'
-  pa4 = 'paa_'+pa
-  pa5 = pa4+'.txt'
-  same = pa2+'= const'
-  rndmap =  'rndseed=rand(1,10000000000000000000000000)'
-  rndname = 'tiffs/rndseed_'+str(pa)+'.tif'
-  #grass. message ("setting up the working region")
-  grass.run_command('g.region',vect=pa0,res=1000)
-  grass.run_command('r.mapcalc',expression='const = if(gcmask>=0,1,null())',overwrite=True)
-  grass.run_command('r.mapcalc',expression=same,overwrite=True)
-  grass.run_command('r.mapcalc',seed=10,expression=rndmap,overwrite=True)
-  grass.run_command('r.out.gdal',input='rndseed',out=rndname,overwrite=True)
-  a = grass.read_command('r.stats',input='const',flags='nc',separator='\n').splitlines()
-  if len(a)==0: a = [1, 625]
-  #print a
-  minarea = int(np.sqrt(int(a[1])))#/2 #10
-  minaream = minarea#*1000
-  grass.run_command('i.pca', flags='n', input='pre,eprsqrt,slope,tree,herb,ndwi,ndvimax2,ndvimin,bio', output=pa44x, overwrite=True) # dem
-  pca1 = pa44x+'.1'
-  pca2 = pa44x+'.2'
-  pca3 = pa44x+'.3'
-  pcas = pca1+','+pca2+','+pca3
-  grass.run_command('i.group',gr='segm',input=pcas)
-  os.system ('cat '+GRASSDBASE+'/global_MW/'+mapset2+'/group/segm/REF')
-  j = 0
-  for thr in reps:
-  	  pa2 = pa+'v2_'+str(j)
-  	  pa2s = pa+'v2_'+str(j-1)
-	  aleat = np.random.random_integers(1000)
-  	  grass.run_command('g.region',vect=pa0,res=1000)
-	  j= j + 1
-	  if thr==0.1:
-	  	grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='100000', iterations='20',seed='rndseed',overwrite=True) #  ,seed=pa2i minsize=minarea,
-	  else:
-	  	grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='100000', iterations='20',seed=pa2s,overwrite=True) # minsize=minarea
-	  #grass. message ("cropping the segments")
-	  grass.run_command('r.mask', vector=source, where=opt1)
-	  opt2 = pa3+'='+pa2
-	  grass.run_command('r.mapcalc',expression=opt2,overwrite=True) # usar const como mapa para crear plantilla de PA con unos y ceros
-	  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-	  #grass.run_command('g.remove', rast='MASK')
-	  print 'minarea: ',minarea
+		a = grass.read_command('r.stats', input='const', flags='nc', separator='\n').splitlines()
+		if len(a) == 0: a = [1, 625]
+		minarea = int(np.sqrt(int(a[1])))
 
-	  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-	  print b
-	  clean = None
-	  c = pa3
-	  for g in np.arange(1,len(b),2):
-	   if np.int(b[g]) < minarea:#/10: # lower the threshold if omitting min area!
-	    print 'Cleaning small segments I...'
-	    print 'cleaning cat '+ str(b[g-1])
-	    c2 = 'old'+ str(b[g-1])
-	    c22 = c2+'b10km'
-	    c3 = 'new'+ str(b[g-1])
-	    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
-	    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-	    grass.run_command('r.buffer',input=c2,output=c22,distances=3,units='kilometers',overwrite=True)
-	    grass.run_command('r.mask', raster=c22,maskc=2)
-	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
- 	    grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-	    #grass.run_command('g.remove', rast='MASK')
-	    if len(buff) > 0:
-	     clean = 'T'
-	     print 'New: '+str(buff[0])
-	     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
-	     c = c3 + ',' + c
-	     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-	  if clean=='T':
-	   print c
-	   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
-	   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-	   print bv
+		# Input of i.segment, which scales each map to its range: PC1-PC3, or copies of the variables
+		# on the working region, so that their range is also that of the region and not of the whole map
+		if SEGM_PCA:
+			grass.run_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
+			segm_input = [f"{pa44x}.{i}" for i in (1, 2, 3)]
+		else:
+			segm_input = []
+			for i, var in enumerate(SEGM_VARS, 1):
+				grass.run_command('r.mapcalc', expression=f'{pa44x}_{i} = {var}', overwrite=True)
+				segm_input.append(f"{pa44x}_{i}")
+		# CLIP_PERCENTILE: each layer clipped to its percentiles in the working region, so that its range (with
+		# which i.segment scales it) is not set by a few extreme pixels; NULL cells stay NULL
+		if CLIP_PERCENTILE > 0:
+			clipped = []
+			for i, layer in enumerate(segm_input, 1):
+				q = grass.read_command('r.quantile', input=layer, percentiles=f'{CLIP_PERCENTILE},{100 - CLIP_PERCENTILE}', quiet=True)
+				lo, hi = [float(line.split(':')[2]) for line in q.split()]
+				out = f'{pa44x}_clip{i}'
+				grass.run_command('r.mapcalc', expression=f'{out} = max({lo!r}, min({hi!r}, "{layer}"))', overwrite=True)
+				clipped.append(out)
+			segm_input = clipped
+		grass.run_command('i.group', group='segm', input=','.join(segm_input))
 
-	  b = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-	  print b
-	  clean = None
-	  c = pa3
-	  for g in np.arange(1,len(b),2):
-	   if np.int(b[g]) < minarea:#/10: # lower the threshold if omitting min area!
-	    print 'Cleaning small segments II...'
-	    print 'cleaning cat '+ str(b[g-1])
-	    c2 = 'old'+ str(b[g-1])
-	    c22 = c2+'b10km'
-	    c3 = 'new'+ str(b[g-1])
-	    oper1 = c2+'='+'if('+pa3+'=='+str(b[g-1])+',1,null())'
-	    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-	    grass.run_command('r.buffer',input=c2,output=c22,distances=10,units='kilometers',overwrite=True)
-	    grass.run_command('r.mask', raster=c22,maskc=2)
-	    buff = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
- 	    grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-	    #grass.run_command('g.remove', rast='MASK')
-	    if len(buff) > 0:
-	     clean = 'T'
-	     print 'New: '+str(buff[0])
-	     oper1 = c3+'='+'if('+c2+'==1,'+str(buff[0])+',null())'
-	     c = c3 + ',' + c
-	     grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-	  if clean=='T':
-	   print c
-	   grass.run_command('r.patch',input=c,out=pa3,overwrite=True)
-	   bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-	   print bv
+		j = 0
+		for thr in reps:
+			pa2 = pa + 'v2_' + str(j)
+			pa2s = pa + 'v2_' + str(j - 1)
+			pa3 = pa + 'v3'
+			pa4 = 'paa_' + pa
 
-	  b = grass.read_command('r.stats',input=pa3,flags='nc',sort='desc',separator='\n').splitlines()
-	  print b
-	  for g in np.arange(1,len(b),2):
-	   if np.int(b[g]) < minarea:#/10: # lower the threshold if omitting min area!
-	    print 'Cleaning small segments III...'
-	    print 'cleaning cat '+ str(b[g-1])
-	    oper1 = pa3+'='+'if('+pa3+'=='+str(b[g-1])+','+str(b[0])+','+pa3+')'
-	    grass.run_command('r.mapcalc',expression=oper1,overwrite=True)
-	    bv = grass.read_command('r.stats',input=pa3,flags='nc',separator='\n').splitlines()
-	    print bv
+			grass.run_command('g.region', **region_kwargs)
+			j += 1
 
-	  #grass. message ("Number of cells per segment")
-	  #grass.run_command('r.stats',input=pa3,out=pa5,overwrite=True) # flags='nc'
-	  #grass. message ("converting to vector")
-	  grass.run_command('r.to.vect', input=pa3,out=pa4,type ='area',flags='v',overwrite=True)
-	  #grass. message ("adding labels to segments")
-	  grass.run_command('v.db.addcolumn', map=pa4,col='wdpaid_pa VARCHAR')
-	  grass.run_command('v.db.update', map=pa4,col='wdpaid_pa',value=pa)
-	  grass.run_command('v.db.addcolumn', map=pa4,col='aleat VARCHAR')
-	  grass.run_command('v.db.update', map=pa4,col='aleat',value=aleat)
-	  #grass. message ("Checking shapefile")
-	  pa44 = pa4
-	  pa442 = pa44+'_diss'
-	  #grass.run_command('v.clean', input=pa4,out=pa44,tool='rmarea',thres=minaream,overwrite=True)
-	  grass.run_command('v.db.addcolumn', map=pa44,col='segm_id numeric')#VARCHAR')
-	  grass.run_command('v.db.update', map=pa44,col='segm_id',qcol='wdpaid_pa || cat || aleat')
-	  #grass. message ("Exporting shapefile")
-	  name = 'shp/park_segm_'+str(pa)+'_'+str(j)
-	  if os.path.isfile(name+'.shp') == False:
-	   grass.run_command('v.out.ogr',input=pa44,ola=name,type='area',dsn='.') 
-	  else:
-	   grass.run_command('v.out.ogr',flags='a',input=pa44,ola=name,type='area',dsn='.')
+			if thr == 0.1:
+				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='10000', iterations='20', seeds='rndseed', overwrite=True)
+			else:
+				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='10000', iterations='20', seeds=pa2s, overwrite=True)
 
-	  grass. message ("Done1")
-	  #grass.run_command('v.in.ogr',flags='oe',dsn='.',lay=name,out=name,overwrite=True)
-    	  spa_list0 = grass. read_command ('v.db.select', map=pa44,column='segm_id'). splitlines ()
-	  spa_list = np.unique(spa_list0)
-	  print spa_list
-	# save it as a csv excluding last item!
+			if CLIP_TO_PA:
+				grass.run_command('r.mask', vector=source, where=opt1)
 
-	  grass. message("omitting previous masks")
-	  grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-	  #grass.run_command('g.remove', rast='MASK')
+			opt2 = pa3 + '=' + pa2
+			grass.run_command('r.mapcalc', expression=opt2, overwrite=True)
 
-	#pa_list_done = np.genfromtxt(csvname1,dtype='string')
-	  sn = len(spa_list)-1 # there is also a segm_id element!
-	  for spx in range(0,sn): # 0
-	   spa = spa_list[spx]
-	   spa2 = 'svv'+spa
-	 #pa3 = pa+'v3'
-	   spa4 = 'spa_'+spa
-	   spa5 = 'tiffs/pa_'+spa+'.tif'
-	   spa0 = 'sv0_'+spa
-	   sopt1 = 'segm_id = '+spa
-	 #if pa not in pa_list_done:
-	   print spx
-	   print "Extracting PA:"+spa
-	   grass.run_command('v.extract', input=pa44, out=spa0, where = sopt1,overwrite=True)
-	  # try to crop PAs shapefile with coastal line or input vars
-	   grass. message ("setting up the working region")
-	   grass.run_command('g.region',vect=spa0,res=1000)
-	   grass.run_command('v.to.rast',input=spa0,out=spa0,use='val')#use='cat',labelcol='segm_id')
-	   soptt = spa4+'='+spa0
-	   grass.run_command('r.mask', rast='pre') # new to crop parks to where we have indicators information
-	   grass.run_command('r.mapcalc',expression=soptt,overwrite=True) # opt3
-	   grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
-	   #grass.run_command('g.remove', rast='MASK') # new
-	   grass.run_command('r.null',map=spa4,null=0)
-	   econame = 'csv/park_'+str(pa)+'_'+str(j)+'.csv'
-	   eco = str(j)
-	   econ = 'csv/ecoregs'+str(j)+'.csv'
-	   grass.run_command('r.out.gdal',input=spa4,out=spa5,overwrite=True)
-#	   grass. message ("Deleting tmp layers") 
-	   wb = open(econame,'a')
-	   wb.write(spa)
-	   wb.write('\n')
-	   wb.close() 
-	   wb = open(econ,'a')
-	   wb.write(eco)
-	   wb.write('\n')
-	   wb.close() 
-  grass. message ("Deleting tmp layers")
- #grass.run_command('g.mremove',typ='vect',patt='*',flags='f') 
- #grass.run_command('g.mremove',typ='rast',patt='*',flags='bf')
- #grass.run_command('g.rename',rast='MASK,masc',overwrite=True)
- #grass.run_command('g.remove', rast='MASK')
-  os.system ('rm -rf '+GRASSDBASE+'/global_MW/'+mapset2)
+			if CLIP_TO_PA:
+				try:
+					grass.run_command('r.mask', flags='r')
+				except Exception:
+					pass
 
-  wb = open(csvong2,'a')
-  wb.write(ong)
-  wb.write('\n')
-  wb.close()
+			merge_small_segments(grass, pa3, minarea)
 
-  wb = open(csvname1,'a')
-  var = str(pa)
-  wb.write(var)
-  wb.write('\n')
-  wb.close() 
+			grass.run_command('r.to.vect', input=pa3, output=pa4, type='area', flags='v', overwrite=True)
+			# segm_id = area ID + threshold index (1 digit) + segment cat (5 digits, zero-padded):
+			# fixed-width suffix so IDs never collide between thresholds or areas, and are the same on reruns
+			maxcat = int(grass.read_command('v.db.select', map=pa4, columns='max(cat)', flags='c').strip() or 0)
+			if maxcat > 99999:
+				raise ValueError(f"Area {pa}: {maxcat} segments at threshold {thr}, segm_id allows at most 99999")
+			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR, segm_id numeric')
+			grass.run_command('v.db.update', map=pa4, column='cat_pa', value=pa)
+			grass.run_command('v.db.update', map=pa4, column='segm_id', query_column=f"cat_pa || '{j}' || printf('%05d', cat)")
+
+			name = 'shp/park_segm_' + str(pa) + '_' + str(j)
+			grass.run_command('v.out.ogr', input=pa4, output=name + '.shp', output_layer=os.path.basename(name), format='ESRI_Shapefile', type='area', overwrite=True)
+
+			spa_list0 = grass.read_command('v.db.select', map=pa4, column='segm_id').splitlines()
+			spa_list = np.unique(spa_list0)
+			sn = len(spa_list) - 1
+			econ = 'csv/ecoregs' + str(j) + '.csv'
+			
+			if not os.path.exists(econ):
+				open(econ, 'a').close()
+
+			for spx in range(0, sn):
+				spa = spa_list[spx]
+				if spa == 'segm_id':
+					continue
+				spa2 = 'svv' + spa
+				spa4 = 'spa_' + spa
+				spa5 = 'tiffs/pa_' + spa + '.tif'
+				spa0 = 'sv0_' + spa
+				sopt1 = 'segm_id = ' + spa
+				print(spx)
+				print("Extracting PA:" + spa)
+
+				grass.run_command('v.extract', input=pa4, output=spa0, where=sopt1, overwrite=True)
+				grass.message("setting up the working region")
+				grass.run_command('g.region', vector=spa0, align=FIRST_VAR)
+				grass.run_command('v.to.rast', input=spa0, output=spa0, use='val')
+				soptt = spa4 + '=' + spa0
+
+				if CLIP_TO_PA:
+					grass.run_command('r.mask', raster=FIRST_VAR)
+				
+				grass.run_command('r.mapcalc', expression=soptt, overwrite=True)
+
+				if CLIP_TO_PA:
+					try:
+						grass.run_command('r.mask', flags='r')
+					except Exception:
+						pass
+
+				grass.run_command('r.null', map=spa4, null=0)
+				econame = 'csv/park_' + str(pa) + '_' + str(j) + '.csv'
+				eco = str(j)
+
+				grass.run_command('r.out.gdal', input=spa4, output=spa5, overwrite=True)
+
+				with open(econame, 'a') as wb:
+					wb.write(spa + '\n')
+
+				with open(econ, 'a') as wb:
+					wb.write(eco + '\n')
+
+		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
+
+		with open(csvname1, 'a') as wb:
+			wb.write(str(pa) + '\n')
 
 
-pool = Pool(2)#9
-pool.map(fsegm,pa_list)
-pool.close()
-pool.join()
+if __name__ == '__main__':
+	if not os.path.isdir(os.path.join(GRASSDBASE, MYLOC, 'PERMANENT')):
+		print(f"ERROR: GRASS project not found: {os.path.join(GRASSDBASE, MYLOC, 'PERMANENT')}")
+		print("GRASSDB in config.py must be the GRASS database folder that contains your project")
+		print("(e.g. '~/grassdata'), not the GRASS installation folder given by 'grass --config path'.")
+		sys.exit(1)
 
-#print str(datetime.now())
-#print 'END'
+	hft_state.check_ready('segm')  # the input data have not changed since setup.py imported them
+
+	# Resume only an interrupted run with the same options, palist.csv and input data (run_state.json);
+	# otherwise csv, shp and tiffs (shared by all the study areas) are started from scratch
+	rec = hft_state.record('segm')
+	if FORCE_RESTART:
+		print("\n⚠️ FORCE_RESTART activado: Limpiando resultados anteriores para empezar desde cero...")
+		clean_previous_results()
+	elif rec is None or rec['chain'] != hft_state.chain('segm'):
+		why = 'no record of a previous segmentation' if rec is None else '; '.join(hft_state.reasons('segm'))
+		print(f"\n⚠️ Starting the segmentation from scratch ({why})...")
+		clean_previous_results()
+	elif rec['done']:
+		print("The segmentation is up to date with config.py, palist.csv and the input data: nothing to do.\n"
+		      "Set FORCE_RESTART = True in config.py to run it again anyway.")
+		sys.exit(0)
+	else:
+		print("\nResuming the interrupted segmentation: the IDs in csv/segm_done.csv are skipped")
+	hft_state.start('segm')
+
+	for folder in ['csv', 'shp', 'tiffs']:
+		os.makedirs(folder, exist_ok=True)
+	with open(csvarea, 'w') as wb:
+		wb.write(STUDY_AREA + '\n')
+
+	for f in [csvname1, csvong1, csvong2]:
+		if not os.path.isfile(f):
+			open(f, 'a').close()
+
+	print("Extracting list of PAs")
+	pa_list0 = np.genfromtxt('palist.csv', dtype=str)
+	pa_list = np.unique(pa_list0)
+
+	# Without the grass package here, a GRASS error in a worker cannot be passed back and the pool hangs
+	add_grass_to_path()
+	pool = Pool(NPROC)
+	pool.map(fsegm, pa_list)
+	pool.close()
+	pool.join()
+	hft_state.done('segm')

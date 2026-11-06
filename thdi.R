@@ -1,10 +1,13 @@
+# Modernized for R 4.x / sf: st_make_valid() guards against the invalid
+# geometries in the WWF/MEOW ecoregion polygons, which modern GEOS rejects
+# during st_intersection().
 library(sf)
 library(ggplot2)
 
 hri<-read.table('results/hri_results.csv',sep=' ', header=T) # input
 ots<-read.table('segm_optim/results/overall_optim_thresholds.csv',sep=' ', header=F) # control file
-teow<-read_sf('ecoregions/terrwwf_cor_moll_54009_areas.shp')
-meow<-read_sf('ecoregions/meow_cor_moll_54009_areas.shp')
+teow<-st_make_valid(read_sf('ecoregions/terrwwf_cor_moll_54009_areas.shp'))
+meow<-st_make_valid(read_sf('ecoregions/meow_cor_moll_54009_areas.shp'))
 
 a<-list()
 	for(i in 1:dim(ots)[1]){ # 1 # FOR LOOP BY wdpaid
@@ -12,7 +15,7 @@ a<-list()
 		paid<-ots$V1[i]
 		thr<-ots$V2[i]*10
 		source = paste('segm_optim/results/park_segm_',paid,'_',thr,'_class.shp',sep='')
-		pa0<-read_sf(source)
+		pa0<-st_make_valid(read_sf(source))
 
 		pateow<-st_intersection(teow,pa0)
 		nteow<-length(unique(pateow$ECO_ID))
