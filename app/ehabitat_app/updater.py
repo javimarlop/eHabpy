@@ -228,7 +228,12 @@ def update(log=None):
 	if any(j.kind == 'model' or j.kind.startswith('gee') for j in jobs.running()):
 		res = {'message': 'not updated while the model or a download is running'}
 	else:
-		res = _git_update(log) if mode() == 'git' else _archive_update(log)
+		try:
+			res = _git_update(log) if mode() == 'git' else _archive_update(log)
+		except Exception as e:
+			with _lock:
+				_state.update(checked=time.time(), error=str(e))
+			raise
 	res = {'updated': False, 'environment': False, 'app_changed': False, 'files': [], **res}
 	with _lock:
 		_state.update(checked=time.time(), result=res, error=None)

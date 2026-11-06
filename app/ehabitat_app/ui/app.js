@@ -1509,14 +1509,14 @@ const updates = (() => {
 		} else if (st.restart) {
 			show('ok', `eHabitat+ ${st.result && st.result.message ? st.result.message : 'was updated'}. Restart the app to use the new version.`,
 				[el('button', {class: 'btn small primary', onclick: restart}, 'Restart now')]);
-		} else if (st.just_updated && !dismissed) {
-			show('ok', `eHabitat+ was ${st.just_updated} when it opened.`);
-		} else if (st.result && !st.result.updated && view.shown) {
-			show('', `eHabitat+: ${st.result.message}.`);
-			view.shown = false;
-		} else if (st.error && view.shown) {
+		} else if (view.shown && st.error) {
 			show('warn', `Could not check for updates: ${st.error}`);
 			view.shown = false;
+		} else if (view.shown && st.result) {
+			show('', `eHabitat+: ${st.result.message}.`);
+			view.shown = false;
+		} else if (st.just_updated && !dismissed) {
+			show('ok', `eHabitat+ was updated when it opened: ${st.just_updated}.`);
 		}
 	}
 
