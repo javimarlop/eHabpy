@@ -51,10 +51,16 @@
 	<div class="side-foot">
 		<div class="tools" id="tools"><span class="k">Environment</span><span class="v">checking…</span></div>
 		<div class="path" id="root-path"></div>
+		<div class="upd" id="upd">
+			<div class="row"><span class="k">Version</span><span class="v" id="upd-version">—</span></div>
+			<div class="row"><button class="btn small side" id="upd-check">Check for updates</button>
+				<label class="check small" title="Update from GitHub every time the app opens"><input type="checkbox" id="upd-auto"> auto</label></div>
+		</div>
 	</div>
 </aside>
 
 <main>
+<div class="update-banner hidden" id="upd-banner"></div>
 <!-- 1. Inputs ==================================================================================================== -->
 <section class="page active" id="page-inputs">
 	<div class="page-head">

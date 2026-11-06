@@ -15,6 +15,7 @@ rem     the repository (if it is, the app uses that copy as its working folder).
 rem It puts on the Desktop the shortcut "eHabitat+", which opens the app in its window with pythonw.exe, without a
 rem console (its messages go to %USERPROFILE%\eHabitat\ehabitat.log), and opens it. If the environment already exists
 rem and is complete, it only creates the shortcut; to install it again, delete the folder env or set EHAB_REINSTALL=1.
+rem The app keeps itself updated from GitHub every time it opens (see Updates in that page of the wiki).
 rem Other variables: EHAB_HOME (installation folder), EHAB_BRANCH (branch of GitHub of the code it downloads) and
 rem EHAB_NO_OPEN=1 (do not open the app at the end). No accents: cmd reads this file with the code page of the console.
 setlocal EnableExtensions

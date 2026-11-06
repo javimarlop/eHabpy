@@ -22,6 +22,12 @@ def main():
 		pass
 
 	activation = envsetup.activate()
+	# The last version of GitHub before anything else is imported; with new code of the app, start again with it
+	from . import updater
+	res = updater.startup()
+	if res and res.get('updated') and res.get('app_changed'):
+		print('Opening the new version...', flush=True)
+		updater.reexec(res)
 	from .api import Api
 	from .server import Server
 	api = Api()
@@ -29,6 +35,9 @@ def main():
 	server = Server(api).start()
 	url = server.url('ui/index.html')
 	print(f'eHabitat+ app {__version__} | environment: {sys.prefix} ({activation})', flush=True)
+	if (res and res.get('environment')) or os.environ.get('EHAB_ENV_UPDATE'):
+		os.environ.pop('EHAB_ENV_UPDATE', None)
+		updater.start_environment_update()  # environment.yml changed: in the background, with the window open
 
 	webview = None
 	if not args.browser:

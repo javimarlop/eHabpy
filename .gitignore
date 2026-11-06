@@ -38,3 +38,6 @@ segm_optim/app_settings.json
 segm_optim/app_settings.json.tmp
 segm_optim/app_recipe.yaml
 !app/ehabitat_app/ui/icon.png
+# record of the version installed by the updates of the app
+.ehabitat_version.json
+.ehabitat_version.json.tmp

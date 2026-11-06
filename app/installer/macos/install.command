@@ -14,6 +14,7 @@
 # It puts on the Desktop the app "eHabitat+", which opens the app in its window, without the Terminal (its messages
 # go to ~/eHabitat/ehabitat.log), and opens it. If the environment already exists and is complete, it only creates
 # the app; to install it again, delete ~/eHabitat/env or open the installer with EHAB_REINSTALL=1.
+# The app keeps itself updated from GitHub every time it opens (see Updates in that page of the wiki).
 # Other variables: EHAB_HOME (installation folder), EHAB_DESKTOP (folder of the shortcut), EHAB_BRANCH (branch of
 # GitHub of the code it downloads) and EHAB_NO_OPEN=1 (do not open the app at the end).
 # Everything is inside main, which is called at the end: a broken download runs nothing.

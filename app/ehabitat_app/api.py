@@ -6,10 +6,12 @@ import os
 import platform
 import subprocess
 import sys
+import threading
+import time
 import traceback
 import webbrowser
 
-from . import __version__, envsetup, gee, inputs, jobs, model, paths, results
+from . import __version__, envsetup, gee, inputs, jobs, model, paths, results, updater
 
 import hft_state
 
@@ -69,6 +71,44 @@ class Api:
 	@exposed
 	def running(self):
 		return [{'id': j.id, 'kind': j.kind, 'title': j.title} for j in jobs.running()]
+
+	# Updates ------------------------------------------------------------------------------------------------------
+	@exposed
+	def update_status(self):
+		return updater.status()
+
+	@exposed
+	def check_updates(self):
+		"""Check GitHub and update now (a job); with a new environment.yml, the environment is updated after it."""
+		def work(job):
+			res = updater.update(job.say)
+			job.say(res['message'])
+			if res.get('environment'):
+				job.say('environment.yml changed: updating the environment in the background')
+				updater.start_environment_update()
+			return res
+		return jobs.start_function('update', 'Update of eHabitat+', work).id
+
+	@exposed
+	def set_auto_update(self, on):
+		paths.save_settings(auto_update=bool(on))
+		return bool(on)
+
+	@exposed
+	def restart(self):
+		"""Open the app again (with its new version) and close this one."""
+		if jobs.running():
+			raise ValueError('there are jobs running: wait until they finish or stop them')
+		updater.spawn()
+
+		def close():
+			time.sleep(0.5)
+			if self._window is not None:
+				self._window.destroy()
+			else:
+				os._exit(0)
+		threading.Thread(target=close, daemon=True).start()
+		return True
 
 	@exposed
 	def open_folder(self, path):

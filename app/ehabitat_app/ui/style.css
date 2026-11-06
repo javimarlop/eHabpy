@@ -362,3 +362,17 @@ details.more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; 
 details.more pre { max-height: 300px; overflow: auto; background: var(--panel-2); padding: 10px; border-radius: 8px; font-size: 11.5px; }
 .progress { height: 6px; background: var(--line-2); border-radius: 4px; overflow: hidden; flex: 1; }
 .progress i { display: block; height: 100%; background: var(--brand); transition: width .3s; }
+
+/* Updates ------------------------------------------------------------------------------------------------------- */
+.upd { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid rgba(255,255,255,.08); padding-top: 8px; }
+.upd .row { gap: 6px; }
+.upd .k { color: var(--side-muted); }
+.upd .v { color: var(--side-ink); font-family: var(--mono); font-size: 11px; }
+.upd .check { color: var(--side-muted); }
+.btn.side { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.14); color: var(--side-ink); }
+.btn.side:hover { background: rgba(255,255,255,.14); }
+.update-banner { position: sticky; top: 0; z-index: 1000; display: flex; gap: 12px; align-items: center; padding: 10px 26px;
+	background: var(--info-soft); border-bottom: 1px solid var(--line); font-size: 13px; }
+.update-banner.ok { background: var(--ok-soft); }
+.update-banner.warn { background: var(--warn-soft); }
+.update-banner .btns { margin-left: auto; }

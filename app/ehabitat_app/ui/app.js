@@ -1482,6 +1482,64 @@ pages.similarity = {
 	},
 };
 
+// Updates from GitHub ================================================================================================
+const updates = (() => {
+	const view = new JobView(null, null, {onEnd: () => refresh()});
+	const banner = $('#upd-banner');
+	let dismissed = false;
+
+	function show(kind, text, buttons = []) {
+		banner.className = 'update-banner ' + kind;
+		banner.textContent = '';
+		banner.append(el('span', {}, text), el('div', {class: 'btns'}, ...buttons,
+			el('button', {class: 'btn small ghost', onclick: () => { dismissed = true; banner.classList.add('hidden'); }}, '✕')));
+	}
+
+	async function refresh() {
+		let st;
+		try { st = await api('update_status'); } catch (e) { return; }
+		const c = st.commit ? st.commit.slice(0, 7) : 'unknown';
+		$('#upd-version').textContent = `${c} · ${st.branch || ''}`;
+		$('#upd-version').title = `${st.repo} (${st.mode === 'git' ? 'git clone' : 'copy without git'})`;
+		$('#upd-auto').checked = !!st.auto;
+		const envRunning = st.env_job && (await api('running').catch(() => [])).some(j => j.id === st.env_job);
+		if (envRunning) {
+			show('warn', 'Updating the environment of eHabitat+ (new packages of environment.yml)…');
+			setTimeout(refresh, 5000);
+		} else if (st.restart) {
+			show('ok', `eHabitat+ ${st.result && st.result.message ? st.result.message : 'was updated'}. Restart the app to use the new version.`,
+				[el('button', {class: 'btn small primary', onclick: restart}, 'Restart now')]);
+		} else if (st.just_updated && !dismissed) {
+			show('ok', `eHabitat+ was ${st.just_updated} when it opened.`);
+		} else if (st.result && !st.result.updated && view.shown) {
+			show('', `eHabitat+: ${st.result.message}.`);
+			view.shown = false;
+		} else if (st.error && view.shown) {
+			show('warn', `Could not check for updates: ${st.error}`);
+			view.shown = false;
+		}
+	}
+
+	async function restart() {
+		try {
+			await api('restart');
+			banner.textContent = 'Opening the new version…';
+		} catch (e) { fail(e); }
+	}
+
+	$('#upd-check').addEventListener('click', async () => {
+		if (view.running()) return;
+		try {
+			dismissed = false;
+			show('', 'Checking for updates in GitHub…');
+			view.shown = true;
+			view.start(await api('check_updates'), 'Update');
+		} catch (e) { fail(e); }
+	});
+	$('#upd-auto').addEventListener('change', e => api('set_auto_update', e.target.checked).catch(fail));
+	return {refresh};
+})();
+
 // Start ==============================================================================================================
 (async function boot() {
 	try {
@@ -1498,6 +1556,7 @@ pages.similarity = {
 			box.append(el('span', {class: 'k'}, label), el('span', {class: 'v' + (v ? '' : ' bad'), title: v || 'not found'}, v ? String(v).replace(/^GRASS\s*/, '') : 'not found'));
 		}
 	}).catch(() => {});
+	updates.refresh();
 	await Promise.all([pages.inputs.init().catch(fail), pages.model.init().catch(fail), pages.gee.init().catch(fail)]);
 	// jobs that were running when the interface was reloaded
 	try {
