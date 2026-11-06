@@ -729,6 +729,10 @@ for (pmx in 1:mx) {
 				st_write(segm_pa_class2,
 						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
 						 delete_layer=TRUE, quiet=TRUE)
+				# Color de cada HFT en los mapas y gráficas, en el orden de las leyendas (mapa interactivo de la app)
+				write.table(data.frame(HFT=hft_order, colour=kolsn[hft_order]),
+				            file.path(outdir, paste('hft_colours_', park, '_', res, tag, '.csv', sep='')),
+				            sep=' ', row.names=F, quote=F)
 
 				# --- DIBUJO DEL MAPA DE HFTs CON EL CONTORNO DE ÁREA DE ESTUDIO (ggplot2) ---
 				rpn2 <- file.path(outdir, paste('map_', park, '_', res, tag, '_segms_hclust.png', sep=''))

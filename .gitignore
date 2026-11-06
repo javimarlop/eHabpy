@@ -33,3 +33,8 @@ gee_vars.json
 gee_vars.json.tmp
 # example figures of the README (all other graphs stay ignored)
 !docs/img/*.png
+# app (app/): its settings and last recipe of MonitorEO, and its icon (all other images stay ignored)
+segm_optim/app_settings.json
+segm_optim/app_settings.json.tmp
+segm_optim/app_recipe.yaml
+!app/ehabitat_app/ui/icon.png

@@ -85,7 +85,7 @@ SMALL_SEGM_RADIUS = 10
 
 # ELECCIÓN DEL UMBRAL DE SEGMENTACIÓN (moranvar.py), entre los nueve de 0.1 a 0.9, con el I de
 # Moran de las medias de los segmentos (MI, bajo = segmentos distintos de sus vecinos) y la
-# varianza dentro de ellos (V, baja = segmentos homogéneos) de cada variable. Ver README, A5:
+# varianza dentro de ellos (V, baja = segmentos homogéneos) de cada variable. Ver la wiki, How the HFT model works, A5:
 # 'f'              = Máximo de la función F de Johnson et al. (2015), como i.segment.uspo de
 #                    GRASS, con MI y V reescalados a 0-1 entre los umbrales y THRESHOLD_ALPHA.
 # 'gs'             = Mínimo de MI + V reescalados (Global Score de Espindola et al., 2006).
@@ -119,7 +119,7 @@ MORAN_NEIGHBOURS = 'rook'
 # 'ward'             = Ward sin ponderar sobre las medias y las varianzas de los segmentos reescaladas a
 #                      0-1 (el método original de eHabitat+).
 # En la prueba con Guajares 'ward_area' dio HFTs más separables que 'ward' con todos los umbrales. Su árbol
-# tiene las uniones más altas al final, así que los cortes de SIMIL = 3 dan menos HFTs (README, A6).
+# tiene las uniones más altas al final, así que los cortes de SIMIL = 3 dan menos HFTs (wiki, How the HFT model works, A6).
 CLASS_METHOD = 'ward_area'
 
 # NÚMERO DE HFTs (corte del árbol de clasificación jerárquica en moranvar_plots.R):

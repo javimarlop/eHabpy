@@ -4,12 +4,17 @@
 #   conda env create -f environment.yml
 #   conda activate ehabpy
 #
+# or let the installer of the app do it (app/installer, see the page Desktop app of the wiki), which
+# creates this environment with micromamba, without administrator rights.
+#
 # This installs the full geospatial Python stack (GDAL bindings included).
-# GRASS GIS 8 is also available on conda-forge and is included here; if you
-# prefer a system GRASS install, remove the `grass` line below.
+# GRASS GIS 8 is also available on conda-forge (Linux, macOS and, since GRASS
+# 8.5, Windows) and is included here; if you prefer a system GRASS install,
+# remove the `grass` line below.
 name: ehabpy
 channels:
   - conda-forge
+  - nodefaults
 dependencies:
   - python=3.12
   - numpy>=1.24,<2.3
@@ -36,6 +41,8 @@ dependencies:
   - r-ggrepel            # variable labels of the PCA biplot
   - r-reshape2
   - r-rcolorbrewer
-  # --- MonitorEO in Python (get_vars_gee.py), from GitHub; get_vars_gee.py keeps it at its last version ---
   - pip:
+      # --- the window of the app (app/ehabitat.py); not in conda-forge for macOS ---
+      - pywebview>=5
+      # --- MonitorEO in Python (get_vars_gee.py and the app), from GitHub; get_vars_gee.py keeps it at its last version ---
       - monitoreo @ https://github.com/monitoreo-obsnev/monitoreo/archive/refs/heads/main.zip

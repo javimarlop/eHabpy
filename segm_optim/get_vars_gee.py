@@ -33,8 +33,9 @@ for big grids). The exported files are imported from the local copy of Google Dr
 given with --drive-dir where they were downloaded. Running it again while the tasks run (or with --no-wait) does not
 start them again: it waits for them and imports their files.
 
-It needs an Earth Engine project (project: in the recipe, --project or the variable EE_PROJECT) and the credentials of
-'earthengine authenticate'.
+With an Earth Engine project (project: in the recipe, --project or the variable EE_PROJECT) it computes with the
+credentials of 'earthengine authenticate'; without one, with the shared account of MonitorEO (the research EECUs of
+each month of each user; it cannot export to Google Drive, so its grids need drive: false).
 """
 
 import argparse
@@ -222,13 +223,22 @@ def main():
 
 	project = args.project or rec.get('project') or os.environ.get('EE_PROJECT')
 	if not project:
-		fail('give the Earth Engine project: project: in the recipe, --project or the variable EE_PROJECT')
+		if not hasattr(services, 'shared'):
+			fail('give the Earth Engine project: project: in the recipe, --project or the variable EE_PROJECT')
+		print('No Earth Engine project: using the shared account of MonitorEO (research EECUs of each month, '
+		      'only direct downloads, not exports to Google Drive)')
 	try:
-		services.init(project)
+		services.init(project)  # without a project, the shared account of MonitorEO (monitoreo >= 0.3.19)
 		plan = recipe.plan(rec, study_file, layer, buffer=float(cfg.get('PA_BUFFER', 0)), only=args.only,
 		                   extra={'folder'}, warn=print)
 	except (ValueError, RuntimeError) as e:
 		fail(str(e))
+	if getattr(services, 'shared', lambda: False)():
+		drive_grids = [n for n in plan.grids if args.drive or (rec.get(n) or {}).get('drive')]
+		if drive_grids and not args.dry_run:
+			fail(f"the shared account of MonitorEO cannot export to Google Drive ({' and '.join(drive_grids)} grid with "
+			     'drive: true): set drive: false in the recipe to download the grid directly in tiles, or give your '
+			     'own Earth Engine project (--project, project: in the recipe or EE_PROJECT)')
 
 	outdir = os.path.join(hft_state.INVARS, folder)
 	dirs = recipe.folders(outdir)

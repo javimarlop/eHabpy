@@ -5,7 +5,7 @@
 # NOTE on GDAL: the `osgeo` package (GDAL Python bindings) is NOT reliably
 # pip-installable. Install GDAL through your system package manager or, more
 # easily, use the provided conda environment (environment.yml). GRASS GIS 8 is
-# a SYSTEM install (see README), not a pip package.
+# a SYSTEM install (see the wiki), not a pip package.
 #
 # NOTE on NumPy: libpysal/esda pull in numba (used by moranvar.py). numba lags
 # the newest NumPy by a few months, hence the upper bound below. The rest of
