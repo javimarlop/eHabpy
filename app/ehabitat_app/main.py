@@ -3,6 +3,7 @@ with --browser or without pywebview, in the web browser."""
 
 import argparse
 import os
+import subprocess
 import sys
 import time
 import webbrowser
@@ -40,26 +41,22 @@ def main():
 		updater.start_environment_update()  # environment.yml changed: in the background, with the window open
 
 	webview = None
-	if not args.browser:
+	why = None if args.browser else linux_window_problem()
+	if why:
+		print(f'The window cannot be opened ({why}): opening the interface in the web browser', flush=True)
+	elif not args.browser:
 		try:
 			import webview
 		except ImportError as e:
 			print(f'pywebview is not installed ({e}): opening the interface in the web browser', flush=True)
 	if webview is None:
-		print(f'Interface: {url}\nPress Ctrl+C to close the app.', flush=True)
-		if not args.no_open:
-			webbrowser.open(url)
-		try:
-			while True:
-				time.sleep(3600)
-		except KeyboardInterrupt:
-			pass
-		finally:
-			jobs.cancel_all()
-		return
+		return in_browser(url, args.no_open)
 
-	window = webview.create_window('eHabitat+', url, js_api=api, width=1440, height=920, min_size=(1024, 680),
-	                               text_select=True)
+	try:
+		window = webview.create_window('eHabitat+', url, width=1440, height=920, min_size=(1024, 680), text_select=True)
+	except Exception as e:
+		print(f'The window cannot be created ({e}): opening the interface in the web browser', flush=True)
+		return in_browser(url, args.no_open)
 	api._window = window
 
 	def closing():
@@ -81,5 +78,46 @@ def main():
 	try:
 		webview.start(debug=args.debug, private_mode=False,
 		              storage_path=os.path.join(os.path.expanduser('~'), '.ehabitat', 'webview'))
+	except Exception as e:
+		# no GUI toolkit for the window (e.g. Qt or GTK missing on Linux): the same interface in the web browser
+		print(f'The window cannot be opened ({type(e).__name__}: {e}): opening the interface in the web browser',
+		      flush=True)
+		api._window = None
+		return in_browser(url, args.no_open)
+	finally:
+		if api._window is not None:
+			jobs.cancel_all()
+
+
+def linux_window_problem():
+	"""On Linux, why the window (Qt WebEngine) cannot open, or None: Qt aborts the whole process when it cannot reach
+	the display or load its platform plugin, so it is tried first in another process."""
+	if not sys.platform.startswith('linux'):
+		return None
+	if not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+		return 'no graphical display'
+	code = ('import sys; from qtpy import QtWebEngineWidgets; from qtpy.QtWidgets import QApplication; '
+	        'QApplication(sys.argv[:1])')
+	try:
+		r = subprocess.run([sys.executable, '-c', code], capture_output=True, text=True, timeout=90,
+		                   stdin=subprocess.DEVNULL)
+	except (OSError, subprocess.SubprocessError) as e:
+		return str(e)
+	if r.returncode != 0:
+		lines = [x for x in (r.stderr or '').strip().splitlines() if x.strip()]
+		return 'Qt: ' + (lines[-1] if lines else f'exit code {r.returncode}')
+	return None
+
+
+def in_browser(url, no_open=False):
+	"""Show the interface in the web browser and serve it until Ctrl+C."""
+	print(f'Interface: {url}\nPress Ctrl+C to close the app.', flush=True)
+	if not no_open:
+		webbrowser.open(url)
+	try:
+		while True:
+			time.sleep(3600)
+	except KeyboardInterrupt:
+		pass
 	finally:
 		jobs.cancel_all()

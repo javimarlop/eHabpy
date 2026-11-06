@@ -376,3 +376,13 @@ details.more pre { max-height: 300px; overflow: auto; background: var(--panel-2)
 .update-banner.ok { background: var(--ok-soft); }
 .update-banner.warn { background: var(--warn-soft); }
 .update-banner .btns { margin-left: auto; }
+
+/* Study areas to process ---------------------------------------------------------------------------------------- */
+.areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; max-height: 280px; overflow: auto; }
+.area { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--line); border-radius: 7px;
+	cursor: pointer; user-select: none; background: var(--panel); min-width: 0; }
+.area:hover { border-color: var(--faint); }
+.area.on { border-color: var(--brand); background: var(--brand-soft); }
+.area .id { font-weight: 700; font-variant-numeric: tabular-nums; }
+.area .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.area .ha { color: var(--muted); font-size: 11.5px; white-space: nowrap; }

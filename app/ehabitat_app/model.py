@@ -277,6 +277,12 @@ def status():
 		'ids': sa.get('ids') if sa else None,
 	}
 	try:
+		out['all_ids'] = inputs.vector_ids(sa['file'], sa.get('layer'), sa.get('col_id') or 'cat') if sa else []
+	except Exception:
+		out['all_ids'] = []
+	if sa and not out['ids']:
+		out['ids'] = out['all_ids']
+	try:
 		out['setup'] = setup_needed(cfg, state)
 	except Exception as e:
 		out['setup'] = [f'cannot be checked: {e}']

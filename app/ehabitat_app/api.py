@@ -204,52 +204,89 @@ class Api:
 
 	@exposed
 	def study_area(self):
+		"""The study areas chosen: their file, layer, ID and name columns, the areas of the file ({id, label, ha}) and
+		the IDs to process (palist.csv)."""
 		sa = model.study_area()
 		if not sa:
 			return None
 		info = inputs.vector_info(sa['file'], sa.get('layer'))
+		label_col = sa.get('label_col', inputs.guess_label_col(info['fields']))
 		try:
-			all_ids = inputs.vector_ids(sa['file'], info['layer'], sa.get('col_id') or 'cat')
+			areas = inputs.vector_areas(sa['file'], info['layer'], sa.get('col_id') or 'cat', label_col)
 		except ValueError as e:
-			all_ids, info['id_error'] = [], str(e)
-		return dict(sa, info=info, all_ids=all_ids, ids=sa.get('ids') or all_ids)
+			areas, info['id_error'] = [], str(e)
+		all_ids = [a['id'] for a in areas]
+		ids = [i for i in (sa.get('ids') or all_ids) if i in set(all_ids)] or all_ids
+		return dict(sa, info=info, label_col=label_col, areas=areas, all_ids=all_ids, ids=ids)
 
 	@exposed
-	def inspect_vector(self, path, layer=None, col_id='cat'):
+	def inspect_vector(self, path, layer=None, col_id='cat', label_col=''):
+		"""A vector file before using it: its layers, fields and study areas. LABEL_COL '' guesses the column of the
+		names, None leaves them out."""
 		info = inputs.vector_info(path, layer)
+		if label_col == '':
+			label_col = inputs.guess_label_col(info['fields'])
 		try:
-			ids = inputs.vector_ids(path, info['layer'], col_id or 'cat')
+			areas = inputs.vector_areas(path, info['layer'], col_id or 'cat', label_col)
 			err = None
 		except ValueError as e:
-			ids, err = [], str(e)
-		return {'info': info, 'ids': ids, 'id_error': err}
+			areas, err = [], str(e)
+		return {'info': info, 'areas': areas, 'ids': [a['id'] for a in areas], 'label_col': label_col, 'id_error': err}
 
 	@exposed
-	def set_study_area(self, file, layer=None, col_id='cat', ids=None):
+	def set_study_area(self, file, layer=None, col_id='cat', label_col=None):
+		"""Use the study areas of FILE. The areas to process are kept if the file, layer and ID column are the same,
+		otherwise all of them (chosen then in HFT mapping)."""
 		info = inputs.vector_info(file, layer)
-		all_ids = inputs.vector_ids(file, info['layer'], col_id or 'cat')
-		ids = sorted({int(i) for i in (ids or all_ids)})
-		if not set(ids) <= set(all_ids):
-			raise ValueError('some IDs are not in the study area')
+		areas = inputs.vector_areas(file, info['layer'], col_id or 'cat', label_col)
+		all_ids = [a['id'] for a in areas]
+		if not all_ids:
+			raise ValueError('the file has no study areas (no IDs)')
 		target = inputs.copy_to_pa(file)
+		old = model.study_area() or {}
+		same = old.get('file') == target and (old.get('layer') or None) == (info['layer'] or None) \
+			and (old.get('col_id') or 'cat') == (col_id or 'cat')
+		ids = [i for i in (old.get('ids') or []) if i in set(all_ids)] if same else []
+		ids = ids or all_ids
 		paths.save_settings(study_area={'file': target, 'layer': info['layer'], 'col_id': col_id or 'cat',
-		                                'ids': ids if len(ids) < len(all_ids) else None})
+		                                'label_col': label_col, 'ids': ids if len(ids) < len(all_ids) else None})
 		model.write_palist(ids)
 		return self.study_area()['result']
+
+	@exposed
+	def set_ids(self, ids):
+		"""The study areas (IDs) to process: palist.csv."""
+		if jobs.running('model'):
+			raise ValueError('the model is running: change the areas when it finishes')
+		sa = model.study_area()
+		if not sa:
+			raise ValueError('choose the study areas first in "Input variables"')
+		all_ids = inputs.vector_ids(sa['file'], sa.get('layer'), sa.get('col_id') or 'cat')
+		ids = sorted({int(i) for i in ids})
+		if not ids:
+			raise ValueError('choose at least one study area')
+		bad = [i for i in ids if i not in set(all_ids)]
+		if bad:
+			raise ValueError(f"IDs not in the study areas: {', '.join(map(str, bad))}")
+		paths.save_settings(study_area=dict(sa, ids=ids if len(ids) < len(all_ids) else None))
+		model.write_palist(ids)
+		return ids
 
 	@exposed
 	def study_geojson(self):
 		sa = model.study_area()
 		if not sa:
 			return None
-		return inputs.vector_geojson(sa['file'], sa.get('layer'))
+		info = inputs.vector_info(sa['file'], sa.get('layer'))
+		label_col = sa.get('label_col', inputs.guess_label_col(info['fields']))
+		return inputs.vector_geojson(sa['file'], sa.get('layer'), col_id=sa.get('col_id') or 'cat', label_col=label_col)
 
 	@exposed
-	def vector_preview(self, path, layer=None):
+	def vector_preview(self, path, layer=None, col_id=None, label_col=None):
 		"""Polygons of a vector file chosen by the user, before using it (any folder)."""
 		if not str(path).lower().endswith(inputs.VECTOR_EXT):
 			raise ValueError('not a vector file')
-		return inputs.vector_geojson(path, layer)
+		return inputs.vector_geojson(path, layer, col_id=col_id, label_col=label_col)
 
 	@exposed
 	def vector_geojson(self, path):

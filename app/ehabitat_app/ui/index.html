@@ -74,7 +74,7 @@
 
 	<div class="grid-2">
 		<div class="card">
-			<div class="card-head"><h2>Study area</h2><span class="sub">polygons where the HFTs are mapped</span></div>
+			<div class="card-head"><h2>Study areas</h2><span class="sub">a vector file: each ID is a study area where the HFTs are mapped</span></div>
 			<div class="row">
 				<input type="text" id="sa-file" class="grow" readonly placeholder="No file chosen">
 				<button class="btn" id="sa-pick">Choose file…</button>
@@ -83,15 +83,13 @@
 				<label for="sa-layer" id="sa-layer-lab">Layer</label><select id="sa-layer"></select>
 				<label for="sa-col">ID column</label>
 				<div class="row"><select id="sa-col"></select><span class="small muted">an integer column; "cat" = one ID per polygon</span></div>
+				<label for="sa-label">Name column</label>
+				<div class="row"><select id="sa-label"></select><span class="small muted">optional: the names shown with the IDs</span></div>
 			</div>
 			<div class="facts" id="sa-facts"></div>
-			<div>
-				<div class="row"><span class="section-title">IDs to process (palist.csv)</span>
-					<button class="btn small ghost right" id="sa-all">All</button><button class="btn small ghost" id="sa-none">None</button></div>
-				<div class="chips" id="sa-ids"></div>
-			</div>
+			<div class="small muted" id="sa-areas-note"></div>
 			<div class="notice err hidden" id="sa-error"></div>
-			<div class="btns"><button class="btn primary" id="sa-apply" disabled>Use this study area</button>
+			<div class="btns"><button class="btn primary" id="sa-apply" disabled>Use these study areas</button>
 				<span class="small muted" id="sa-state"></span></div>
 		</div>
 		<div class="card">
@@ -256,6 +254,16 @@
 		<div class="facts" id="m-facts"></div>
 		<div id="m-setup"></div>
 	</div>
+	<div class="card" id="m-areas-card">
+		<div class="card-head"><h2>Study areas to process</h2><span class="sub" id="m-areas-sub"></span>
+			<div class="btns right">
+				<input type="text" id="m-areas-q" placeholder="Search by ID or name" style="width:190px">
+				<button class="btn small ghost" id="m-areas-all">All</button>
+				<button class="btn small ghost" id="m-areas-none">None</button>
+			</div>
+		</div>
+		<div class="areas" id="m-areas"></div>
+	</div>
 	<div class="grid-model">
 		<div class="stack" id="m-params"></div>
 		<div class="stack sticky">
@@ -297,9 +305,9 @@
 	</div>
 	<div class="card">
 		<div class="row">
-			<label class="muted">Study area</label><select id="x-sa"></select>
+			<label class="muted" title="The file of the study areas (GRASS project)">Project</label><select id="x-sa"></select>
 			<label class="muted">Scenario</label><select id="x-sc"></select>
-			<label class="muted" id="x-id-lab">ID</label><select id="x-id"></select>
+			<label class="muted" id="x-id-lab">Study area</label><select id="x-id"></select>
 			<label class="muted">Cut (percentile)</label><select id="x-cut"></select>
 			<div class="btns right"><button class="btn small ghost" id="x-open">Open folder</button><button class="btn small ghost" id="x-refresh">Refresh</button></div>
 		</div>

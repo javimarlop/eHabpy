@@ -405,10 +405,65 @@ def vector_ids(path, layer, col_id):
 	return sorted({f.GetFieldAsInteger64(i) for f in lyr if f.IsFieldSet(i)})
 
 
-def vector_geojson(path, layer=None, max_points=60000):
-	"""Polygons of a vector file in WGS 84 (GeoJSON), simplified to about MAX_POINTS vertices for the map."""
+NAME_RE_FIELD = re.compile(r'(^|_)(name|nombre|nom|label|site|desig|title|titulo)', re.I)
+
+
+def guess_label_col(fields):
+	"""A text column with the names of the areas (name, NOMBRE, SITE_NAME...), or None."""
+	text = [f['name'] for f in fields if f['type'] in ('String', 'WideString')]
+	for f in text:
+		if NAME_RE_FIELD.search(f):
+			return f
+	return None
+
+
+def _feature_ids(lyr, col_id):
+	"""(index of COL_ID or -1 for the categories of GRASS, 1, 2, ... in the order of the features)."""
+	defn = lyr.GetLayerDefn()
+	i = defn.GetFieldIndex(col_id)
+	if i < 0 and col_id != 'cat':
+		raise ValueError(f'the layer has no column {col_id}')
+	if i >= 0 and not _int_type(defn.GetFieldDefn(i).GetType()):
+		raise ValueError(f'the column {col_id} is not of integers')
+	return i
+
+
+def vector_areas(path, layer, col_id, label_col=None):
+	"""The study areas of a vector file (one per ID, as setup.py and palist.csv take them): [{id, label, ha}],
+	with the name of LABEL_COL (if any) and the area in hectares (projected CRS)."""
 	ds = ogr.Open(path)
 	lyr = ds.GetLayerByName(layer) if layer else ds.GetLayer(0)
+	i = _feature_ids(lyr, col_id)
+	j = lyr.GetLayerDefn().GetFieldIndex(label_col) if label_col else -1
+	srs = lyr.GetSpatialRef()
+	factor = (srs.GetLinearUnits() ** 2) / 1e4 if srs is not None and srs.IsProjected() else None
+	areas = {}
+	for n, f in enumerate(lyr, 1):
+		if i >= 0 and not f.IsFieldSet(i):
+			continue
+		fid = f.GetFieldAsInteger64(i) if i >= 0 else n
+		a = areas.setdefault(fid, {'id': fid, 'label': None, 'ha': 0.0 if factor else None})
+		if j >= 0 and a['label'] is None and f.IsFieldSet(j):
+			a['label'] = f.GetFieldAsString(j).strip() or None
+		g = f.GetGeometryRef()
+		if factor and g is not None:
+			a['ha'] += g.GetArea() * factor
+	for a in areas.values():
+		if a['ha'] is not None:
+			a['ha'] = round(a['ha'], 1)
+	return [areas[k] for k in sorted(areas)]
+
+
+def vector_geojson(path, layer=None, max_points=60000, col_id=None, label_col=None):
+	"""Polygons of a vector file in WGS 84 (GeoJSON), simplified to about MAX_POINTS vertices for the map. With
+	COL_ID, each feature has the ID of its study area (and the name of LABEL_COL)."""
+	ds = ogr.Open(path)
+	lyr = ds.GetLayerByName(layer) if layer else ds.GetLayer(0)
+	try:
+		id_index = _feature_ids(lyr, col_id) if col_id else None
+	except ValueError:
+		id_index = None
+	label_index = lyr.GetLayerDefn().GetFieldIndex(label_col) if label_col else -1
 	srs = lyr.GetSpatialRef()
 	ct = None
 	if srs is not None:
@@ -418,23 +473,28 @@ def vector_geojson(path, layer=None, max_points=60000):
 	xmin, xmax, ymin, ymax = lyr.GetExtent()
 	npts = 0
 	geoms = []
-	for f in lyr:
+	for n, f in enumerate(lyr, 1):
 		g = f.GetGeometryRef()
 		if g is None:
 			continue
 		g = g.Clone()
 		npts += _count_points(g)
-		geoms.append((f.GetFID(), g))
+		props = {'fid': f.GetFID()}
+		if id_index is not None:
+			props['id'] = (f.GetFieldAsInteger64(id_index) if f.IsFieldSet(id_index) else None) if id_index >= 0 else n
+		if label_index >= 0 and f.IsFieldSet(label_index):
+			props['label'] = f.GetFieldAsString(label_index)
+		geoms.append((props, g))
 	tol = 0
 	if npts > max_points:
 		tol = max(xmax - xmin, ymax - ymin) / 2000
 	feats = []
-	for fid, g in geoms:
+	for props, g in geoms:
 		if tol:
 			g = g.SimplifyPreserveTopology(tol)
 		if ct is not None:
 			g.Transform(ct)
-		feats.append({'type': 'Feature', 'properties': {'fid': fid}, 'geometry': _json(g)})
+		feats.append({'type': 'Feature', 'properties': props, 'geometry': _json(g)})
 	return {'type': 'FeatureCollection', 'features': feats}
 
 

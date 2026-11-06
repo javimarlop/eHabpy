@@ -356,8 +356,8 @@ pages.inputs = (() => {
 		setTimeout(() => S.map.invalidateSize(), 50);
 	}
 
-	// Study area ----------------------------------------------------------------------------------------------
-	function renderDraft(info, ids, idError) {
+	// Study areas ---------------------------------------------------------------------------------------------
+	function renderDraft(info, areas, idError) {
 		const d = S.draft;
 		$('#sa-file').value = d ? d.file : '';
 		const lay = $('#sa-layer');
@@ -371,40 +371,32 @@ pages.inputs = (() => {
 		col.append(el('option', {value: 'cat'}, 'cat (one ID per polygon)'));
 		for (const f of (info ? info.fields : []).filter(f => f.integer)) col.append(el('option', {value: f.name}, f.name));
 		col.value = d ? d.col_id : 'cat';
+		const lab = $('#sa-label');
+		lab.textContent = '';
+		lab.append(el('option', {value: ''}, '(none)'));
+		for (const f of (info ? info.fields : []).filter(f => !f.integer)) lab.append(el('option', {value: f.name}, f.name));
+		lab.value = d && d.label_col ? d.label_col : '';
 		const facts = $('#sa-facts');
 		facts.textContent = '';
 		if (info) {
 			facts.append(
-				el('div', {class: 'fact'}, el('div', {class: 'k'}, 'Polygons'), el('div', {class: 'v'}, fmt(info.count, 0))),
+				el('div', {class: 'fact'}, el('div', {class: 'k'}, 'Study areas (IDs)'), el('div', {class: 'v'}, fmt(areas.length, 0)),
+					el('div', {class: 's'}, `${fmt(info.count, 0)} polygons`)),
 				el('div', {class: 'fact'}, el('div', {class: 'k'}, 'Area'), el('div', {class: 'v'}, info.area_km2 !== null ? fmt(info.area_km2) + ' km²' : '—')),
 				el('div', {class: 'fact'}, el('div', {class: 'k'}, 'CRS'), el('div', {class: 'v small'}, info.crs || 'no CRS')));
 		}
-		const chips = $('#sa-ids');
-		chips.textContent = '';
-		const sel = new Set(d && d.ids ? d.ids : ids);
-		if (ids.length > 300) {
-			chips.append(el('span', {class: 'small muted'}, `${ids.length} IDs: all of them are processed.`));
-		} else {
-			for (const i of ids) {
-				const c = el('span', {class: 'chip' + (sel.has(i) ? ' on' : ''), 'data-id': i}, String(i));
-				c.addEventListener('click', () => { c.classList.toggle('on'); dirty(); });
-				chips.append(c);
-			}
-		}
+		const names = areas.slice(0, 6).map(a => a.label ? `${a.id} ${a.label}` : String(a.id)).join(', ');
+		$('#sa-areas-note').textContent = areas.length ? `Study areas: ${names}${areas.length > 6 ? ', …' : ''}. `
+			+ 'Choose which ones to process in "HFT mapping".' : '';
 		$('#sa-error').classList.toggle('hidden', !idError);
 		$('#sa-error').textContent = idError || '';
-	}
-
-	function draftIds() {
-		const on = $$('#sa-ids .chip.on').map(c => Number(c.dataset.id));
-		return $$('#sa-ids .chip').length ? on : null;
 	}
 
 	function dirty() {
 		const d = S.draft;
 		const saved = S.sa;
 		const same = saved && d && saved.file === d.file && (saved.layer || null) === (d.layer || null) && saved.col_id === d.col_id
-			&& JSON.stringify((saved.ids || []).slice().sort()) === JSON.stringify((draftIds() || saved.ids || []).slice().sort());
+			&& (saved.label_col || null) === (d.label_col || null);
 		$('#sa-apply').disabled = !d || same;
 		$('#sa-state').textContent = !d ? '' : same ? 'Used by the model.' : 'Changes not applied yet.';
 	}
@@ -414,9 +406,8 @@ pages.inputs = (() => {
 			S.sa = await api('study_area');
 		} catch (e) { fail(e); S.sa = null; }
 		if (S.sa) {
-			S.draft = {file: S.sa.file, layer: S.sa.info.layer, col_id: S.sa.col_id || 'cat', ids: S.sa.ids};
-			S.sa.ids = S.sa.ids || S.sa.all_ids;
-			renderDraft(S.sa.info, S.sa.all_ids, S.sa.info.id_error);
+			S.draft = {file: S.sa.file, layer: S.sa.info.layer, col_id: S.sa.col_id || 'cat', label_col: S.sa.label_col || null};
+			renderDraft(S.sa.info, S.sa.areas, S.sa.info.id_error);
 		} else {
 			S.draft = null;
 			renderDraft(null, [], null);
@@ -425,12 +416,13 @@ pages.inputs = (() => {
 		drawStudyArea();
 	}
 
-	async function inspect(file, layer, col) {
-		const r = await api('inspect_vector', file, layer || null, col || 'cat');
-		S.draft = {file, layer: r.info.layer, col_id: col || 'cat', ids: r.ids};
-		renderDraft(r.info, r.ids, r.id_error);
+	async function inspect(file, layer, col, label) {
+		// label: '' guesses the column of the names, null leaves them out
+		const r = await api('inspect_vector', file, layer || null, col || 'cat', label === undefined ? '' : label);
+		S.draft = {file, layer: r.info.layer, col_id: col || 'cat', label_col: r.label_col || null};
+		renderDraft(r.info, r.areas, r.id_error);
 		dirty();
-		drawGeojson(await api('vector_preview', file, r.info.layer || null).catch(() => null));
+		drawGeojson(await api('vector_preview', file, r.info.layer || null, col || 'cat', r.label_col || null).catch(() => null));
 	}
 
 	async function drawStudyArea() {
@@ -443,27 +435,28 @@ pages.inputs = (() => {
 		if (S.saLayer) S.map.removeLayer(S.saLayer);
 		S.saLayer = null;
 		if (!gj || !gj.features || !gj.features.length) return;
-		S.saLayer = L.geoJSON(gj, {style: {color: '#ff3b30', weight: 2.5, fill: true, fillOpacity: 0.06}}).addTo(S.map);
+		S.saLayer = L.geoJSON(gj, {style: {color: '#ff3b30', weight: 2.5, fill: true, fillOpacity: 0.06},
+			onEachFeature: (f, layer) => {
+				const p = f.properties || {};
+				if (p.id !== undefined && p.id !== null) layer.bindTooltip(`ID ${p.id}${p.label ? ' · ' + p.label : ''}`, {sticky: true});
+			}}).addTo(S.map);
 		S.map.fitBounds(S.saLayer.getBounds(), {padding: [20, 20]});
 	}
 
 	$('#sa-pick').addEventListener('click', async () => {
 		try {
-			const f = await pickFiles('vector', false, 'File of the study area');
-			if (f && f.length) await inspect(f[0], null, 'cat');
+			const f = await pickFiles('vector', false, 'File of the study areas');
+			if (f && f.length) await inspect(f[0], null, 'cat', '');
 		} catch (e) { fail(e); }
 	});
-	$('#sa-layer').addEventListener('change', () => inspect(S.draft.file, $('#sa-layer').value, 'cat').catch(fail));
-	$('#sa-col').addEventListener('change', () => inspect(S.draft.file, S.draft.layer, $('#sa-col').value).catch(fail));
-	$('#sa-all').addEventListener('click', () => { $$('#sa-ids .chip').forEach(c => c.classList.add('on')); dirty(); });
-	$('#sa-none').addEventListener('click', () => { $$('#sa-ids .chip').forEach(c => c.classList.remove('on')); dirty(); });
+	$('#sa-layer').addEventListener('change', () => inspect(S.draft.file, $('#sa-layer').value, 'cat', '').catch(fail));
+	$('#sa-col').addEventListener('change', () => inspect(S.draft.file, S.draft.layer, $('#sa-col').value, S.draft.label_col).catch(fail));
+	$('#sa-label').addEventListener('change', () => inspect(S.draft.file, S.draft.layer, S.draft.col_id, $('#sa-label').value || null).catch(fail));
 	$('#sa-apply').addEventListener('click', async () => {
 		const d = S.draft;
-		const ids = draftIds();
-		if (ids && !ids.length) return toast('Choose at least one ID.', 'warn');
 		try {
-			await api('set_study_area', d.file, d.layer || null, d.col_id, ids);
-			toast('Study area applied (copied to segm_optim/pa, palist.csv written).', 'ok');
+			await api('set_study_area', d.file, d.layer || null, d.col_id, d.label_col || null);
+			toast('Study areas applied (copied to segm_optim/pa). Choose which ones to process in "HFT mapping".', 'ok');
 			await loadStudyArea();
 			pages.model.refresh();
 		} catch (e) { fail(e); }
@@ -1048,9 +1041,10 @@ pages.gee = (() => {
 pages.model = (() => {
 	const S = {params: [], saved: {}, status: null};
 	const view = new JobView($('#m-log'), $('#m-bar'), {
-		onStart: () => { $('#m-stop').classList.remove('hidden'); $('#m-run').disabled = true; $('#dot-model').classList.remove('hidden'); $('#m-after').classList.add('hidden'); },
+		onStart: () => { $('#m-stop').classList.remove('hidden'); $('#m-run').disabled = true; $('#dot-model').classList.remove('hidden'); $('#m-after').classList.add('hidden'); $('#m-areas-card').classList.add('disabled-zone'); },
 		onEnd: s => {
 			$('#m-stop').classList.add('hidden'); $('#m-run').disabled = false; $('#dot-model').classList.add('hidden');
+			$('#m-areas-card').classList.remove('disabled-zone');
 			refresh();
 			if (s.state === 'done') {
 				toast('Model finished.', 'ok');
@@ -1175,7 +1169,8 @@ pages.model = (() => {
 		box.textContent = '';
 		const f = (k, v, s) => el('div', {class: 'fact'}, el('div', {class: 'k'}, k), el('div', {class: 'v'}, v), s ? el('div', {class: 's'}, s) : null);
 		box.append(
-			f('Study area', st.selected_study_area || '—', st.study_area_file ? `${st.study_area_file} · IDs: ${st.ids ? st.ids.join(', ') : 'all'}` : 'choose it in Input variables'),
+			f('Study areas', st.selected_study_area || '—', st.study_area_file
+				? `${st.study_area_file} · ${(st.ids || []).length} of ${(st.all_ids || []).length} to process` : 'choose them in Input variables'),
 			f('Variables', `inVars${st.invars_folder ? '/' + st.invars_folder : ''}`, `${st.variables.length} variables in config.py${st.resolution ? ' · ' + st.resolution + ' m pixels' : ''}`),
 			f('Scenario', st.scenario, 'segm_optim/' + st.results_dir));
 		const setup = $('#m-setup');
@@ -1198,7 +1193,64 @@ pages.model = (() => {
 		});
 	}
 
-	async function refresh() {
+	// Study areas (IDs) to process: palist.csv, saved as they are ticked
+	function renderAreas() {
+		const box = $('#m-areas');
+		box.textContent = '';
+		const sa = S.sa;
+		if (!sa || !sa.areas || !sa.areas.length) {
+			box.append(el('div', {class: 'empty'}, 'Choose the file of the study areas in "Input variables".'));
+			$('#m-areas-sub').textContent = '';
+			return;
+		}
+		const q = $('#m-areas-q').value.trim().toLowerCase();
+		for (const a of sa.areas) {
+			if (q && !`${a.id} ${a.label || ''}`.toLowerCase().includes(q)) continue;
+			const item = el('label', {class: 'area' + (S.ids.has(a.id) ? ' on' : ''), title: a.label ? `ID ${a.id} · ${a.label}` : `ID ${a.id}`},
+				el('input', {type: 'checkbox'}), el('span', {class: 'id'}, a.id), el('span', {class: 'nm'}, a.label || ''),
+				el('span', {class: 'ha'}, a.ha !== null && a.ha !== undefined ? fmt(a.ha, 0) + ' ha' : ''));
+			const cb = item.querySelector('input');
+			cb.checked = S.ids.has(a.id);
+			cb.addEventListener('change', () => {
+				cb.checked ? S.ids.add(a.id) : S.ids.delete(a.id);
+				item.classList.toggle('on', cb.checked);
+				saveIds();
+			});
+			box.append(item);
+		}
+		areasSub();
+	}
+
+	function areasSub(text) {
+		const n = S.sa && S.sa.areas ? S.sa.areas.length : 0;
+		$('#m-areas-sub').textContent = `${S.ids.size} of ${n} selected (palist.csv)` + (text ? ' · ' + text : '');
+	}
+
+	let saveTimer = null;
+	function saveIds() {
+		clearTimeout(saveTimer);
+		areasSub('saving…');
+		saveTimer = setTimeout(async () => {
+			if (!S.ids.size) { areasSub('choose at least one'); return; }
+			try {
+				await api('set_ids', [...S.ids]);
+				areasSub('saved');
+				refresh(false);
+			} catch (e) { fail(e); loadAreas(); }
+		}, 500);
+	}
+
+	async function loadAreas() {
+		try { S.sa = await api('study_area'); } catch (e) { S.sa = null; }
+		S.ids = new Set(S.sa ? S.sa.ids : []);
+		renderAreas();
+	}
+	S.ids = new Set();
+	$('#m-areas-q').addEventListener('input', renderAreas);
+	$('#m-areas-all').addEventListener('click', () => { if (!S.sa) return; S.sa.areas.forEach(a => S.ids.add(a.id)); renderAreas(); saveIds(); });
+	$('#m-areas-none').addEventListener('click', () => { S.ids.clear(); renderAreas(); saveIds(); });
+
+	async function refresh(areas = true) {
 		try {
 			const st = await api('status');
 			S.status = st;
@@ -1207,6 +1259,7 @@ pages.model = (() => {
 			const sc = $('#p-SCENARIO');
 			if (sc) sc.placeholder = st.scenario;
 		} catch (e) { fail(e); }
+		if (areas) await loadAreas();
 	}
 
 	$('#m-refresh').addEventListener('click', refresh);
@@ -1242,6 +1295,7 @@ pages.model = (() => {
 					'Go on');
 				if (!ok) return;
 			}
+			if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; await api('set_ids', [...S.ids]); }
 			const id = await api('run_model', v, Number($('#m-nproc').value), $('#m-from').value || null);
 			S.saved = values(); markChanged();
 			view.start(id, 'HFT mapping');
@@ -1297,16 +1351,22 @@ pages.results = (() => {
 	async function loadScenario() {
 		try { S.data = await api('results', $('#x-sa').value, $('#x-sc').value); } catch (e) { return fail(e); }
 		const ids = S.data.ids;
-		opt($('#x-id'), ids.map(i => [i, 'ID ' + i]), $('#x-id').value);
+		opt($('#x-id'), ids.map(i => [i, areaName(i)]), $('#x-id').value);
 		$('#x-id').classList.toggle('hidden', ids.length < 2);
 		$('#x-id-lab').classList.toggle('hidden', ids.length < 2);
 		$('#x-meta').textContent = S.data.metadata || 'No processing_metadata.txt';
 		await onId();
 	}
 
+	function areaName(i) {
+		const name = S.data && S.data.labels ? S.data.labels[String(i)] : null;
+		return name ? `${i} · ${name}` : `ID ${i}`;
+	}
+
 	async function onId() {
 		const rec = S.data.per_id[$('#x-id').value];
 		if (!rec) return;
+		styleOutline();
 		const cuts = rec.cuts;
 		const sug = cuts.find(c => c.suggested);
 		const lab = c => c.cut === 'results' ? 'Result' : `${c.cut}${c.hfts ? ' · ' + c.hfts + ' HFTs' : ''}${c.suggested ? ' · suggested' : ''}`;
@@ -1332,7 +1392,7 @@ pages.results = (() => {
 
 	async function drawHft(c) {
 		ensureMap();
-		$('#x-map-title').textContent = `HFT map${c.cut === 'results' ? '' : ' · ' + c.cut}`;
+		$('#x-map-title').textContent = `HFT map${c.cut === 'results' ? '' : ' · ' + c.cut}${S.data.ids.length > 1 ? ' · ' + areaName($('#x-id').value) : ''}`;
 		$('#x-map-sub').textContent = 'loading…';
 		let h;
 		try {
@@ -1415,9 +1475,29 @@ pages.results = (() => {
 		S.outlineFor = $('#x-sa').value;
 		const gj = await api('study_outline', $('#x-sa').value).catch(() => null);
 		if (!gj) return;
-		S.outline = L.geoJSON(gj, {style: {color: '#111', weight: 2.2, fill: false}, interactive: false});
+		// the study area shown in black, the others of the file in grey (click one with results to show it)
+		S.outline = L.geoJSON(gj, {style: outlineStyle, onEachFeature: (f, layer) => {
+			const id = f.properties.id;
+			if (id === undefined || id === null) return;
+			layer.bindTooltip(`ID ${id}${f.properties.label ? ' · ' + f.properties.label : ''}`, {sticky: true});
+			layer.on('click', e => {
+				if (String(id) === $('#x-id').value || !S.data.ids.includes(String(id))) return;
+				L.DomEvent.stopPropagation(e);
+				$('#x-id').value = String(id);
+				onId();
+			});
+		}});
 		if ($('#x-outline').checked) S.outline.addTo(S.map);
 	}
+
+	function outlineStyle(f) {
+		const id = f.properties.id;
+		const multi = S.data && S.data.ids.length > 1;
+		if (id === undefined || id === null || !multi || String(id) === $('#x-id').value) return {color: '#111', weight: 2.4, fill: false};
+		const done = S.data.ids.includes(String(id));
+		return {color: done ? '#f5f5f5' : '#9aa5a0', weight: done ? 1.8 : 1.2, dashArray: '5 4', fill: false};
+	}
+	function styleOutline() { if (S.outline) S.outline.setStyle(outlineStyle); }
 
 	function fit() {
 		S.map.invalidateSize();

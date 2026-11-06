@@ -90,7 +90,7 @@ def scenario(study_area, scen):
 				ids.add(m.group('id'))
 				shps.append((d, f, m))
 	out = {'study_area': study_area, 'scenario': scen, 'path': root, 'rel': paths.rel(root), 'ids': sorted(ids, key=int),
-	       'per_id': {}}
+	       'per_id': {}, 'labels': area_labels(study_area)}
 	meta = os.path.join(root, 'processing_metadata.txt')
 	out['metadata'] = open(meta, encoding='utf-8', errors='replace').read() if os.path.isfile(meta) else None
 	overall = os.path.join(root, 'overall_optim_thresholds.csv')
@@ -252,16 +252,52 @@ def _round(gj, nd=6):
 			geom['coordinates'] = r(geom['coordinates'])
 
 
+def _study_file(study_area):
+	"""(file, layer, ID column, name column) of the study areas of the results of STUDY_AREA: those chosen in the app
+	if they are that file, else the file of segm_optim/pa with its name (and the ID column of its last setup.py)."""
+	settings = paths.load_settings().get('study_area') or {}
+	if settings.get('file') and inputs.grass_name(settings['file']) == study_area and os.path.isfile(settings['file']):
+		f, layer, col = settings['file'], settings.get('layer'), settings.get('col_id') or 'cat'
+		label = settings['label_col'] if 'label_col' in settings else None
+	else:
+		if not os.path.isdir(paths.PA_DIR):
+			return None
+		key = lambda s: re.sub(r'[^A-Za-z0-9]', '', s)
+		target = {key(study_area), key(re.sub(r'^v_', '', study_area))}
+		found = [os.path.join(paths.PA_DIR, x) for x in sorted(os.listdir(paths.PA_DIR))
+		         if x.lower().endswith(inputs.VECTOR_EXT) and key(os.path.splitext(x)[0]) in target]
+		if not found:
+			return None
+		import hft_state
+		f, layer = found[0], None
+		col = (hft_state.get_setup(study_area) or {}).get('col_id') or 'cat'
+		label = 'guess'
+	if label == 'guess':
+		try:
+			label = inputs.guess_label_col(inputs.vector_info(f, layer)['fields'])
+		except Exception:
+			label = None
+	return f, layer, col, label
+
+
+def area_labels(study_area):
+	"""{ID (text): name} of the study areas of STUDY_AREA (empty without a column of names)."""
+	sf = _study_file(study_area)
+	if not sf or not sf[3]:
+		return {}
+	try:
+		return {str(a['id']): a['label'] for a in inputs.vector_areas(*sf) if a['label']}
+	except Exception:
+		return {}
+
+
 def study_outline(study_area):
-	"""The polygons of the study area (the file of segm_optim/pa with its name) for the map."""
-	if not os.path.isdir(paths.PA_DIR):
+	"""The polygons of the study areas (the file of segm_optim/pa with its name) for the map, with the ID of each."""
+	sf = _study_file(study_area)
+	if not sf:
 		return None
-	key = lambda s: re.sub(r'[^A-Za-z0-9]', '', s)
-	target = {key(study_area), key(re.sub(r'^v_', '', study_area))}
-	for f in sorted(os.listdir(paths.PA_DIR)):
-		if f.lower().endswith(inputs.VECTOR_EXT) and key(os.path.splitext(f)[0]) in target:
-			try:
-				return inputs.vector_geojson(os.path.join(paths.PA_DIR, f))
-			except Exception:
-				return None
-	return None
+	f, layer, col, label = sf
+	try:
+		return inputs.vector_geojson(f, layer, col_id=col, label_col=label)
+	except Exception:
+		return None
