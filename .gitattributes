@@ -1,3 +1,4 @@
-# cmd misreads the labels of batch files with LF line endings: keep CRLF in the installer of the app for Windows
-*.bat text eol=crlf
+# cmd misreads the labels of batch files with LF line endings: the installer of the app for Windows is kept with CRLF
+# also in the repository (not converted), because raw.githubusercontent.com serves the file as it is stored there
+*.bat -text
 *.command text eol=lf

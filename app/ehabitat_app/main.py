@@ -8,7 +8,7 @@ import sys
 import time
 import webbrowser
 
-from . import __version__, envsetup, jobs
+from . import __version__, envsetup, jobs, paths
 
 
 def main():
@@ -112,7 +112,7 @@ def linux_window_problem():
 def in_browser(url, no_open=False):
 	"""Show the interface in the web browser and serve it until Ctrl+C."""
 	print(f'Interface: {url}\nPress Ctrl+C to close the app.', flush=True)
-	if not no_open:
+	if not no_open and not (paths.wsl() and paths.open_in_windows(url)):  # WSL: the web browser of Windows
 		webbrowser.open(url)
 	try:
 		while True:

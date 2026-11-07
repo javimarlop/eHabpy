@@ -41,7 +41,7 @@ NPROC = int(os.environ.get('EHAB_NPROC', max(1, cpu_count() - 1)))
 
 def find_gisbase():
 	gb = os.environ.get('GISBASE')
-	if gb:
+	if gb and os.path.isdir(os.path.join(gb, 'etc')):
 		return gb
 	for exe in ('grass', 'grass85', 'grass84', 'grass83', 'grass82', 'grass80'):
 		try:
@@ -64,6 +64,17 @@ def add_grass_to_path():
 	return gisbase
 
 
+def fix_grass_env(gisbase):
+	"""GRASS 8.5 on Windows, started from Python with setup.init(): init() changes GISBASE to
+	<GISBASE>\\lib\\grass85, which does not exist, and the modules then do not find etc (without its color tables
+	r.neighbors, r.colors... fail), so GISBASE goes back; and the modules of vectors need HOME, which Windows does not
+	define (grass.bat sets it, init() does not). Elsewhere it does nothing."""
+	if gisbase and not os.path.isdir(os.path.join(os.environ.get('GISBASE', ''), 'etc')):
+		os.environ['GISBASE'] = gisbase
+	if os.name == 'nt' and not os.environ.get('HOME'):
+		os.environ['HOME'] = os.path.expanduser('~')
+
+
 def init_grass(gisdbase, location, mapset):
 	gisbase = add_grass_to_path()
 	import grass.script as grass
@@ -72,6 +83,7 @@ def init_grass(gisdbase, location, mapset):
 		gsetup.init(gisdbase, location, mapset)
 	except TypeError:
 		gsetup.init(gisbase, gisdbase, location, mapset)
+	fix_grass_env(gisbase)
 	return grass, gsetup
 
 
@@ -194,10 +206,12 @@ def fsegm(pa):
 		col = COL_ID
 		grass.run_command('g.mapset', mapset=mapset2, flags='c')
 
+		gisbase = os.environ['GISBASE']
 		try:
 			gsetup.init(GRASSDBASE, MYLOC, mapset2)
 		except TypeError:
-			gsetup.init(os.environ['GISBASE'], GRASSDBASE, MYLOC, mapset2)
+			gsetup.init(gisbase, GRASSDBASE, MYLOC, mapset2)
+		fix_grass_env(gisbase)
 
 		source = STUDY_AREA
 		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]

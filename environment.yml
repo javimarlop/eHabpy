@@ -27,6 +27,7 @@ dependencies:
   - esda>=2.4
   - numba>=0.59          # required by libpysal/esda; keep in sync with numpy
   - grass>=8.3           # GRASS GIS 8 (remove if using a system install)
+  - llvm-openmp          # Windows: GRASS 8.5 needs this OpenMP runtime as libomp140.x86_64.dll (see the installer)
   - earthengine-api      # get_vars_gee.py: variables from Google Earth Engine (package monitoreo, below)
   - pyyaml               # recipe of get_vars_gee.py (gee_vars.yaml)
   - pip
@@ -34,7 +35,7 @@ dependencies:
   - r-base>=4.2
   - r-codetools          # recommended package not in conda's r-base (without it terra prints "was not checked for suspicious field assignments")
   - r-sf
-  - r-terra
+  - r-terra              # [win: CRAN terra] no Windows build in conda-forge since R 4.2: there it comes from CRAN
   - r-vegan
   - r-ade4
   - r-ggplot2

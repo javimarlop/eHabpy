@@ -12,7 +12,8 @@ compares its copy with the last commit of its branch in GitHub and, if there is 
   clone with commits of its own or changes in the same files is left as it is (the app says so).
 
 After an update the app starts again with the new code. When environment.yml changed, the conda environment is
-updated in the background (micromamba install, and pip for its pip packages) and the app asks to restart when done.
+updated in the background (micromamba install, pip for its pip packages and, on Windows, CRAN for the R packages
+marked [win: CRAN name] in it, which conda-forge does not have for Windows) and the app asks to restart when done.
 """
 
 import hashlib
@@ -21,8 +22,10 @@ import io
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.request
@@ -296,20 +299,68 @@ def _pip_requirements():
 	return out
 
 
-def update_environment(job):
-	"""Install what environment.yml asks for in this conda environment (micromamba or conda install -f), and its
-	pip packages that are missing."""
-	exes = [e for e in envsetup._mamba_candidates(sys.prefix) if os.path.basename(e).lower().startswith(('micromamba', 'conda', 'mamba'))]
+WIN_CRAN = re.compile(r'\[win: CRAN ([A-Za-z0-9.]+)\]')  # mark of environment.yml: not in conda-forge for Windows
+# the R packages of CRAN that R cannot load, installed as binary packages of Windows (as the installer of Windows does)
+CRAN_INSTALL = ("p <- commandArgs(TRUE); m <- p[!sapply(p, requireNamespace, quietly = TRUE)]; if (length(m)) { "
+                "message('From CRAN: ', paste(m, collapse = ', ')); install.packages(m, repos = 'https://cloud.r-project.org', "
+                "type = 'binary'); m <- m[!sapply(m, requireNamespace, quietly = TRUE)]; if (length(m)) { "
+                "message('R packages not installed: ', paste(m, collapse = ', ')); quit(status = 1) } }")
+
+
+def conda_envfile():
+	"""environment.yml as conda installs it here: on Windows, a temporary copy without the packages marked there with
+	[win: CRAN name] (conda-forge does not have them for Windows). Returns (path, temporary, CRAN names)."""
 	envfile = os.path.join(paths.ROOT, 'environment.yml')
-	if exes:
-		env = dict(os.environ)
-		if os.path.basename(exes[0]).lower().startswith('micromamba'):
-			env.setdefault('MAMBA_ROOT_PREFIX', os.path.dirname(exes[0]))
-		code = jobs.run_command(job, [exes[0], 'install', '-y', '-p', sys.prefix, '-f', envfile], cwd=paths.ROOT, env=env)
+	if os.name != 'nt':
+		return envfile, False, []
+	with open(envfile, encoding='utf-8') as f:
+		lines = f.readlines()
+	cran = [m.group(1) for m in map(WIN_CRAN.search, lines) if m]
+	if not cran:
+		return envfile, False, []
+	fd, tmp = tempfile.mkstemp(prefix='ehabitat-environment-', suffix='.yml')
+	with os.fdopen(fd, 'w', encoding='utf-8') as f:
+		f.writelines(line for line in lines if not WIN_CRAN.search(line))
+	return tmp, True, cran
+
+
+def update_environment(job):
+	"""Install what environment.yml asks for in this conda environment (micromamba or conda install -f), its pip
+	packages that are missing and, on Windows, the R packages that come from CRAN there."""
+	exes = [e for e in envsetup._mamba_candidates(sys.prefix) if os.path.basename(e).lower().startswith(('micromamba', 'conda', 'mamba'))]
+	envfile, temporary, cran = conda_envfile()
+	pkgs = None
+	try:
+		if exes:
+			env = dict(os.environ)
+			if os.path.basename(exes[0]).lower().startswith('micromamba'):
+				env.setdefault('MAMBA_ROOT_PREFIX', os.path.dirname(exes[0]))
+			if os.name == 'nt' and not env.get('CONDA_PKGS_DIRS'):
+				# micromamba keeps the packages in pkgs\https\conda.anaconda.org\conda-forge\noarch\<package>: from the
+				# folder of the app, the C++ headers of the compilers of R go over the 260 characters of the paths of
+				# Windows, so the cache goes to a new short folder of the disk (as in the installer), deleted at the end.
+				# mkdtemp makes it only for this user (Python >= 3.12.4 on Windows): a folder made in C:\ can be changed
+				# by every user, and micromamba links the files of the cache into the environment
+				try:
+					pkgs = tempfile.mkdtemp(prefix='ehp-', dir=os.environ.get('SystemDrive', 'C:') + os.sep)
+					env['CONDA_PKGS_DIRS'] = pkgs
+				except OSError:
+					pkgs = None
+			code = jobs.run_command(job, [exes[0], 'install', '-y', '-p', sys.prefix, '-f', envfile], cwd=paths.ROOT, env=env)
+			if code != 0:
+				raise RuntimeError(f'the environment could not be updated (exit code {code})')
+		else:
+			job.say('micromamba or conda not found: only the pip packages are checked')
+	finally:
+		if temporary:
+			os.remove(envfile)
+		if pkgs:
+			shutil.rmtree(pkgs, ignore_errors=True)
+	rscript = shutil.which('Rscript') if cran else None
+	if rscript:
+		code = jobs.run_command(job, [rscript, '-e', CRAN_INSTALL, *cran], cwd=paths.ROOT)
 		if code != 0:
-			raise RuntimeError(f'the environment could not be updated (exit code {code})')
-	else:
-		job.say('micromamba or conda not found: only the pip packages are checked')
+			raise RuntimeError(f'the R packages of CRAN ({", ".join(cran)}) could not be installed')
 	for req in _pip_requirements():
 		name = re.split(r'[\s<>=!~@\[;]', req, 1)[0]
 		try:

@@ -2,6 +2,8 @@
 
 import json
 import os
+import shutil
+import subprocess
 import sys
 import threading
 
@@ -47,6 +49,39 @@ def save_settings(**changes):
 			json.dump(s, f, indent=1, ensure_ascii=False)
 		os.replace(tmp, SETTINGS)
 		return s
+
+
+def wsl():
+	"""Whether this is Linux in WSL (the Windows Subsystem for Linux), where the web browser and the File Explorer are
+	those of Windows."""
+	if not sys.platform.startswith('linux'):
+		return False
+	if os.environ.get('WSL_DISTRO_NAME') or os.environ.get('WSL_INTEROP'):
+		return True
+	try:
+		with open('/proc/sys/kernel/osrelease', encoding='utf-8') as f:
+			return 'microsoft' in f.read().lower()
+	except OSError:
+		return False
+
+
+def open_in_windows(target):
+	"""In WSL, open TARGET with Windows: a web address in its web browser or a folder of Linux in its File Explorer
+	(as \\\\wsl.localhost\\...). Returns False when Windows cannot be reached from Linux."""
+	exe = shutil.which('explorer.exe') or '/mnt/c/Windows/explorer.exe'
+	if not os.path.exists(exe):
+		return False
+	try:
+		if not target.startswith(('http://', 'https://')):
+			r = subprocess.run(['wslpath', '-w', target], capture_output=True, text=True)
+			if r.returncode != 0 or not r.stdout.strip():
+				return False
+			target = r.stdout.strip()
+		# explorer.exe ends with exit code 1 even when it opened TARGET: not checked
+		subprocess.Popen([exe, target], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+	except OSError:
+		return False
+	return True
 
 
 def rel(path):

@@ -237,6 +237,12 @@ def main():
 	import grass.script as gs
 	import grass.script.setup as gsetup
 	gsetup.init(grassdb, study_area, 'PERMANENT')
+	# GRASS 8.5 on Windows: init() changes GISBASE to <GISBASE>\lib\grass85, which does not exist, and the modules of
+	# vectors need HOME, which Windows does not define (see fix_grass_env of segmentation_pca_par.py)
+	if not os.path.isdir(os.path.join(os.environ.get('GISBASE', ''), 'etc')):
+		os.environ['GISBASE'] = gisbase
+	if os.name == 'nt' and not os.environ.get('HOME'):
+		os.environ['HOME'] = os.path.expanduser('~')
 
 	try:
 		if exists:

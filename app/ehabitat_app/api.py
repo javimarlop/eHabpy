@@ -123,14 +123,17 @@ class Api:
 			else:
 				os.startfile(path)  # noqa
 		else:
-			subprocess.Popen(['xdg-open', path if os.path.isdir(path) else os.path.dirname(path)])
+			folder = path if os.path.isdir(path) else os.path.dirname(path)
+			if not (paths.wsl() and paths.open_in_windows(folder)):  # WSL: the File Explorer of Windows
+				subprocess.Popen(['xdg-open', folder])
 		return True
 
 	@exposed
 	def open_url(self, url):
 		if not str(url).startswith(('https://', 'http://')):
 			raise ValueError('only web links')
-		webbrowser.open(url)
+		if not (paths.wsl() and paths.open_in_windows(url)):  # WSL: the web browser of Windows
+			webbrowser.open(url)
 		return True
 
 	# Dialogs ------------------------------------------------------------------------------------------------------
