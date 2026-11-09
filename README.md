@@ -1,3 +1,5 @@
+<p align="center"><img src="app/ehabitat_app/ui/icon.png" width="160" alt="eHabitat+ logo"></p>
+
 eHabitat+
 ============
 
