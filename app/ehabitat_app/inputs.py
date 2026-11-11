@@ -3,11 +3,16 @@
 A set of variables is a subfolder of inVars (INVARS_FOLDER in config.py; '' is inVars itself) with the GeoTIFFs of
 the study area scale (parcela, the fine pixel size that setup.py imports into GRASS) and, in its subfolder
 'ecoregion', those of the ecoregion scale (a coarser pixel size, for the similarity of the HFTs in the ecoregion), as
-get_vars_gee.py leaves them. The variables left out of a set go to its subfolder '_excluded', which setup.py does not
+get_vars_gee.py leaves them. The ecoregion grid covers the RESOLVE ecoregions that the study area touches or a
+comparison area of the user (its gee_vars.json says which); when that area does not contain the study area,
+'ecoregion/study_area' has the study area at the pixel of the ecoregion grid (for the statistics of the HFTs in the
+similarity). A set with only 'ecoregion' (no GeoTIFFs of the study area) is a comparison area for the similarity, not
+a set for the HFT model. The variables left out of a set go to its subfolder '_excluded', which setup.py does not
 read. The study area is a vector file that the app copies to segm_optim/pa (where moranvar_plots.R looks for it)."""
 
 import base64
 import glob
+import json
 import math
 import os
 import re
@@ -178,6 +183,71 @@ def _tifs(folder):
 	return sorted(f for f in glob.glob(os.path.join(folder, '*')) if f.lower().endswith(RASTER_EXT) and os.path.isfile(f))
 
 
+tifs = _tifs
+
+STUDY_AREA_FOLDER = 'study_area'  # ecoregion/study_area: the study grid at the pixel of the ecoregion grid
+RECORD = 'gee_vars.json'  # what get_vars_gee.py downloaded in a folder
+COMPARISON = 'Comparison area'  # BIOME_NAME of the polygons of a comparison area (ECO_ID -1, -2, ...)
+
+
+def _read_record(folder):
+	try:
+		with open(os.path.join(folder, RECORD), encoding='utf-8') as f:
+			rec = json.load(f)
+		return rec if isinstance(rec, dict) else {}
+	except (OSError, ValueError):
+		return {}
+
+
+def _polygon_props(gpkg):
+	"""ECO_ID, ECO_NAME and BIOME_NAME of the polygons of ecoregions.gpkg."""
+	out = []
+	try:
+		ds = ogr.Open(gpkg)
+		lyr = ds.GetLayer(0)
+		defn = lyr.GetLayerDefn()
+		names = [defn.GetFieldDefn(i).GetName() for i in range(defn.GetFieldCount())]
+		for f in lyr:
+			out.append({k: f.GetField(k) for k in ('ECO_ID', 'ECO_NAME', 'BIOME_NAME') if k in names})
+	except (RuntimeError, AttributeError):
+		pass
+	return out
+
+
+def ecoregion_area(eco_dir):
+	"""What the ecoregion grid of a set (its folder ECO_DIR) covers: {kind: 'ecoregions' (the RESOLVE ecoregions that
+	the study area touches), 'comparison area' (a vector file of the user) or None (unknown: GeoTIFFs of the user),
+	name, names (of its polygons), features, file and layer (of a comparison area, as downloaded), polygons
+	(ecoregions.gpkg or None)}. A comparison area is known by the key comparison_area of gee_vars.json or, else, by its
+	polygons (BIOME_NAME 'Comparison area' or a negative ECO_ID)."""
+	rec = _read_record(eco_dir)
+	gpkg = os.path.join(eco_dir, 'ecoregions.gpkg')
+	out = {'kind': None, 'name': None, 'names': [], 'features': None, 'file': None, 'layer': None,
+	       'polygons': gpkg if os.path.isfile(gpkg) else None}
+	feats = [e for e in rec.get('ecoregions') or [] if isinstance(e, dict)]
+	if not feats and out['polygons']:
+		feats = _polygon_props(gpkg)
+	names = [str(f['ECO_NAME']) for f in feats if f.get('ECO_NAME')]
+	ca = rec.get('comparison_area')
+	negative = any(isinstance(f.get('ECO_ID'), (int, float)) and f['ECO_ID'] < 0 for f in feats)
+	if isinstance(ca, dict) or negative or any(f.get('BIOME_NAME') == COMPARISON for f in feats):
+		ca = ca if isinstance(ca, dict) else {}
+		name = ca.get('name') or (names[0] if len(set(names)) == 1 else None) or \
+			(os.path.splitext(os.path.basename(ca['file']))[0] if ca.get('file') else 'comparison area')
+		out.update(kind='comparison area', name=name, names=names, features=ca.get('features') or len(feats) or None,
+		           file=ca.get('file'), layer=ca.get('layer'))
+	elif feats:
+		out.update(kind='ecoregions', name=', '.join(names) if names else 'RESOLVE ecoregions', names=names,
+		           features=len(feats))
+	return out
+
+
+def area_only(d):
+	"""Whether the set of the folder D has only the variables of an ecoregion or comparison area (no GeoTIFF of the
+	study area, not even left out): not a set for the HFT model."""
+	return not _tifs(d) and not _tifs(os.path.join(d, paths.EXCLUDED)) and bool(_tifs(os.path.join(d, paths.ECO_FOLDER)))
+
+
 def set_dir(folder):
 	folder = (folder or '').strip().strip('/\\')
 	path = os.path.normpath(os.path.join(paths.INVARS, folder))
@@ -198,11 +268,15 @@ def list_sets():
 		dirs[:] = sorted(x for x in dirs if x not in skip and not x.startswith('.')) if depth < 2 else []
 		folder = '' if rel == '.' else rel
 		n = len(_tifs(d))
-		ne = len(_tifs(os.path.join(d, paths.ECO_FOLDER)))
-		nx = len(_tifs(os.path.join(d, paths.EXCLUDED))) + len(_tifs(os.path.join(d, paths.ECO_FOLDER, paths.EXCLUDED)))
+		eco_dir = os.path.join(d, paths.ECO_FOLDER)
+		ne = len(_tifs(eco_dir))
+		nx = len(_tifs(os.path.join(d, paths.EXCLUDED))) + len(_tifs(os.path.join(eco_dir, paths.EXCLUDED)))
 		if n or ne or nx or (depth == 1 and not os.listdir(d)):
+			a = ecoregion_area(eco_dir) if ne else None
 			out.append({'folder': folder, 'label': 'inVars' if not folder else folder, 'study': n, 'ecoregion': ne,
-			            'excluded': nx})
+			            'excluded': nx, 'area': a['kind'] if a else None, 'area_name': a['name'] if a else None,
+			            'area_only': area_only(d),
+			            'study_eco': len(_tifs(os.path.join(eco_dir, STUDY_AREA_FOLDER))) if ne else 0})
 	return out
 
 
@@ -217,15 +291,57 @@ def get_set(folder):
 		r['included'] = True
 	ex_study = [dict(raster_info(f), included=False) for f in _tifs(os.path.join(d, paths.EXCLUDED))]
 	ex_eco = [dict(raster_info(f), included=False) for f in _tifs(os.path.join(d, paths.ECO_FOLDER, paths.EXCLUDED))]
-	eco_poly = os.path.join(d, paths.ECO_FOLDER, 'ecoregions.gpkg')
+	eco_dir = os.path.join(d, paths.ECO_FOLDER)
+	eco_poly = os.path.join(eco_dir, 'ecoregions.gpkg')
+	sa_dir = os.path.join(eco_dir, STUDY_AREA_FOLDER)
+	eco_study = [dict(raster_info(f), included=True) for f in _tifs(sa_dir)] if eco else []
+	only = area_only(d)
+	area = ecoregion_area(eco_dir) if eco else None
+	both = check_scales(study, eco)
+	if only:
+		both = [{'level': 'info', 'text': 'Only the variables of ' + ('a comparison area' if area and area['kind'] ==
+		         'comparison area' else 'an ecoregion') + ', without those of a study area: this set is not for the HFT '
+		         'model. Compare the HFTs of a scenario with it in "Similarity" (Compare with), when its variables have '
+		         'the same names as those of the scenario.'}]
 	return {
 		'folder': folder or '', 'path': d, 'rel': paths.rel(d),
 		'study': study + ex_study, 'ecoregion': eco + ex_eco,
-		'checks': {'study': check_scale(study, 'study'), 'ecoregion': check_scale(eco, 'ecoregion') if eco else
+		'checks': {'study': check_scale(study, 'study') if not only else
+		           [{'level': 'info', 'text': 'No variables of a study area: a set with only an ecoregion or comparison '
+		                                      'area.'}],
+		           'ecoregion': check_scale(eco, 'ecoregion') if eco else
 		           [{'level': 'info', 'text': 'No variables at this scale (folder ecoregion).'}],
-		           'both': check_scales(study, eco)},
+		           'both': both, 'eco_study': check_eco_study(eco, eco_study) if eco_study else []},
 		'ecoregions_file': eco_poly if os.path.isfile(eco_poly) else None,
+		'area': area, 'area_only': only,
+		'eco_study': eco_study, 'eco_study_rel': paths.rel(sa_dir) if eco_study else None,
 	}
+
+
+def check_eco_study(eco, eco_study):
+	"""Notes on ecoregion/study_area (the study area at the pixel of the ecoregion grid): the statistics of the HFTs
+	in the similarity come from it when it has all the variables of the ecoregion grid, on its CRS and pixel."""
+	out = []
+	keys = {variable_key(r['file']) for r in eco}
+	have = {variable_key(r['file']) for r in eco_study if not r.get('error')}
+	good = [r for r in eco if not r.get('error') and r.get('res')]
+	first = good[0] if good else None
+	for r in eco_study:
+		if r.get('error'):
+			out.append({'level': 'error', 'text': f"{STUDY_AREA_FOLDER}/{r['file']}: cannot be read ({r['error']})"})
+		elif first and not math.isclose(r['res'][0], first['res'][0], rel_tol=1e-6):
+			out.append({'level': 'warning', 'text': f"{STUDY_AREA_FOLDER}/{r['file']} has another pixel size "
+			                                        f"({_fmt(r['res'][0])} m) than the ecoregion grid ({_fmt(first['res'][0])} m)."})
+	if keys - have:
+		out.append({'level': 'warning', 'text': f'{STUDY_AREA_FOLDER} lacks variables of the ecoregion grid: '
+		                                        + ', '.join(sorted(keys - have)) + ' (the similarity takes the HFT '
+		                                        'statistics from the ecoregion grid itself then).'})
+	if not any(o['level'] in ('error', 'warning') for o in out):
+		res = _fmt(eco_study[0]['res'][0]) if eco_study and eco_study[0].get('res') else '?'
+		out.insert(0, {'level': 'ok', 'text': f'The study area at the pixel of the ecoregion grid ({len(eco_study)} '
+		                                      f'variables, {res} m): the similarity takes the statistics of the HFTs '
+		                                      'from it.'})
+	return out
 
 
 def create_set(name):
@@ -287,19 +403,36 @@ def set_included(folder, scale, file, included):
 	return True
 
 
-def preview(path, max_size=900):
-	"""Quick look of a raster in Web Mercator for the map: PNG (data URI), its corners and the range of values."""
+def warp_preview(path, max_size=900, resample='near', overviews=True, bbox=None):
+	"""A raster in Web Mercator, at most MAX_SIZE pixels wide, for the map: (its values as float64, the mask of the
+	pixels with data, [west, south, east, north] in WGS 84). RESAMPLE: the method of gdal.Warp (near, average, max...);
+	OVERVIEWS False reads the full resolution (for max: the overviews of a map of classes may have lost small patches).
+	BBOX ([west, south, east, north] in WGS 84): only that rectangle, with pixels not smaller than those of the raster."""
+	import numpy as np
 	ds = gdal.Open(path)
 	nodata = ds.GetRasterBand(1).GetNoDataValue()
 	w, h = ds.RasterXSize, ds.RasterYSize
-	scale = max(w, h) / max_size
+	merc = osr.SpatialReference()
+	merc.ImportFromEPSG(3857)
+	extra = {}
+	if bbox and ds.GetSpatialRef() is not None:
+		xmin, ymin, xmax, ymax = osr.CoordinateTransformation(_wgs84(), merc).TransformBounds(*map(float, bbox), 21)
+		# the size of a pixel of the raster in Web Mercator, at the centre of BBOX
+		src = ds.GetSpatialRef().Clone()
+		src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+		cx, cy = (xmin + xmax) / 2, (ymin + ymax) / 2
+		x0, y0, _ = osr.CoordinateTransformation(merc, src).TransformPoint(cx, cy)
+		x1, _, _ = osr.CoordinateTransformation(src, merc).TransformPoint(x0 + abs(ds.GetGeoTransform()[1]), y0)
+		width = max(1, min(max_size, int(math.ceil((xmax - xmin) / (abs(x1 - cx) or 1)))))
+		extra['outputBounds'] = (xmin, ymin, xmax, ymax)
+	else:
+		width = max(1, int(round(w / max(max(w, h) / max_size, 1))))
 	tmp = f'/vsimem/preview_{uuid.uuid4().hex}.tif'
-	opts = gdal.WarpOptions(dstSRS='EPSG:3857', format='GTiff', outputType=gdal.GDT_Float32,
-	                        width=max(1, int(round(w / max(scale, 1)))), height=0, resampleAlg='near',
-	                        srcNodata=nodata, dstNodata=-3.4e38, srcBands=[1], dstBands=[1])
+	opts = gdal.WarpOptions(dstSRS='EPSG:3857', format='GTiff', outputType=gdal.GDT_Float32, width=width, height=0,
+	                        resampleAlg=resample, srcNodata=nodata, dstNodata=-3.4e38, srcBands=[1], dstBands=[1],
+	                        overviewLevel='AUTO' if overviews else 'NONE', **extra)
 	try:
 		out = gdal.Warp(tmp, ds, options=opts)
-		import numpy as np
 		a = out.GetRasterBand(1).ReadAsArray().astype('float64')
 		gt = out.GetGeoTransform()
 		ow, oh = out.RasterXSize, out.RasterYSize
@@ -309,17 +442,14 @@ def preview(path, max_size=900):
 	valid = np.isfinite(a) & (a > -3e38)
 	if nodata is not None and not (isinstance(nodata, float) and math.isnan(nodata)):
 		valid &= a != nodata
-	if not valid.any():
-		raise ValueError('the raster has no data')
-	lo, hi = np.percentile(a[valid], [2, 98])
-	if hi <= lo:
-		hi = lo + 1
-	idx = np.clip(((a - lo) / (hi - lo) * 255), 0, 255).astype('uint8')
-	lut = _ramp(VIRIDIS)
-	rgba = np.zeros((4, oh, ow), dtype='uint8')
-	for i in range(3):
-		rgba[i] = lut[idx, i]
-	rgba[3] = np.where(valid, 230, 0)
+	xmin, ymax = gt[0], gt[3]
+	xmax, ymin = gt[0] + gt[1] * ow, gt[3] + gt[5] * oh
+	return a, valid, _bbox_wgs84(merc, xmin, ymin, xmax, ymax)
+
+
+def png_uri(rgba):
+	"""PNG (data URI) of an RGBA image: an array of bytes (4, rows, columns)."""
+	_, oh, ow = rgba.shape
 	mem = gdal.GetDriverByName('MEM').Create('', ow, oh, 4, gdal.GDT_Byte)
 	for i in range(4):
 		mem.GetRasterBand(i + 1).WriteArray(rgba[i])
@@ -334,13 +464,25 @@ def preview(path, max_size=900):
 		gdal.VSIFCloseL(f)
 	finally:
 		gdal.Unlink(png)
-	merc = osr.SpatialReference()
-	merc.ImportFromEPSG(3857)
-	xmin, ymax = gt[0], gt[3]
-	xmax, ymin = gt[0] + gt[1] * ow, gt[3] + gt[5] * oh
-	bbox = _bbox_wgs84(merc, xmin, ymin, xmax, ymax)
-	return {'image': 'data:image/png;base64,' + base64.b64encode(data).decode(), 'bbox': bbox,
-	        'min': float(lo), 'max': float(hi), 'ramp': ['#' + c for c in VIRIDIS]}
+	return 'data:image/png;base64,' + base64.b64encode(data).decode()
+
+
+def preview(path, max_size=900):
+	"""Quick look of a raster in Web Mercator for the map: PNG (data URI), its corners and the range of values."""
+	import numpy as np
+	a, valid, bbox = warp_preview(path, max_size)
+	if not valid.any():
+		raise ValueError('the raster has no data')
+	lo, hi = np.percentile(a[valid], [2, 98])
+	if hi <= lo:
+		hi = lo + 1
+	idx = np.clip(((a - lo) / (hi - lo) * 255), 0, 255).astype('uint8')
+	lut = _ramp(VIRIDIS)
+	rgba = np.zeros((4,) + a.shape, dtype='uint8')
+	for i in range(3):
+		rgba[i] = lut[idx, i]
+	rgba[3] = np.where(valid, 230, 0)
+	return {'image': png_uri(rgba), 'bbox': bbox, 'min': float(lo), 'max': float(hi), 'ramp': ['#' + c for c in VIRIDIS]}
 
 
 def _ramp(hexes):

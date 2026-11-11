@@ -228,8 +228,8 @@ def _git_update(log=None):
 def update(log=None):
 	"""Update this copy to the last version of GitHub. Returns {'updated', 'message', 'environment' (environment.yml
 	changed), 'app_changed', 'files', ...}."""
-	if any(j.kind == 'model' or j.kind.startswith('gee') for j in jobs.running()):
-		res = {'message': 'not updated while the model or a download is running'}
+	if any(j.kind in ('model', 'ecosim') or j.kind.startswith('gee') for j in jobs.running()):
+		res = {'message': 'not updated while the model, the similarity or a download is running'}
 	else:
 		try:
 			res = _git_update(log) if mode() == 'git' else _archive_update(log)

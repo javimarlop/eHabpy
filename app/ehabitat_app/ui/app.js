@@ -27,7 +27,6 @@ function el(tag, attrs = {}, ...children) {
 		if (k === 'class') e.className = v;
 		else if (k === 'style' && typeof v === 'object') Object.assign(e.style, v);
 		else if (k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
-		else if (k === 'html') e.innerHTML = v;
 		else if (v === true) e.setAttribute(k, '');
 		else e.setAttribute(k, v);
 	}
@@ -37,6 +36,10 @@ function el(tag, attrs = {}, ...children) {
 	}
 	return e;
 }
+
+// the text of a Leaflet tooltip or popup: Leaflet takes a string as HTML, and names and labels come from files (the
+// vector files of the user, ecoregions, comparison areas), so they always go as a text node
+const leafletText = text => el('span', {}, text);
 
 function toast(msg, kind = 'info', ms = 4500) {
 	const t = el('div', {class: 'toast ' + kind}, msg);
@@ -172,7 +175,8 @@ class JobView {
 			const last = [...s.lines].reverse().find(l => l.startsWith('>>>'));
 			if (last) {
 				const w = last.replace('>>> ', '').split(' ');
-				this.step = (/python|Rscript/i.test(w[0]) && w[1] ? w[1] : w[0]).split(/[\\/]/).pop();
+				const prog = /python|Rscript/i.test(w[0]) ? w[1] : w[0];
+				this.step = prog && !prog.startsWith('-') ? prog.split(/[\\/]/).pop() : ''; // python -c: no script
 			}
 			this.bar.append(el('span', {class: 'spinner'}), el('span', {}, `${s.title}${this.step ? ' · ' + this.step : ''} · ${t}`));
 		} else {
@@ -213,6 +217,10 @@ const BASEMAPS = {
 	sat: {name: 'Satellite (Esri)', url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
 		attr: 'Imagery © Esri, Maxar, Earthstar Geographics', max: 19},
 	osm: {name: 'OpenStreetMap', url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attr: '© OpenStreetMap contributors', max: 19},
+	// global mosaic of Sentinel-2 without clouds (10 m), free for non-commercial use (CC BY-NC-SA 4.0)
+	s2: {name: 'Sentinel-2 cloudless 2023 (EOX)', url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2023_3857/default/g/{z}/{y}/{x}.jpg',
+		attr: '<a href="https://s2maps.eu">Sentinel-2 cloudless - https://s2maps.eu</a> by <a href="https://eox.at">EOX IT Services GmbH</a> '
+			+ '(Contains modified Copernicus Sentinel data 2023)', max: 15},
 	topo: {name: 'Topographic (OpenTopoMap)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
 		attr: '© OpenStreetMap, SRTM | © OpenTopoMap (CC-BY-SA)', max: 17},
 	pnoa: {name: 'PNOA orthophoto (Spain)', url: 'https://www.ign.es/wmts/pnoa-ma?request=GetTile&service=WMTS&VERSION=1.0.0&Layer=OI.OrthoimageCoverage&Style=default&Format=image/jpeg&TileMatrixSet=GoogleMapsCompatible&TileMatrix={z}&TileRow={y}&TileCol={x}',
@@ -349,6 +357,7 @@ pages.inputs = (() => {
 		if (s.state === 'done') toast('Variables added.', 'ok');
 		loadSet(S.folder);
 		refreshSets();
+		pages.similarity.reload(); // the variables of a set or of an area of the similarity may have changed
 	}});
 
 	function ensureMap() {
@@ -438,7 +447,8 @@ pages.inputs = (() => {
 		S.saLayer = L.geoJSON(gj, {style: {color: '#ff3b30', weight: 2.5, fill: true, fillOpacity: 0.06},
 			onEachFeature: (f, layer) => {
 				const p = f.properties || {};
-				if (p.id !== undefined && p.id !== null) layer.bindTooltip(`ID ${p.id}${p.label ? ' · ' + p.label : ''}`, {sticky: true});
+				if (p.id === undefined || p.id === null) return;
+				layer.bindTooltip(leafletText(`ID ${p.id}${p.label ? ' · ' + p.label : ''}`), {sticky: true});
 			}}).addTo(S.map);
 		S.map.fitBounds(S.saLayer.getBounds(), {padding: [20, 20]});
 	}
@@ -469,7 +479,9 @@ pages.inputs = (() => {
 		const s = $('#set-select');
 		s.textContent = '';
 		for (const x of r.sets) {
-			s.append(el('option', {value: x.folder}, `${x.label} · ${x.study} + ${x.ecoregion} eco${x.folder === r.active ? ' · in use' : ''}`));
+			const area = x.area_only ? (x.area === 'comparison area' ? ' · comparison area only' : ' · ecoregion only')
+				: x.area === 'comparison area' ? ' · comparison area' : '';
+			s.append(el('option', {value: x.folder}, `${x.label} · ${x.study} + ${x.ecoregion} eco${area}${x.folder === r.active ? ' · in use' : ''}`));
 		}
 		if (!r.sets.length) s.append(el('option', {value: ''}, 'inVars (empty)'));
 		const want = select !== undefined ? select : (S.folder !== null ? S.folder : r.active);
@@ -481,7 +493,18 @@ pages.inputs = (() => {
 	function renderActive() {
 		const box = $('#set-active');
 		box.textContent = '';
-		if (S.folder === S.active) {
+		const x = S.sets.find(y => y.folder === S.folder);
+		const note = $('#set-area-only');
+		note.textContent = '';
+		note.classList.toggle('hidden', !(x && x.area_only));
+		if (x && x.area_only) {
+			// only an ecoregion or comparison area: listed, but not a set of variables for the HFT model
+			const what = x.area === 'comparison area' ? `the comparison area ${x.area_name || ''}`.trim() : 'an ecoregion';
+			const why = `This set has only the variables of ${what} (folder ecoregion), without GeoTIFFs of a study area: `
+				+ 'the HFT model cannot use it. Compare the HFTs of a scenario with it in "Similarity" (Compare with).';
+			box.append(el('button', {class: 'btn small', disabled: true, title: why}, 'Use this set in the model'));
+			note.append(el('div', {}, el('b', {}, 'Not a set for the HFT model. '), why));
+		} else if (S.folder === S.active) {
 			box.append(el('span', {class: 'badge ok'}, 'Used by the model (INVARS_FOLDER)'));
 		} else {
 			box.append(el('button', {class: 'btn small primary', onclick: async () => {
@@ -497,16 +520,16 @@ pages.inputs = (() => {
 
 	function short(crs) { return crs ? crs.replace(/ \(.*\)$/, '') : '—'; }
 
-	function table(tbl, list, scale) {
+	function table(tbl, list, scale) { // scale: study, ecoregion or null (ecoregion/study_area: no left out files)
 		tbl.textContent = '';
 		tbl.append(el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Variable'), el('th', {class: 'num'}, 'Pixel'),
 			el('th', {}, 'Size'), el('th', {}, 'NoData'), el('th', {}, 'CRS'), el('th', {}, ''))));
 		const body = el('tbody');
 		if (!list.length) body.append(el('tr', {}, el('td', {colspan: 7, class: 'empty'}, 'No variables.')));
 		for (const r of list) {
-			const cb = el('input', {type: 'checkbox', title: r.included ? 'Leave out of the set' : 'Include again'});
-			cb.checked = r.included;
-			cb.addEventListener('change', async () => {
+			const cb = scale ? el('input', {type: 'checkbox', title: r.included ? 'Leave out of the set' : 'Include again'}) : '';
+			if (scale) cb.checked = r.included;
+			if (scale) cb.addEventListener('change', async () => {
 				try {
 					await api('set_included', S.folder, scale, r.file, cb.checked);
 					await loadSet(S.folder);
@@ -553,7 +576,34 @@ pages.inputs = (() => {
 		badge($('#badge-study'), st.study, st.checks.study);
 		badge($('#badge-eco'), st.ecoregion, st.checks.ecoregion);
 		$('#eco-show').classList.toggle('hidden', !st.ecoregions_file);
+		renderArea(st);
 		renderActive();
+	}
+
+	// the area of the ecoregion grid (RESOLVE ecoregions or a comparison area) and its study_area grid
+	function renderArea(st) {
+		const a = st.area;
+		const comp = a && a.kind === 'comparison area';
+		const box = $('#eco-area');
+		box.textContent = '';
+		if (a && a.kind) {
+			box.append(el('span', {class: 'badge ' + (comp ? 'brand' : 'info')}, comp ? 'Comparison area' : 'RESOLVE ecoregions'), ' ',
+				el('b', {}, a.name || ''), a.features > 1 ? el('span', {class: 'muted'}, ` (${a.features} polygons)`) : '',
+				comp && a.file ? el('div', {class: 'faint mono', title: a.file, style: {wordBreak: 'break-all'}},
+					a.file + (a.layer ? ` (layer ${a.layer})` : '')) : '');
+		} else if (st.ecoregion.some(r => r.included)) {
+			box.append(el('span', {class: 'muted'}, 'GeoTIFFs of your own: the area they cover is not recorded (no gee_vars.json).'));
+		}
+		$('#eco-show').textContent = comp ? 'Show the comparison area on the map' : 'Show the ecoregions on the map';
+		const es = st.eco_study || [];
+		$('#eco-study').classList.toggle('hidden', !es.length);
+		if (es.length) {
+			const res = es.find(r => r.res);
+			$('#eco-study-sum').textContent = `The study area at the pixel of this grid (ecoregion/study_area): ${es.length} variables`
+				+ (res ? ` · ${fmt(res.res[0])} m` : '');
+			table($('#tbl-eco-study'), es, null);
+			checks($('#chk-eco-study'), st.checks.eco_study);
+		}
 	}
 
 	async function preview(r) {
@@ -602,7 +652,8 @@ pages.inputs = (() => {
 		try {
 			const gj = await api('vector_geojson', S.set.ecoregions_file);
 			if (S.eco) S.map.removeLayer(S.eco);
-			S.eco = L.geoJSON(gj, {style: {color: '#ffcc00', weight: 2, dashArray: '6 4', fill: false}}).addTo(S.map);
+			const comp = S.set.area && S.set.area.kind === 'comparison area';
+			S.eco = L.geoJSON(gj, {style: {color: comp ? '#c2187a' : '#ffcc00', weight: 2, dashArray: '6 4', fill: false}}).addTo(S.map);
 			S.map.fitBounds(S.eco.getBounds());
 		} catch (e) { fail(e); }
 	});
@@ -621,7 +672,7 @@ pages.inputs = (() => {
 
 // 2. Download from MonitorEO =========================================================================================
 pages.gee = (() => {
-	const S = {recipe: null, catalog: null};
+	const S = {recipe: null, catalog: null, mo: null, areaInfo: null, areaLayer: null, check: null, checkSeq: 0};
 	const view = new JobView($('#g-log'), $('#g-bar'), {
 		onStart: () => { $('#g-stop').classList.remove('hidden'); $('#dot-gee').classList.remove('hidden'); },
 		onEnd: s => {
@@ -630,8 +681,14 @@ pages.gee = (() => {
 				toast('Download finished.', 'ok');
 				pages.inputs.refresh();
 				pages.model.refresh();
+				scheduleCheck();
 			}
-			if (view.kind === 'update' || view.kind === 'connect' || view.kind === 'auth') status();
+			// a download (also one stopped or failed half-way) adds or changes folders of ecoregion variables: the
+			// Similarity page reads its areas ("Compare with") again
+			if (view.kind === 'download') pages.similarity.reload();
+			// monitoreo may have changed (Update MonitorEO, the update when the app opens, or get_vars_gee.py before a
+			// download or a plan): status() reads its version and, if it changed, the catalog again
+			status();
 			if (view.kind === 'connect' && s.state === 'done' && s.result) {
 				$('#ee-eecu').textContent = s.result.eecu ? s.result.eecu.text || '' : '';
 			}
@@ -660,6 +717,18 @@ pages.gee = (() => {
 		try {
 			const s = await api('gee_status');
 			$('#mo-version').textContent = s.version || 'not installed';
+			$('#mo-commit').textContent = s.commit ? s.commit.slice(0, 7) : s.editable ? 'development copy' : '';
+			$('#mo-commit').title = s.commit ? `Commit ${s.commit} of github.com/monitoreo-obsnev/monitoreo` + (s.editable ? ` (development copy in ${s.editable})` : '') : '';
+			const mo = `${s.version || ''}|${s.commit || ''}`;
+			if (S.mo !== null && mo !== S.mo) {
+				// another version of monitoreo was installed: its catalog, without opening the app again
+				S.catalog = null;
+				try {
+					S.catalog = await api('gee_catalog');
+					toast(`MonitorEO updated to ${s.version}${s.commit ? ' (' + s.commit.slice(0, 7) + ')' : ''}: the catalog has its variables.`, 'ok');
+				} catch (e) { fail(e); }
+			}
+			S.mo = mo;
 			$(`input[name=ee-acc][value=${s.account}]`).checked = true;
 			if (!$('#ee-project').value) $('#ee-project').value = s.ee_project || '';
 			const st = $('#ee-state');
@@ -688,6 +757,10 @@ pages.gee = (() => {
 		$('#r-eco-res').value = eco.resolution || 100;
 		$('#r-eco-crs').value = eco.crs || '';
 		$('#r-eco-drive').checked = !!eco.drive;
+		$(`input[name=r-area][value=${rec.comparison_area ? 'file' : 'resolve'}]`).checked = true;
+		$('#r-area').value = rec.comparison_area || '';
+		S.areaLayer = rec.comparison_area_layer || null;
+		inspectArea();
 		$('#r-drive-folder').value = rec.drive_folder || '';
 		$('#r-drive-dir').value = rec.drive_dir || '';
 		$('#r-p0').value = (rec.period || [])[0] || '';
@@ -718,6 +791,9 @@ pages.gee = (() => {
 		rec.ecoregion = $('#r-eco-on').checked
 			? {resolution: num('#r-eco-res'), drive: $('#r-eco-drive').checked, crs: $('#r-eco-crs').value.trim() || null}
 			: {resolution: null};
+		const comp = $('#r-eco-on').checked && areaMode() === 'file';
+		rec.comparison_area = comp ? $('#r-area').value.trim() || null : null;
+		rec.comparison_area_layer = comp && $('#r-area-layer').options.length > 1 ? $('#r-area-layer').value || null : null;
 		rec.drive_folder = $('#r-drive-folder').value.trim() || 'eHabitat_GEE';
 		rec.drive_dir = $('#r-drive-dir').value.trim() || null;
 		rec.period = [$('#r-p0').value, $('#r-p1').value];
@@ -736,14 +812,107 @@ pages.gee = (() => {
 		if (!rec.period[0] || !rec.period[1]) throw new Error('Write the period.');
 		if (rec.season && !rec.season.every(s => /^\d\d-\d\d$/.test(s))) throw new Error('Write the season as MM-DD (e.g. 06-01).');
 		if (!rec.variables.length) throw new Error('Add at least one variable.');
+		if (comp && !rec.comparison_area) throw new Error('Choose the vector file of the comparison area (or the RESOLVE ecoregions).');
+		if (comp && !rec.ecoregion.resolution) throw new Error('Write the pixel size of the grid of the comparison area.');
 		return rec;
 	}
 
 	function syncEco() {
 		const on = $('#r-eco-on').checked;
 		for (const id of ['#r-eco-res', '#r-eco-crs', '#r-eco-drive']) $(id).disabled = !on || (id === '#r-eco-drive' && account() !== 'own');
+		syncArea();
 	}
 	$('#r-eco-on').addEventListener('change', syncEco);
+
+	// Area of the ecoregion grid: the RESOLVE ecoregions or a comparison area (a vector file) -------------------
+	function areaMode() { return $('input[name=r-area]:checked').value; }
+	function syncArea() {
+		const on = $('#r-eco-on').checked;
+		const file = areaMode() === 'file';
+		$$('input[name=r-area]').forEach(r => { r.disabled = !on; });
+		$$('.r-area-f').forEach(e => e.classList.toggle('hidden', !file));
+		const layers = S.areaInfo ? S.areaInfo.layers || [] : [];
+		$$('.r-area-l').forEach(e => e.classList.toggle('hidden', !file || layers.length < 2));
+		$('#r-area').disabled = !on; $('#r-area-pick').disabled = !on; $('#r-area-layer').disabled = !on;
+		scheduleCheck();
+	}
+	async function inspectArea() {
+		const f = $('#r-area').value.trim();
+		const info = $('#r-area-info');
+		const sel = $('#r-area-layer');
+		S.areaInfo = null;
+		info.textContent = '';
+		sel.textContent = '';
+		if (!f) { syncArea(); return; }
+		try {
+			const a = await api('gee_area', f, S.areaLayer || null);
+			if (f !== $('#r-area').value.trim()) return;
+			S.areaInfo = a;
+			for (const l of a.layers || []) sel.append(el('option', {value: l}, l));
+			if (a.layer) sel.value = a.layer;
+			S.areaLayer = a.layer || null;
+			info.append(el('b', {}, a.name), ` · ${fmt(a.count, 0)} ${a.count === 1 ? 'polygon' : 'polygons'} · `
+				+ String(a.crs || 'no CRS').replace(/ \(.*\)$/, '') + (a.area_km2 ? ` · ${fmt(a.area_km2, 1)} km²` : ''));
+		} catch (e) {
+			if (f !== $('#r-area').value.trim()) return;
+			info.append(el('span', {class: 'err-text'}, e.message));
+		}
+		syncArea();
+	}
+	let checkTimer = null;
+	function scheduleCheck() { clearTimeout(checkTimer); checkTimer = setTimeout(() => checkArea().catch(() => {}), 350); }
+	const areaText = a => !a ? '' : a.kind === 'comparison area' ? `the comparison area ${a.name || ''}`.trim()
+		: a.kind === 'ecoregions' ? (a.names && a.names.length ? `the RESOLVE ecoregions (${a.names.join(', ')})` : a.name || 'the RESOLVE ecoregions')
+			: 'GeoTIFFs of your own';
+	// whether the download replaces the ecoregion grid of another area in the destination folder
+	async function checkArea() {
+		clearTimeout(checkTimer);
+		const box = $('#r-area-warn');
+		const folder = $('#r-folder').value.trim();
+		const only = $('#g-only').value || null;
+		const file = areaMode() === 'file' ? $('#r-area').value.trim() : null;
+		const seq = ++S.checkSeq;
+		if (!folder || !$('#r-eco-on').checked || only === 'study' || (areaMode() === 'file' && !file)) {
+			S.check = null; box.classList.add('hidden');
+			return null;
+		}
+		const layer = file && $('#r-area-layer').options.length > 1 ? $('#r-area-layer').value || null : null;
+		const c = await api('gee_area_check', folder, file, layer, only);
+		if (seq !== S.checkSeq) return S.check;
+		S.check = c;
+		box.textContent = '';
+		box.classList.toggle('hidden', !c.replaces);
+		if (c.replaces) {
+			box.append(el('div', {class: 'stack', style: {gap: '6px'}},
+				el('div', {}, el('b', {}, `inVars/${c.folder}/ecoregion already has the grid of ${areaText(c.existing)}. `),
+					`Downloading ${areaText(c.new)} there replaces it (and the similarity runs compared with it could not be made again).`),
+				c.suggestion ? el('div', {class: 'row'}, el('span', {}, 'To keep both, download it to another folder:'),
+					el('button', {class: 'btn small', onclick: () => { $('#r-folder').value = c.suggestion; scheduleCheck(); }},
+						`Use ${c.suggestion}`)) : null));
+		}
+		return c;
+	}
+	function syncOnly() {
+		const eco = $('#g-only').value === 'ecoregion';
+		$('#g-use').disabled = eco;
+		$('#g-use-lab').title = eco ? 'Only the ecoregion or comparison area: not a set of variables for the HFT model' : '';
+		$('#g-only-note').classList.toggle('hidden', !eco);
+		scheduleCheck();
+	}
+	$$('input[name=r-area]').forEach(r => r.addEventListener('change', () => { syncArea(); if (areaMode() === 'file' && !S.areaInfo) inspectArea(); }));
+	$('#r-area').addEventListener('change', () => { S.areaLayer = null; inspectArea(); });
+	$('#r-area-layer').addEventListener('change', () => { S.areaLayer = $('#r-area-layer').value || null; inspectArea(); });
+	$('#r-area-pick').addEventListener('click', async () => {
+		try {
+			const f = await pickFiles('vector', false, 'Vector file of the comparison area');
+			if (!f || !f.length) return;
+			$('#r-area').value = f[0];
+			S.areaLayer = null;
+			await inspectArea();
+		} catch (e) { fail(e); }
+	});
+	$('#r-folder').addEventListener('input', scheduleCheck);
+	$('#g-only').addEventListener('change', syncOnly);
 	$('#r-crs-mode').addEventListener('change', () => $('#r-crs').classList.toggle('hidden', $('#r-crs-mode').value === 'auto'));
 	$('#r-st-res').addEventListener('input', sizeNote);
 	$('#r-st-buf').addEventListener('input', sizeNote);
@@ -896,7 +1065,7 @@ pages.gee = (() => {
 		draw(); drawDetail();
 		return modal({title: existing ? 'Edit variable of the catalog' : 'Add variables from the catalog of MonitorEO', wide: true,
 			body: el('div', {class: 'stack', style: {gap: '10px'}}, el('div', {class: 'row'}, search, sensor), wrap, detail,
-				el('div', {class: 'small faint'}, `Catalog of MonitorEO (${(cat.source || {}).imported || ''}).`)),
+				el('div', {class: 'small faint'}, `Catalog of MonitorEO (${(cat.source || {}).imported || ''}), package monitoreo ${cat.monitoreo || ''}.`)),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
 				if (!chosen) { toast('Choose a variable.', 'warn'); return undefined; }
 				const ms = chosenMetrics(mbox);
@@ -1016,7 +1185,28 @@ pages.gee = (() => {
 		try { rec = read(); } catch (e) { return toast(e.message, 'warn'); }
 		if (!pages.inputs.studyArea()) return toast('Choose the study area first in "Input variables".', 'warn');
 		if (account() === 'own' && !$('#ee-project').value.trim()) return toast('Write your Earth Engine project or use the shared account.', 'warn');
-		const opts = {dry_run: dry, only: $('#g-only').value || null, overwrite: $('#g-over').checked, use: $('#g-use').checked};
+		const opts = {dry_run: dry, only: $('#g-only').value || null, overwrite: $('#g-over').checked,
+			use: $('#g-use').checked && $('#g-only').value !== 'ecoregion'};
+		if (!dry) {
+			// the ecoregion grid of another area in the destination folder: replace it or download to another folder
+			let c = null;
+			try { c = await checkArea(); } catch (e) { /* the download says it */ }
+			if (c && c.replaces) {
+				const v = await modal({title: 'Replace the ecoregion grid?', body: el('div', {class: 'stack', style: {gap: '8px'}},
+					el('div', {}, `inVars/${c.folder}/ecoregion already has the grid of ${areaText(c.existing)}. Downloading `
+						+ `${areaText(c.new)} there replaces its GeoTIFFs and its polygons.`),
+					c.suggestion ? el('div', {}, `To keep both, download it to inVars/${c.suggestion}`
+						+ (opts.only === 'ecoregion' ? ' (a set with only the area, for "Compare with" in "Similarity").' : '.')) : null),
+				buttons: [{label: 'Cancel', result: null}, c.suggestion ? {label: `Download to ${c.suggestion}`, result: 'other'} : null,
+					{label: 'Replace', cls: 'danger', result: 'replace'}].filter(Boolean)});
+				if (!v) return;
+				if (v === 'other') {
+					$('#r-folder').value = c.suggestion;
+					rec.folder = c.suggestion;
+					scheduleCheck();
+				}
+			}
+		}
 		try {
 			await api('gee_settings', account(), $('#ee-project').value.trim());
 			view.kind = dry ? 'plan' : 'download';
@@ -1031,9 +1221,14 @@ pages.gee = (() => {
 		async init() {
 			await status();
 			try { const r = await api('gee_recipe'); fill(r.recipe, r.source); } catch (e) { fail(e); }
+			syncOnly();
 		},
-		attach(job) { view.kind = job.kind === 'gee' ? 'download' : job.kind; view.start(job.id, job.title); },
-		onShow() { sizeNote(); },
+		attach(job) {
+			const kinds = {'gee': 'download', 'gee-update': 'update', 'gee-connect': 'connect', 'gee-auth': 'auth'};
+			view.kind = kinds[job.kind] || job.kind;
+			view.start(job.id, job.title);
+		},
+		onShow() { sizeNote(); scheduleCheck(); },
 	};
 })();
 
@@ -1050,6 +1245,7 @@ pages.model = (() => {
 				toast('Model finished.', 'ok');
 				$('#m-after').classList.remove('hidden');
 				pages.results.reload(s.result);
+				pages.similarity.reload();
 			} else if (s.state === 'failed') toast('The model failed: see the messages.', 'err');
 		}});
 
@@ -1479,7 +1675,7 @@ pages.results = (() => {
 		S.outline = L.geoJSON(gj, {style: outlineStyle, onEachFeature: (f, layer) => {
 			const id = f.properties.id;
 			if (id === undefined || id === null) return;
-			layer.bindTooltip(`ID ${id}${f.properties.label ? ' · ' + f.properties.label : ''}`, {sticky: true});
+			layer.bindTooltip(leafletText(`ID ${id}${f.properties.label ? ' · ' + f.properties.label : ''}`), {sticky: true});
 			layer.on('click', e => {
 				if (String(id) === $('#x-id').value || !S.data.ids.includes(String(id))) return;
 				L.DomEvent.stopPropagation(e);
@@ -1546,21 +1742,1053 @@ pages.results = (() => {
 	};
 })();
 
-// 5. Similarity and landscape (not yet functional) ===================================================================
-pages.similarity = {
-	async onShow() {
-		const list = await api('results_list').catch(() => []);
-		const s = $('#s-sc');
-		s.textContent = '';
-		for (const x of list) for (const sc of x.scenarios) s.append(el('option', {}, `${x.study_area} / ${sc}`));
-		if (!s.options.length) s.append(el('option', {}, '— no results —'));
-		const sets = await api('sets').catch(() => ({sets: []}));
-		const e = $('#s-set');
-		e.textContent = '';
-		for (const x of sets.sets.filter(x => x.ecoregion)) e.append(el('option', {}, `${x.label}/ecoregion · ${x.ecoregion} variables`));
-		if (!e.options.length) e.append(el('option', {}, '— no ecoregion variables —'));
-	},
-};
+// 5. Similarity in the ecoregion =====================================================================================
+pages.similarity = (() => {
+	const S = {list: [], src: null, plan: null, planError: null, planSeq: 0, params: [], defaults: {}, cfg: {}, saved: null,
+		runs: [], res: null, map: null, overlay: null, eco: null, area: null, ecoFor: null, saLayer: null, saFor: null, previews: new Map(),
+		mapSeq: 0, fitted: null, defaultEco: null, defaultEcoPath: null, loaded: false, stale: false, full: null, fullKey: null,
+		detail: null, detailSeq: 0, detailTimer: null, resFollow: null, resNative: null, resKey: ''};
+	const TITLE = 'Similarity in the ecoregion';
+	const view = new JobView($('#s-log'), $('#s-bar'), {
+		onStart: () => { $('#s-stop').classList.remove('hidden'); $('#dot-ecosim').classList.remove('hidden'); canRun(); },
+		onEnd: async s => {
+			$('#s-stop').classList.add('hidden'); $('#dot-ecosim').classList.add('hidden');
+			canRun();
+			if (s.state === 'done') {
+				const r = s.result || {};
+				if (r.folder) toast('Similarity computed.', 'ok');
+				else toast('similarity.py finished, but no finished run (similarity_run.json) was found: see the messages.', 'warn');
+				if (r.study_area && r.scenario && key(r.study_area, r.scenario) !== $('#s-sc').value
+					&& [...$('#s-sc').options].some(o => o.value === key(r.study_area, r.scenario))) {
+					$('#s-sc').value = key(r.study_area, r.scenario);
+					await loadSources(r.folder);
+				} else {
+					await loadRuns(r.folder);
+					refreshPlan();
+				}
+			} else {
+				// failed or stopped: similarity.py had already removed the folder of the run it replaces
+				if (s.state === 'failed') toast('The similarity failed: see the messages.', 'err');
+				await loadRuns();
+				refreshPlan();
+			}
+		}});
+	const STATUS = {
+		ok: ['ok', 'ok', 'computed'],
+		few_pixels: ['warn', 'few pixels', 'computed with fewer pixels than 3 × the variables: less reliable'],
+		too_few_pixels: ['err', 'too few pixels', 'not computed: fewer pixels than the variables + 1 (and at least 5)'],
+		no_reference_similarity: ['err', 'no reference', 'no pixel of the HFT with a similarity above 0'],
+		no_similar: ['warn', 'no similar pixels', 'no pixel of the rest of the ecoregion as similar as the HFT'],
+	};
+	const THDI = [['TerrEco', 'Terrestrial ecoregions', 'touched by the HFTs'], ['MarEco', 'Marine ecoregions', 'touched by the HFTs'],
+		['NrHFT', 'HFTs', ''], ['SIH', 'SIH', 'Shannon index of the areas of the HFTs'],
+		['THD', 'THD', 'Total Habitat Diversity: ecoregions × SIH'],
+		['THR', 'THR', 'Total Habitat Replaceability: median HSR / terrestrial ecoregions'], ['THDI', 'THDI', 'THD / THR']];
+	const HRI = [ // column, header, decimals, title
+		['HFTArea_ha', 'Area (ha)', 1, 'Area of the HFT in its map'],
+		['NrPixHFT', 'HFT pixels', 0, 'Pixels of the HFT on the grid of the similarity'],
+		['T', 'T', 3, 'Similarity threshold: the statistic of the similarity of the HFT pixels'],
+		['NrSimPixHFT', 'HFT pixels ≥ T', 0, 'Pixels of the HFT with a similarity of at least T'],
+		['NrSimPixEco', 'Similar pixels', 0, 'Pixels of the rest of the ecoregion with a similarity of at least T'],
+		['SimAreaEco_km2', 'Similar area (km²)', 1, 'Area of the similar pixels'],
+		['NrSimLcpPatEco', 'Patches', 0, 'Patches of similar pixels'],
+		['NrSimLcpPatEqLargArea', 'Patches ≥ HFT', 0, 'Patches at least as large as the HFT'],
+		['LargPatArea_km2', 'Largest patch (km²)', 2, 'Area of the largest patch'],
+		['HSR', 'HSR', 2, 'Habitat Similarity Ratio: pixels of the patches at least as large as the HFT (or of the largest patch) / '
+			+ 'pixels of the HFT'],
+		['Aggregation', 'Aggregation', 1, 'Similar pixels per patch']];
+
+	const key = (sa, sc) => sa + '/' + sc;
+	function parts() {
+		const v = $('#s-sc').value || '';
+		const i = v.indexOf('/');
+		return i < 0 ? [null, null] : [v.slice(0, i), v.slice(i + 1)];
+	}
+	const base = p => p ? String(p).split(/[\\/]/).pop() : '—';
+	const mem = mb => !mb ? '' : mb >= 1024 ? `~${fmt(mb / 1024, 1)} GB` : `~${fmt(mb, 0)} MB`;
+	function areaName(i) {
+		const name = S.src && S.src.labels ? S.src.labels[String(i)] : null;
+		return name ? `${i} · ${name}` : `ID ${i}`;
+	}
+	function statusBadge(st) {
+		const b = STATUS[st] || ['', st || '—', ''];
+		return el('span', {class: 'badge ' + b[0], title: b[2]}, b[1]);
+	}
+	const swatch = c => el('span', {class: 'swatch', style: {background: c || '#888'}});
+
+	// Options -----------------------------------------------------------------------------------------------------
+	function defText(p) {
+		if (p.type === 'select') return (p.choices.find(c => String(c[0]) === String(p.default)) || [, p.default])[1];
+		if (p.name === 'ECOSIM_RESOLUTION') return 'the pixel of the ecoregion variables';
+		if (p.name === 'ECOSIM_CUT') return 'the suggested one';
+		if (p.name === 'ECOSIM_AREA') return 'the ecoregion of the set of variables';
+		return String(p.default) + (p.unit ? ' ' + p.unit : '');
+	}
+
+	function fillFields(params) {
+		S.params = params;
+		S.defaults = Object.fromEntries(params.map(p => [p.name, p.default]));
+		for (const p of params) {
+			const f = $('#sf-' + p.name);
+			if (!f) continue;
+			const lab = f.querySelector('label');
+			lab.textContent = p.label;
+			lab.title = p.name;
+			const help = f.querySelector('.help');
+			help.textContent = '';
+			help.append(p.help, ' ', el('code', {class: 'faint'}, p.name));
+			const def = f.querySelector('.def');
+			if (def) def.textContent = 'Default: ' + defText(p);
+		}
+		for (const [id, name] of [['#s-stat', 'ECOSIM_STAT'], ['#s-nb', 'ECOSIM_NEIGHBOURS']]) {
+			const p = params.find(q => q.name === name);
+			const sel = $(id);
+			const cur = sel.value;
+			sel.textContent = '';
+			for (const [v, l] of p.choices) sel.append(el('option', {value: v}, l));
+			if (cur) sel.value = cur;
+		}
+	}
+
+	function setValues(v) {
+		$('#s-stat').value = String(v.ECOSIM_STAT);
+		$('#s-nb').value = String(v.ECOSIM_NEIGHBOURS);
+		$('#s-cover').value = v.ECOSIM_MIN_COVER;
+		$('#s-eco').value = v.ECOSIM_ECOREGIONS || '';
+		$('#s-marine').value = v.ECOSIM_MARINE || '';
+		fillRes(Number(v.ECOSIM_RESOLUTION) || 0);
+		if (S.src) fillCuts(v.ECOSIM_CUT || '');
+		fillAreas(v.ECOSIM_AREA || '');
+		ecoPlaceholder();
+	}
+
+	// the ecoregion or comparison area: the default one (the ecoregion of the set of variables, value '') first, then
+	// the other folders of ecoregion variables of inVars (similarity.comparison_areas)
+	const shortFolder = f => { const p = String(f || '').split('/'); return p.length > 3 && f.startsWith('/') ? '…/' + p.slice(-3).join('/') : f; };
+	function areaLabel(a) {
+		const what = a.kind === 'comparison area' ? 'comparison area' : 'ecoregions';
+		const name = a.name ? `${what}: ${a.name}` : what;
+		const parts = a.default ? [`The ecoregion of the set (${a.folder})`, name] : [shortFolder(a.folder), name];
+		if (a.res) parts.push(`${fmt(a.res)} m`);
+		if (a.reference) parts.push('with study_area');
+		if ((a.missing || []).length) parts.push('missing variables: ' + a.missing.join(', '));
+		else if (a.error) parts.push(a.error);
+		return parts.join(' · ');
+	}
+	function areaValue(want) { // the value of the select for a folder of ECOSIM_AREA ('' = the default area)
+		const def = ((S.src && S.src.areas) || []).find(a => a.default);
+		const w = String(want || '').replace(/\\/g, '/').replace(/\/+$/, '');
+		return def && w === def.folder ? '' : w;
+	}
+	function fillAreas(want) {
+		const sel = $('#s-area');
+		sel.textContent = '';
+		const list = (S.src && S.src.areas) || [];
+		const def = list.find(a => a.default);
+		sel.append(el('option', {value: ''}, def ? areaLabel(def) : 'The ecoregion of the set of variables'));
+		for (const a of list) {
+			if (!a.default) sel.append(el('option', {value: a.folder, title: a.folder}, areaLabel(a)));
+		}
+		const w = areaValue(want);
+		if (w && ![...sel.options].some(o => o.value === w)) sel.append(el('option', {value: w}, `${shortFolder(w)} (not found)`));
+		sel.value = w;
+	}
+	function chosenArea() {
+		const v = $('#s-area').value;
+		return ((S.src && S.src.areas) || []).find(a => (v === '' && a.default) || (v !== '' && a.folder === v)) || null;
+	}
+
+	// pixel size: the choices of the plan (1, 2, 5 and 10 times the pixel of the ecoregion variables) or another. The
+	// select is always that of the plan of the area chosen (S.resNative, S.resKey): when the area changes, the area is
+	// planned at its own pixel (S.resFollow: the pixel size wanted, kept if it is a multiple of the new pixel)
+	const planNative = p => p && p.native && p.native.res ? Number(p.native.res) : null;
+	const resKey = p => planNative(p) ? JSON.stringify([planNative(p), p.resolutions || []]) : '';
+	function native() { return S.resNative; }
+	function keepRes(want, p) { // WANT (ECOSIM_RESOLUTION) if it is a whole multiple of the pixel of the plan P, else 0
+		const nat = planNative(p);
+		const f = want && nat ? Number(want) / nat : 0;
+		return f > 1 + 1e-9 && Math.abs(f - Math.round(f)) < 1e-6 ? Number(want) : 0;
+	}
+	function resLabel(r) {
+		return `${fmt(r.res)} m${r.factor === 1 ? ' (ecoregion variables)' : ''} · ${fmt(r.width, 0)} × ${fmt(r.height, 0)} px`
+			+ (r.memory_mb ? ' · ' + mem(r.memory_mb) : '');
+	}
+	function fillRes(want) { // want: ECOSIM_RESOLUTION (0 = the pixel of the ecoregion variables), with the plan S.plan
+		const sel = $('#s-res');
+		sel.textContent = '';
+		const p = S.plan;
+		S.resNative = planNative(p);
+		S.resKey = resKey(p);
+		const list = S.resNative && p.resolutions ? p.resolutions : [];
+		for (const r of list) sel.append(el('option', {value: String(r.res)}, resLabel(r)));
+		if (!list.length) sel.append(el('option', {value: '0'}, 'The pixel of the ecoregion variables'));
+		sel.append(el('option', {value: 'other'}, 'Other…'));
+		const nat = native();
+		const w = want ? Number(want) : (nat || 0);
+		const same = [...sel.options].find(o => o.value !== 'other' && Math.abs(Number(o.value) - w) < 1e-9);
+		if (same) sel.value = same.value;
+		else if (!want) sel.value = sel.options[0].value;
+		else { sel.value = 'other'; $('#s-res-other').value = want; }
+		$('#s-res-other').step = nat || 1;
+		$('#s-res-other').min = nat || 1;
+		syncRes();
+	}
+	function syncRes() {
+		$('#s-res-other-box').classList.toggle('hidden', $('#s-res').value !== 'other');
+		resCheck();
+	}
+	function resMetres() { // the pixel size in metres for the plan (0 = unknown: that of config.py)
+		const v = $('#s-res').value;
+		if (v === 'other') return $('#s-res-other').value === '' ? null : Number($('#s-res-other').value);
+		return Number(v) || native() || 0;
+	}
+	function resConfig() { // the value of ECOSIM_RESOLUTION
+		const m = resMetres();
+		const nat = native();
+		return m === null ? null : nat && Math.abs(m - nat) < 1e-9 ? 0 : m;
+	}
+	function resError() {
+		if ($('#s-res').value !== 'other') return null;
+		const m = resMetres();
+		const nat = native();
+		if (m === null || !Number.isFinite(m) || m <= 0) return 'write the pixel size in metres';
+		if (nat) {
+			const f = m / nat;
+			if (f < 1 - 1e-9 || Math.abs(f - Math.round(f)) > 1e-6) {
+				return `the pixel size must be a whole multiple of ${fmt(nat)} m, the pixel of the ecoregion variables `
+					+ `(e.g. ${fmt(nat * 2)}, ${fmt(nat * 5)} or ${fmt(nat * 10)} m)`;
+			}
+		}
+		return null;
+	}
+	function resCheck() {
+		const e = resError();
+		$('#s-res-err').textContent = e ? e[0].toUpperCase() + e.slice(1) + '.' : '';
+		$('#s-res-err').classList.toggle('hidden', !e);
+		return !e;
+	}
+
+	function values() {
+		const cover = $('#s-cover').value;
+		return {ECOSIM_CUT: $('#s-cut').value || '', ECOSIM_AREA: $('#s-area').value || '', ECOSIM_RESOLUTION: resConfig(),
+			ECOSIM_STAT: $('#s-stat').value,
+			ECOSIM_NEIGHBOURS: Number($('#s-nb').value), ECOSIM_MIN_COVER: cover === '' ? null : Number(cover),
+			ECOSIM_ECOREGIONS: $('#s-eco').value.trim(), ECOSIM_MARINE: $('#s-marine').value.trim()};
+	}
+
+	function markChanged() {
+		const v = values();
+		let nd = 0, unsaved = 0;
+		for (const p of S.params) {
+			const d = String(v[p.name] ?? '') !== String(p.default);
+			const f = $('#sf-' + p.name);
+			if (f) f.classList.toggle('changed', d);
+			if (d) nd++;
+			if (S.saved && JSON.stringify(v[p.name]) !== JSON.stringify(S.saved[p.name])) unsaved++;
+		}
+		$('#s-changed').textContent = (unsaved ? `${unsaved} unsaved changes · ` : '') + (nd ? `${nd} options not at their default`
+			: 'all options at their default');
+	}
+
+	// Starting HFTs ------------------------------------------------------------------------------------------------
+	async function loadList() {
+		try { S.list = await api('results_list'); } catch (e) { fail(e); S.list = []; }
+		const sel = $('#s-sc');
+		const cur = sel.value || store('ecosim.sc');
+		sel.textContent = '';
+		for (const x of S.list) {
+			for (const sc of x.scenarios) {
+				sel.append(el('option', {value: key(x.study_area, sc)},
+					`${x.study_area} / ${sc}${sc.endsWith('_previous') ? ' (previous)' : ''}`));
+			}
+		}
+		const has = v => [...sel.options].some(o => o.value === v);
+		let want = cur;
+		if (!want || !has(want)) {
+			const st = await api('status').catch(() => null);
+			want = st ? key(st.study_area, st.scenario) : null;
+		}
+		if (sel.options.length) sel.value = has(want) ? want : sel.options[0].value;
+		const empty = !sel.options.length;
+		$('#s-empty').classList.toggle('hidden', !empty);
+		$('#s-src').classList.toggle('hidden', empty);
+		return sel.value;
+	}
+
+	async function loadSources(selectRun) {
+		const [sa, sc] = parts();
+		if (!sa) {
+			S.src = null; S.plan = null; S.planError = null;
+			renderInfo(); renderPlan(); await loadRuns();
+			return;
+		}
+		store('ecosim.sc', $('#s-sc').value);
+		// the pixel size of the form (or the one waiting for the plan of the area chosen; at the start, that of config.py)
+		const wantRes = S.resFollow !== null ? S.resFollow : S.src ? resConfig() : Number(S.cfg.ECOSIM_RESOLUTION) || 0;
+		const wantCut = S.src ? $('#s-cut').value : null;
+		const wantArea = S.src ? $('#s-area').value : S.cfg.ECOSIM_AREA || '';
+		$('#s-plan-sub').textContent = 'loading…';
+		// a plan still coming for the scenario chosen before must not replace the plan of this one
+		clearTimeout(planTimer);
+		planTimer = null;
+		const seq = ++S.planSeq;
+		let src;
+		try {
+			src = await api('ecosim_sources', sa, sc);
+		} catch (e) {
+			fail(e);
+			src = null;
+		}
+		if (key(sa, sc) !== $('#s-sc').value) return; // another scenario was chosen meanwhile
+		S.src = src; S.stale = false;
+		if (src) {
+			fillFields(src.options.params);
+			S.cfg = Object.fromEntries(src.options.params.map(p => [p.name, p.value]));
+			if (src.plan && src.plan.ecoregions && !$('#s-eco').value.trim()) {
+				S.defaultEco = src.plan.ecoregions.file; S.defaultEcoPath = src.plan.ecoregions.path;
+			}
+			fillCuts(wantCut === null ? src.cut : wantCut);
+			fillAreas(wantArea);
+		}
+		// the plan of ecosim_sources is made with the options of config.py, also its area and pixel size: it is the plan
+		// of the form only when the form has that area; else (or when it failed) the area of the form is planned at its
+		// own pixel, and the pixel size of the form is kept if it is a multiple of it (S.resFollow)
+		const own = src && src.plan && $('#s-area').value === areaValue(S.cfg.ECOSIM_AREA) ? src.plan : null;
+		const plannable = !!(src && src.ids.length && src.cuts.length);
+		// a plan asked meanwhile (seq !== S.planSeq) was made with the form of before: it is asked again below
+		let again = plannable && (!own || seq !== S.planSeq);
+		S.plan = own; S.planError = null;
+		if (own || !plannable) { S.resFollow = null; fillRes(keepRes(wantRes, own)); }
+		else S.resFollow = wantRes ?? 0;
+		ecoPlaceholder();
+		markChanged();
+		if (own && !again) {
+			const v = values();
+			again = !(v.ECOSIM_CUT === src.cut && String(v.ECOSIM_RESOLUTION) === String(Number(S.cfg.ECOSIM_RESOLUTION) || 0)
+				&& String(v.ECOSIM_MIN_COVER) === String(S.cfg.ECOSIM_MIN_COVER) && v.ECOSIM_ECOREGIONS === (S.cfg.ECOSIM_ECOREGIONS || ''));
+		}
+		// without the plan of this area the page keeps what it shows until refreshPlan draws the new plan
+		if (own || !again) { renderInfo(); renderPlan(); }
+		const runs = loadRuns(selectRun);
+		if (again) await refreshPlan();
+		await runs;
+	}
+
+	function fillCuts(want) {
+		const sel = $('#s-cut');
+		sel.textContent = '';
+		const src = S.src;
+		if (!src) return;
+		const multi = src.ids.length > 1;
+		const sug = src.suggested || {};
+		const sugCuts = [...new Set(Object.values(sug))];
+		// one suggested cut for all the study areas: it is the value '' (ECOSIM_CUT = the suggested one)
+		const one = sugCuts.length === 1 && Object.keys(sug).length === src.ids.length ? sugCuts[0] : null;
+		const n = c => {
+			const v = Object.values(c.hfts || {});
+			return v.length ? ` · ${multi ? v.join(' / ') : v[0]} HFTs` : '';
+		};
+		if (sugCuts.length && !one) {
+			sel.append(el('option', {value: ''},
+				'The suggested cut of each study area (' + src.ids.map(i => `${i}: ${sug[i] || '—'}`).join(', ') + ')'));
+		}
+		for (const c of src.cuts) {
+			const name = c.cut === 'results' ? 'Scenario folder (SIMIL 1 or 2)' : c.cut;
+			sel.append(el('option', {value: c.cut === one ? '' : c.cut}, name + n(c) + (c.cut === one ? ' · suggested' : '')));
+		}
+		const has = v => [...sel.options].some(o => o.value === v);
+		const w = want === one ? '' : want;
+		sel.value = has(w) ? w : has(src.cut) ? src.cut : (sel.options[0] || {}).value || '';
+	}
+
+	function ecoPlaceholder() {
+		$('#s-eco').placeholder = S.defaultEco ? `default: ${S.defaultEco}` : 'default: ecoregion/ecoregions.gpkg of the set of variables';
+	}
+
+	// the error of ecosim_sources (no HFTs, or the plan with the options of config.py): not while the plan of another
+	// area is coming (S.resFollow)
+	const srcError = () => S.src && !S.plan && S.resFollow === null ? S.src.error : null;
+
+	function renderInfo() {
+		const p = S.plan; // that of the area and options of the form (not the plan of config.py of ecosim_sources)
+		const facts = $('#s-facts');
+		facts.textContent = '';
+		const fact = (k, v, s) => el('div', {class: 'fact'}, el('div', {class: 'k'}, k), el('div', {class: 'v'}, v),
+			s ? el('div', {class: 's'}, s) : null);
+		if (S.src) {
+			const ids = S.src.ids;
+			facts.append(fact('Study areas', `${ids.length} with HFTs`,
+				ids.slice(0, 4).map(areaName).join(', ') + (ids.length > 4 ? ', …' : '')));
+		}
+		const ar = p && p.area;
+		const comp = ar && ar.kind === 'comparison area';
+		if (p && p.native) {
+			const nt = p.native;
+			facts.append(fact(comp ? 'Comparison area grid' : 'Ecoregion grid', `${fmt(nt.res)} m · ${fmt(nt.width, 0)} × ${fmt(nt.height, 0)} px`,
+				String(nt.crs || '').replace(/ \(.*\)$/, '')));
+		}
+		if (ar) {
+			const own = ar.reference && ar.reference !== ar.folder;
+			facts.append(fact('HFT statistics from', own ? 'the study area at the pixel of the area' : 'the grid of the area',
+				own ? ar.reference : 'its pixels covered by the HFTs'));
+		}
+		// what the HFTs are compared with, and from which grid their statistics come
+		const ai = $('#s-area-info');
+		ai.textContent = '';
+		if (ar) {
+			const outside = ((p && p.targets) || []).filter(t => t.in_area === false).map(t => t.id);
+			const ref = ar.reference && ar.reference !== ar.folder;
+			ai.append(el('b', {}, comp ? 'Comparison area' : 'Ecoregions'), `: ${ar.name || ar.folder}`,
+				ar.tag ? el('span', {class: 'faint'}, ` (results in similarity_<pixel>m_${ar.tag})`) : '', '. ',
+				ref ? `The statistics of the HFTs come from ${ar.reference}, the study area at the pixel and CRS of the area.`
+					: 'The statistics of the HFTs come from the pixels of the area that they cover.',
+				outside.length ? ` The study area${outside.length > 1 && S.src && S.src.ids.length > 1 ? 's ' + outside.join(', ') + ' are'
+					: ' is'} outside the area: its HFTs are only compared with it.` : '');
+		}
+		const vars = (p && p.variables) || [];
+		const paired = vars.filter(v => v.ecoregion);
+		const missing = ((p && p.missing) || []).filter(k => !vars.some(v => v.key === k));
+		if (p) {
+			facts.append(fact('Variables', `${paired.length} of ${vars.length + missing.length} paired`,
+				paired.length === vars.length && !missing.length ? 'plot scale ↔ ecoregion scale'
+					: 'the others have no file of the same name in ecoregion'));
+		}
+		const tbl = $('#s-vars');
+		tbl.textContent = '';
+		tbl.closest('.table-wrap').classList.toggle('hidden', !p);
+		if (p) {
+			tbl.append(el('colgroup', {}, ...['32%', '26%', '26%', '16%'].map(w => el('col', {style: {width: w}}))));
+			tbl.append(el('thead', {}, el('tr', {}, ...['Variable', 'Plot scale (study area)', comp ? 'Comparison area' : 'Ecoregion scale', '']
+				.map(h => el('th', {}, h)))));
+			const body = el('tbody');
+			for (const v of vars) {
+				body.append(el('tr', {}, el('td', {}, el('div', {class: 'vname'}, v.key)),
+					el('td', {class: 'small', title: v.local || ''}, base(v.local)),
+					el('td', {class: 'small', title: v.ecoregion || ''}, v.ecoregion ? base(v.ecoregion) : 'no file of this name'),
+					el('td', {}, v.ecoregion ? el('span', {class: 'badge ok'}, 'OK') : el('span', {class: 'badge err'}, 'missing'))));
+			}
+			for (const k of missing) {
+				body.append(el('tr', {}, el('td', {}, el('div', {class: 'vname'}, k)),
+					el('td', {class: 'small', colspan: 2}, 'no file of this name at the other scale'),
+					el('td', {}, el('span', {class: 'badge err'}, 'missing'))));
+			}
+			if (!vars.length && !missing.length) body.append(el('tr', {}, el('td', {colspan: 4, class: 'empty'}, 'No variables.')));
+			tbl.append(body);
+		}
+		const info = $('#s-eco-info');
+		info.textContent = '';
+		const e = p && p.ecoregions;
+		if (e) {
+			const fs = e.features || [];
+			info.append(`${fs.length} ${fs.length === 1 ? 'ecoregion' : 'ecoregions'} in ${base(e.file)}`
+				+ `${e.field ? ' (column ' + e.field + ')' : ''}: `,
+				fs.slice(0, 5).map(f => `${f.id}${f.name ? ' ' + f.name : ''}`).join('; ') + (fs.length > 5 ? '; …' : ''));
+		} else if (p && p.native && !(p.errors || []).length) {
+			info.append(el('span', {class: 'err-text'}, 'No polygons of the ecoregions: each HFT is compared with all the pixels of the '
+				+ 'ecoregion variables.'));
+		}
+		const notes = $('#s-notes');
+		notes.textContent = '';
+		const err = S.planError || srcError();
+		if (err) notes.append(el('div', {class: 'notice err'}, el('div', {}, el('b', {}, 'The similarity cannot be planned: '), err)));
+		// the study_area folder of the area that similarity.py does not use (ecosim: plan.area.reference_note): said in the
+		// notice of the HFTs without pixels when there is one, not twice
+		const rejected = p && p.reference_rejected;
+		const told = t => p.no_hft_pixels && rejected && String(t).endsWith('is not used: ' + rejected);
+		for (const t of (p && p.errors) || []) notes.append(el('div', {class: 'notice err'}, t));
+		for (const t of (p && p.warnings) || []) if (!told(t)) notes.append(el('div', {class: 'notice warn'}, t));
+		if (p && p.no_hft_pixels) {
+			const where = 'in "Download from MonitorEO" (with the same study area: the download adds ecoregion/study_area when '
+				+ 'the area does not contain it), or choose another area.';
+			const why = rejected
+				? 'It does not cover the study area, and its study_area folder (the study area at its pixel) cannot be used: '
+					+ `${String(rejected).replace(/\.\s*$/, '')}. Download the area again with the variables of this set ${where}`
+				: 'It does not cover the study area and it has no study_area folder (the study area at its pixel). Download it '
+					+ `again ${where}`;
+			notes.append(el('div', {class: 'notice warn'}, el('div', {}, el('b', {}, 'The HFTs get no pixels from this area. '), why)));
+		}
+	}
+
+	// HFT pixels at this pixel size -------------------------------------------------------------------------------
+	let planTimer = null;
+	function schedulePlan() {
+		clearTimeout(planTimer);
+		markChanged();
+		resCheck();
+		$('#s-plan-sub').textContent = 'updating…';
+		planTimer = setTimeout(() => refreshPlan(), 450);
+		canRun();
+	}
+
+	async function refreshPlan() {
+		clearTimeout(planTimer);
+		planTimer = null;
+		const [sa, sc] = parts();
+		if (!S.src || !sa || !S.src.ids.length) return;
+		// another area (S.resFollow): planned at its own pixel, whatever the select has (the pixels of the area of before)
+		const follow = S.resFollow !== null;
+		if (!follow && !resCheck()) { $('#s-plan-sub').textContent = ''; canRun(); return; }
+		const seq = ++S.planSeq;
+		const cover = $('#s-cover').value === '' ? null : Number($('#s-cover').value);
+		const eco = $('#s-eco').value.trim();
+		const scKey = key(sa, sc);
+		$('#s-plan-sub').textContent = 'updating…';
+		try {
+			// 0 = the pixel of the ecoregion variables (not "that of config.py")
+			const p = await api('ecosim_plan', sa, sc, $('#s-cut').value || '', follow ? 0 : resMetres() ?? 0, cover, eco,
+				$('#s-area').value || '');
+			if (seq !== S.planSeq || scKey !== $('#s-sc').value) return;
+			S.plan = p; S.planError = null;
+			if (!eco && p.ecoregions) { S.defaultEco = p.ecoregions.file; S.defaultEcoPath = p.ecoregions.path; ecoPlaceholder(); }
+			if (follow && planNative(p)) {
+				// the select of this area, with the pixel size of before if it is a multiple of its pixel, else its pixel
+				const want = keepRes(S.resFollow, p);
+				S.resFollow = null;
+				fillRes(want);
+				markChanged();
+				if (want) return await refreshPlan(); // the plan at the pixel size kept
+			} else if (follow || resKey(p) !== S.resKey) {
+				// a plan without the pixel of the area (it lacks variables: S.resFollow waits for one with it), or with
+				// other pixel sizes than those of the select (e.g. the files of the area changed): the select of this plan
+				fillRes(follow ? 0 : planNative(p) && Math.abs(p.res - planNative(p)) > 1e-9 ? p.res : 0);
+				markChanged();
+			}
+		} catch (e) {
+			if (seq !== S.planSeq || scKey !== $('#s-sc').value) return;
+			S.plan = null; S.planError = e.message;
+			if (follow) { fillRes(0); markChanged(); } // no pixel sizes of the area of before; S.resFollow waits
+		}
+		renderInfo(); renderPlan();
+	}
+
+	function renderPlan() {
+		const box = $('#s-plan');
+		box.textContent = '';
+		const p = S.plan;
+		const note = $('#s-plan-note');
+		if (!p) {
+			box.append(el('div', {class: 'empty'}, S.planError || srcError() || (S.src ? 'No plan.' : 'Choose the HFTs.')));
+			$('#s-plan-sub').textContent = '';
+			note.classList.add('hidden');
+			canRun();
+			return;
+		}
+		$('#s-plan-sub').textContent = !p.grid ? '' : `${fmt(p.res)} m pixels · ${fmt(p.grid.width, 0)} × ${fmt(p.grid.height, 0)} px`
+			+ (p.memory_mb ? ` · ${mem(p.memory_mb)} of memory` : '');
+		const multi = (p.targets || []).length > 1;
+		for (const t of p.targets || []) {
+			const hfts = t.hfts || [];
+			const count = st => hfts.filter(h => h.status === st).length;
+			const summary = [`${count('ok')} ok`];
+			if (count('few_pixels')) summary.push(`${count('few_pixels')} with few pixels`);
+			if (count('too_few_pixels')) summary.push(`${count('too_few_pixels')} without similarity (too few pixels)`);
+			const tbl = el('table', {class: 't'});
+			tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'HFT'), el('th', {class: 'num'}, 'Area (ha)'),
+				el('th', {class: 'num', title: 'Pixels of the grid of the similarity that belong to the HFT'}, 'Pixels'),
+				el('th', {}, 'Status'))));
+			const body = el('tbody');
+			for (const h of hfts) {
+				body.append(el('tr', {class: h.status === 'too_few_pixels' ? 'off' : ''},
+					el('td', {}, el('span', {class: 'hft'}, swatch(h.colour), h.hft)),
+					el('td', {class: 'num'}, fmt(h.area_ha, 1)), el('td', {class: 'num'}, fmt(h.ref_pixels, 0)),
+					el('td', {}, statusBadge(h.status))));
+			}
+			if (!hfts.length) body.append(el('tr', {}, el('td', {colspan: 4, class: 'empty'}, 'No HFTs.')));
+			tbl.append(body);
+			const cut = t.cut === 'results' ? 'scenario folder' : `cut ${t.cut}${t.suggested ? ' (suggested)' : ''}`;
+			box.append(el('div', {class: 'stack', style: {gap: '6px'}},
+				el('div', {class: 'plan-head'}, el('h3', {}, multi ? areaName(t.id) : cut[0].toUpperCase() + cut.slice(1)),
+					el('span', {class: 'sub'}, (multi ? cut + ' · ' : '') + `${hfts.length} HFTs: ` + summary.join(', '))),
+				el('div', {class: 'table-wrap', style: {maxHeight: '360px'}}, tbl)));
+		}
+		if (!(p.targets || []).length) {
+			box.append(el('div', {class: 'empty'}, p.grid ? 'No HFTs for this cut.' : 'The pixels of the HFTs cannot be counted: see the '
+				+ 'errors in "Starting HFTs".'));
+		}
+		const cover = Number($('#s-cover').value) || 0.5;
+		note.textContent = '';
+		note.classList.toggle('hidden', !p.grid);
+		note.append(el('div', {class: 'stack', style: {gap: '6px'}},
+			el('div', {}, el('b', {}, 'Why the grid of the ecoregion. '), 'The statistics of each HFT (the mean and covariance of its '
+				+ 'variables) are taken from the ecoregion variables, on the pixels of this grid covered by the HFT, so that the HFT and '
+				+ 'the rest of its ecoregion are compared with the same rasters and the same pixel size. The fine pixels of the HFT map '
+				+ 'are not used: they vary more within an HFT than means over larger pixels, and they come from other rasters, so the '
+				+ 'comparison would mix two scales.'),
+			el('div', {}, el('b', {}, 'Small HFTs. '),
+				`A pixel belongs to an HFT when the HFT covers at least ${fmt(cover * 100, 0)} % of it. `
+				+ 'With coarser pixels a small or fragmented HFT covers fewer of them: '
+				+ (p.min_pixels ? `with fewer than ${p.min_pixels} (the variables + 1, at least 5) its similarity is not computed`
+					: 'with too few its similarity is not computed')
+				+ (p.few_pixels ? `, and with fewer than ${p.few_pixels} (3 × the variables) it is less reliable` : '')
+				+ '. A finer pixel size or a cut with fewer, larger HFTs keeps them.')));
+		canRun();
+	}
+
+	// Run ---------------------------------------------------------------------------------------------------------
+	function blockers() {
+		if (view.running()) return [];
+		const why = [];
+		if (!S.src) why.push('choose the HFTs (a scenario with results)');
+		else if (S.planError || srcError()) why.push(S.planError || srcError());
+		for (const t of (S.plan && S.plan.errors) || []) why.push(t);
+		if (S.plan && S.plan.grid && !(S.plan.targets || []).length) why.push('no HFTs for this cut');
+		const re = resError();
+		if (re) why.push(re);
+		return why;
+	}
+
+	function canRun() {
+		const why = blockers();
+		$('#s-run').disabled = view.running() || why.length > 0 || !S.plan;
+		const text = why.join('; ');
+		$('#s-run-why').textContent = why.length ? 'Cannot run: ' + (text.length > 180 ? text.slice(0, 180) + '…' : text + '.') : '';
+		$('#s-run-why').title = text;
+		const sub = $('#s-run-sub');
+		sub.textContent = '';
+		const ts = (S.plan && S.plan.targets) || [];
+		if (ts.length && !view.running()) {
+			const old = ts.filter(t => t.run_exists).length;
+			sub.append(`Results in ${ts[0].run_folder}${ts.length > 1 ? ` and ${ts.length - 1} more` : ''}`,
+				old ? el('span', {class: 'badge warn', style: {marginLeft: '6px'}}, 'exists: it will be replaced') : '');
+		}
+	}
+
+	async function pickVector(input, title, isDefault) {
+		try {
+			const f = await pickFiles('vector', false, title);
+			if (!f || !f.length) return;
+			input.value = isDefault && isDefault(f[0]) ? '' : f[0];
+			schedulePlan();
+		} catch (e) { fail(e); }
+	}
+
+	$('#s-sc').addEventListener('change', () => loadSources());
+	$('#s-refresh').addEventListener('click', async () => { await loadList(); await loadSources(); });
+	$('#s-cut').addEventListener('change', schedulePlan);
+	// the pixel sizes of the select are those of the area of before: the new one is planned at its own pixel, and the
+	// pixel size chosen is kept if it is a multiple of it (also one chosen before the plan of the new area arrives)
+	$('#s-area').addEventListener('change', () => { if (S.resFollow === null) S.resFollow = resConfig() ?? 0; schedulePlan(); });
+	const resChanged = () => { if (S.resFollow !== null) S.resFollow = resConfig() ?? 0; schedulePlan(); };
+	$('#s-res').addEventListener('change', () => { syncRes(); resChanged(); });
+	$('#s-res-other').addEventListener('input', resChanged);
+	$('#s-cover').addEventListener('input', schedulePlan);
+	$('#s-eco').addEventListener('change', schedulePlan);
+	$('#s-stat').addEventListener('change', markChanged);
+	$('#s-nb').addEventListener('change', markChanged);
+	$('#s-marine').addEventListener('input', markChanged);
+	$('#s-eco-pick').addEventListener('click', () => pickVector($('#s-eco'), 'File of the ecoregions', f => f === S.defaultEcoPath));
+	$('#s-eco-clear').addEventListener('click', () => { $('#s-eco').value = ''; schedulePlan(); });
+	$('#s-marine-pick').addEventListener('click', () => pickVector($('#s-marine'), 'File of the marine ecoregions'));
+	$('#s-marine-clear').addEventListener('click', () => { $('#s-marine').value = ''; markChanged(); });
+	$('#s-save').addEventListener('click', async () => {
+		if (S.resFollow !== null) await refreshPlan(); // the pixel size of the area chosen, not of the area of before
+		if (resError()) return toast(resError()[0].toUpperCase() + resError().slice(1) + '.', 'warn');
+		try {
+			const ch = await api('ecosim_save', values());
+			toast(ch.length ? `Saved in config.py: ${ch.join(', ')}.` : 'There were no changes.', 'ok');
+			S.saved = values();
+			markChanged();
+		} catch (e) { fail(e); }
+	});
+	$('#s-defaults').addEventListener('click', async () => {
+		if (!await confirmBox('Default values', 'The form gets the default values of all the options (not saved yet).')) return;
+		setValues(S.defaults);
+		S.resFollow = Number(S.defaults.ECOSIM_RESOLUTION) || 0; // the area may be another one: its own pixel
+		schedulePlan();
+	});
+	$('#s-run').addEventListener('click', async () => {
+		if (view.running()) return;
+		const [sa, sc] = parts();
+		if (!sa) return;
+		await refreshPlan();
+		const why = blockers();
+		if (why.length || !S.plan) return toast('The similarity cannot be computed: ' + (why.join('; ') || 'no plan') + '.', 'warn');
+		const old = (S.plan.targets || []).filter(t => t.run_exists);
+		if (old.length) {
+			const ok = await confirmBox('The similarity already has results', el('div', {class: 'stack', style: {gap: '8px'}},
+				el('div', {}, 'These folders already have results of the similarity with this pixel size and area:'),
+				el('ul', {class: 'small'}, ...old.map(t => el('li', {}, t.run_folder))),
+				el('div', {}, 'If you go on, they are replaced. To keep them, choose another pixel size or copy the folder first.')),
+				'Replace');
+			if (!ok) return;
+		}
+		try {
+			const id = await api('ecosim_run', values(), sa, sc, $('#s-cut').value || '');
+			S.saved = values();
+			markChanged();
+			view.start(id, TITLE);
+		} catch (e) { fail(e); }
+	});
+	$('#s-stop').addEventListener('click', async () => {
+		const text = 'The run stops; its folder is left unfinished (without similarity_run.json).';
+		if (await confirmBox('Stop the similarity', text, 'Stop')) stopJob(view);
+	});
+
+	// Results -----------------------------------------------------------------------------------------------------
+	function runLabel(r) {
+		const c = r.counts || {};
+		const without = r.hfts - (c.ok || 0) - (c.few_pixels || 0) - (c.no_similar || 0);
+		// another area than the ecoregion of the set: its tag (the suffix of the folder) and name
+		const a = r.area || {};
+		const area = r.tag ? ` · vs ${a.name ? a.name + ' (' + r.tag + ')' : r.tag}` : '';
+		return `${r.cut === 'results' ? 'Scenario folder' : r.cut} · ${fmt(r.res)} m${area} · ${r.hfts} HFTs`
+			+ (without > 0 ? ` (${without} without similarity)` : '') + (r.date ? ' · ' + r.date : '');
+	}
+
+	async function loadRuns(select) {
+		const [sa, sc] = parts();
+		S.runs = sa ? await api('ecosim_runs', sa, sc).catch(e => { fail(e); return []; }) : [];
+		S.previews.clear();
+		const sel = $('#s-runs');
+		const cur = select || sel.value;
+		sel.textContent = '';
+		for (const r of S.runs) sel.append(el('option', {value: r.folder}, runLabel(r)));
+		const empty = !S.runs.length;
+		$('#s-res-empty').classList.toggle('hidden', !empty);
+		for (const id of ['#s-res-body', '#s-runs', '#s-open', '#s-map-card', '#s-plots-card']) $(id).classList.toggle('hidden', empty);
+		$('label[for=s-runs]').classList.toggle('hidden', empty);
+		if (empty) {
+			S.res = null;
+			$('#s-res-sub').textContent = '';
+			return;
+		}
+		sel.value = S.runs.some(r => r.folder === cur) ? cur : S.runs[0].folder;
+		await loadResult();
+	}
+
+	async function loadResult() {
+		const folder = $('#s-runs').value;
+		if (!folder) return;
+		let R;
+		try { R = await api('ecosim_results', folder); } catch (e) { return fail(e); }
+		if (folder !== $('#s-runs').value) return;
+		S.res = R;
+		const run = R.run || {};
+		const o = run.options || {};
+		const ar = R.area || {};
+		const vs = ar.tag ? 'compared with ' + (ar.kind === 'comparison area' ? 'the comparison area ' : '') + (ar.name || ar.tag) : null;
+		$('#s-res-sub').textContent = [vs, run.res ? `${fmt(run.res)} m pixels` : null, o.stat ? `threshold: ${o.stat}` : null,
+			o.neighbours ? `${o.neighbours} neighbours` : null, o.min_cover !== undefined ? `minimum cover ${o.min_cover}` : null,
+			(run.variables || []).length ? `${run.variables.length} variables` : null,
+			run.seconds ? (run.seconds >= 60 ? fmt(run.seconds / 60, 1) + ' min' : fmt(run.seconds, 0) + ' s') : null]
+			.filter(Boolean).join(' · ');
+		renderThdi(R);
+		renderHri(R);
+		$('#s-meta').textContent = R.metadata || 'No similarity_metadata.txt';
+		gallery($('#s-plots'), R.plots);
+		const multi = new Set(R.maps.map(m => m.id)).size > 1;
+		const hsel = $('#s-map-hft');
+		const cur = hsel.value;
+		hsel.textContent = '';
+		for (const m of R.maps) {
+			hsel.append(el('option', {value: `${m.id}_${m.hft}`}, `${multi ? 'ID ' + m.id + ' · ' : ''}HFT ${m.hft}`
+				+ (m.sim || m.similar ? '' : ` (${(STATUS[m.status] || [, m.status])[1]})`)));
+		}
+		const first = R.maps.find(m => m.sim || m.similar) || R.maps[0];
+		hsel.value = R.maps.some(m => `${m.id}_${m.hft}` === cur) ? cur : first ? `${first.id}_${first.hft}` : '';
+		await drawMap();
+	}
+
+	function renderThdi(R) {
+		const box = $('#s-thdi');
+		box.textContent = '';
+		if (!R.thdi.length) {
+			box.append(el('div', {class: 'small muted'}, 'No THDI of the study areas (thdi_res.csv).'));
+			return;
+		}
+		for (const row of R.thdi) {
+			if (R.thdi.length > 1) box.append(el('div', {class: 'thdi-id'}, areaName(row.wdpaid)));
+			box.append(el('div', {class: 'facts'}, ...THDI.map(([k, label, s]) => el('div', {class: 'fact', title: k},
+				el('div', {class: 'k'}, label), el('div', {class: 'v'}, fmt(row[k], 3)), s ? el('div', {class: 's'}, s) : null))));
+		}
+	}
+
+	function renderHri(R) {
+		const tbl = $('#s-hri');
+		tbl.textContent = '';
+		const t = R.tables.hri;
+		$('#s-hri-file').textContent = t ? t.file : '';
+		fullTable($('#s-hri-all'), t);
+		if (!t) {
+			tbl.append(el('tbody', {}, el('tr', {}, el('td', {class: 'empty'}, 'No hri_results.csv.'))));
+			return;
+		}
+		const tcol = t.header.includes('MedianHFTSim') ? 'MedianHFTSim' : 'AveHFTSim';
+		const multi = new Set(R.hri.map(r => r.wdpaid)).size > 1;
+		const colour = Object.fromEntries(R.maps.map(m => [`${m.id}_${m.hft}`, m.colour]));
+		const cols = HRI.filter(([c]) => c === 'T' || t.header.includes(c));
+		tbl.append(el('thead', {}, el('tr', {}, multi ? el('th', {}, 'ID') : null, el('th', {}, 'HFT'), el('th', {}, 'Status'),
+			...cols.map(([c, h, , title]) => el('th', {class: 'num', title: c === 'T' ? `${title} (${tcol})` : `${title} (${c})`}, h)))));
+		const body = el('tbody');
+		for (const r of R.hri) {
+			const hft = r.hft ?? String(r.wdpaid_hft || '').split('_').pop();
+			const k = `${r.wdpaid}_${hft}`;
+			const tr = el('tr', {class: 'click', title: 'Show its maps'},
+				multi ? el('td', {}, r.wdpaid) : null,
+				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), hft)),
+				el('td', {}, statusBadge(r.Status)),
+				...cols.map(([c, , d]) => el('td', {class: 'num'}, fmt(c === 'T' ? r[tcol] : r[c], d))));
+			tr.addEventListener('click', () => {
+				if (![...$('#s-map-hft').options].some(o => o.value === k)) return;
+				$('#s-map-hft').value = k;
+				drawMap();
+				$('#s-map-card').scrollIntoView({behavior: 'smooth', block: 'start'});
+			});
+			body.append(tr);
+		}
+		tbl.append(body);
+	}
+
+	function fullTable(tbl, t) {
+		tbl.textContent = '';
+		if (!t) return;
+		tbl.append(el('thead', {}, el('tr', {}, ...t.header.map(h => el('th', {}, h)))));
+		const body = el('tbody');
+		for (const r of t.rows) {
+			body.append(el('tr', {}, ...r.map(v => el('td', {class: /^-?[\d.]+(e-?\d+)?$/.test(v) ? 'num' : ''},
+				/^-?\d+\.\d{4,}/.test(v) ? fmt(v, 4) : v))));
+		}
+		tbl.append(body);
+	}
+
+	// Map ---------------------------------------------------------------------------------------------------------
+	function ensureMap() {
+		if (!S.map) {
+			S.map = makeMap('s-map', 'similarity', 'osm', $('#s-base'));
+			S.map.on('moveend', () => { clearTimeout(S.detailTimer); S.detailTimer = setTimeout(detail, 300); });
+		}
+		setTimeout(() => S.map.invalidateSize(), 60);
+	}
+
+	const opacity = () => Number($('#s-op').value) / 100;
+
+	// the whole map is at most 1200 pixels wide: zoomed in beyond them, the pixels of the view are drawn over it
+	async function detail() {
+		const p = S.full;
+		if (!S.map || !p || !S.overlay) return dropDetail();
+		const v = S.map.getBounds();
+		const [w0, s0, e0, n0] = p.bbox;
+		const shown = (v.getEast() - v.getWest()) / ((e0 - w0) / p.width); // pixels of the whole map across the view
+		if (!bboxBounds(p.bbox).intersects(v) || S.map.getSize().x / shown < 1.5) return dropDetail();
+		const padX = (v.getEast() - v.getWest()) * 0.25, padY = (v.getNorth() - v.getSouth()) * 0.25;
+		const box = [Math.max(w0, v.getWest() - padX), Math.max(s0, v.getSouth() - padY), Math.min(e0, v.getEast() + padX),
+			Math.min(n0, v.getNorth() + padY)];
+		const seq = ++S.detailSeq;
+		const want = S.fullKey;
+		let d;
+		try { d = await api('ecosim_preview', S.fullTif, S.fullKind, box); } catch (e) { return; }
+		if (seq !== S.detailSeq || want !== S.fullKey || !S.overlay) return;
+		if (S.detail) S.map.removeLayer(S.detail);
+		S.detail = L.imageOverlay(d.image, bboxBounds(d.bbox), {opacity: opacity(), className: 'pixelated'}).addTo(S.map);
+		S.overlay.setOpacity(0);
+		coarseNote();
+		front();
+	}
+	function dropDetail() {
+		S.detailSeq++;
+		if (S.detail) { S.map.removeLayer(S.detail); S.detail = null; }
+		if (S.overlay) S.overlay.setOpacity(opacity());
+		coarseNote();
+	}
+	// the note of the legend on the coarser whole map, not while the pixels of the view are shown
+	function coarseNote() { $$('#s-legend .note').forEach(n => n.classList.toggle('hidden', !!S.detail)); }
+	function front() {
+		if (S.eco && S.map.hasLayer(S.eco)) S.eco.bringToFront();
+		if (S.area && S.map.hasLayer(S.area)) S.area.bringToFront();
+		if (S.saLayer && S.map.hasLayer(S.saLayer)) S.saLayer.bringToFront();
+	}
+
+	async function drawMap() {
+		const R = S.res;
+		if (!R) return;
+		ensureMap();
+		const m = R.maps.find(x => `${x.id}_${x.hft}` === $('#s-map-hft').value);
+		const kind = $('#s-map-kind').value;
+		const tif = m ? m[kind] : null;
+		const multi = new Set(R.maps.map(x => x.id)).size > 1;
+		$('#s-map-title').textContent = !m ? 'Similarity map'
+			: `${kind === 'sim' ? 'Similarity' : 'Similar areas'} of HFT ${m.hft}${multi ? ' · ' + areaName(m.id) : ''}`;
+		const seq = ++S.mapSeq;
+		let p = null;
+		if (tif) {
+			$('#s-map-sub').textContent = 'loading…';
+			const k = tif + '|' + kind;
+			try {
+				p = S.previews.get(k);
+				if (!p) {
+					p = await api('ecosim_preview', tif, kind);
+					S.previews.set(k, p);
+					if (S.previews.size > 16) S.previews.delete(S.previews.keys().next().value);
+				}
+			} catch (e) {
+				if (seq === S.mapSeq) $('#s-map-sub').textContent = '';
+				return fail(e);
+			}
+			if (seq !== S.mapSeq) return;
+		}
+		dropDetail();
+		if (S.overlay) S.map.removeLayer(S.overlay);
+		S.overlay = p ? L.imageOverlay(p.image, bboxBounds(p.bbox), {opacity: opacity(), className: 'pixelated'}).addTo(S.map) : null;
+		S.full = p;
+		S.fullKey = p ? tif + '|' + kind : null;
+		S.fullTif = tif; S.fullKind = kind;
+		$('#s-map-sub').textContent = m ? [m.threshold !== null && m.threshold !== undefined ? `T = ${fmt(m.threshold, 3)}` : null,
+			m.ref_pixels !== null && m.ref_pixels !== undefined ? `${fmt(m.ref_pixels, 0)} HFT pixels` : null,
+			m.area_ha ? `${fmt(m.area_ha, 1)} ha` : null, m.ecoregion ? `ecoregion ${m.ecoregion}` : null].filter(Boolean).join(' · ') : '';
+		// the outlines of a run: again when the run was made again in the same folder (with other polygons, maybe)
+		const ek = outlineKey(R);
+		if (S.ecoFor !== ek) await ecoLayer(R, ek);
+		legend(m, kind, p);
+		await saLayer(S.src ? S.src.study_area : parts()[0]);
+		front();
+		// fitted only when the map has a size (not while the page is hidden: a run that ends on another page)
+		if (S.fitted !== R.folder) { if (fitEco()) S.fitted = R.folder; } else detail();
+	}
+	function outlineKey(R) {
+		return [R.folder, (R.ecoregions && R.ecoregions.path) || '', (R.area && R.area.path) || '', (R.run && R.run.date) || ''].join('|');
+	}
+
+	function legend(m, kind, p) {
+		const box = $('#s-legend');
+		box.textContent = '';
+		box.classList.toggle('hidden', !m);
+		if (!m) return;
+		box.append(el('h4', {class: 'row', style: {gap: '6px'}}, swatch(m.colour), `HFT ${m.hft}`, statusBadge(m.status)));
+		if (!p) {
+			const why = m.status && m.status !== 'ok' ? ': ' + (STATUS[m.status] || [, , m.status])[2] : ' of this HFT';
+			box.append(el('div', {class: 'small muted', style: {maxWidth: '230px'}}, `No map${why}.`));
+		} else if (kind === 'sim') {
+			const tick = m.threshold !== null && m.threshold !== undefined
+				? el('div', {title: 'Threshold T of the HFT', style: {position: 'absolute', top: '-3px', bottom: '-3px', width: '2px',
+					background: 'var(--ink)', left: `calc(${Math.max(0, Math.min(1, m.threshold)) * 100}% - 1px)`}}) : null;
+			box.append(el('div', {class: 'small muted'}, 'Similarity (χ² probability)'),
+				el('div', {style: {position: 'relative', width: '210px', margin: '4px 0 2px'}},
+					el('div', {class: 'ramp', style: {background: `linear-gradient(90deg, ${p.ramp.join(',')})`}}), tick),
+				el('div', {class: 'ramp-labels', style: {width: '210px'}}, el('span', {}, '0'), el('span', {}, '0.5'), el('span', {}, '1')),
+				el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: p.zero}}), el('span', {}, '0 (p ≤ 0.001)')),
+				tick ? el('div', {class: 'small muted'}, `Bar: threshold T = ${fmt(m.threshold, 3)}`) : null);
+		} else {
+			for (const l of p.legend) {
+				box.append(el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: l.colour}}),
+					el('span', {}, l.label)));
+			}
+		}
+		if (p && p.note) {
+			box.append(el('div', {class: 'small faint note' + (S.detail ? ' hidden' : ''), style: {maxWidth: '230px'}},
+				'Coarser view: ' + p.note + '.'));
+		}
+		const line = (border, label) => el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: 'transparent', border}}),
+			el('span', {}, label));
+		box.append(line('2px solid #ff3b30', 'Study area'));
+		if (S.area) box.append(line(`2px dashed ${AREA_COLOUR}`, 'Comparison area'));
+		if (S.eco) box.append(line('2px dashed #c99700', 'Ecoregion'));
+	}
+
+	const AREA_COLOUR = '#c2187a';
+	const tip = (f, layer) => {
+		const q = f.properties || {};
+		if (q.id === undefined && !q.label) return;
+		layer.bindTooltip(leafletText(`${q.id ?? ''}${q.label ? ' · ' + q.label : ''}`), {sticky: true});
+	};
+	// the ecoregions of the run and, when the HFTs were compared with a comparison area, its polygons
+	async function ecoLayer(R, ek) {
+		for (const k of ['eco', 'area']) if (S[k]) { S.map.removeLayer(S[k]); S[k] = null; }
+		S.ecoFor = ek;
+		const e = R.ecoregions;
+		const a = R.area && R.area.kind === 'comparison area' && R.area.path && R.area.path !== (e && e.path) ? R.area : null;
+		$('#s-area-show-lab').classList.toggle('hidden', !a);
+		$('#s-fit-eco').textContent = a ? 'Zoom to the comparison area' : 'Zoom to the ecoregion';
+		if (e && e.path) {
+			const ids = (e.features || []).map(f => f.id).filter(x => x !== null && x !== undefined);
+			const gj = await api('ecosim_outline', e.path, e.field || null, ids, R.folder).catch(err => { fail(err); return null; });
+			if (S.ecoFor !== ek) return;
+			if (gj) {
+				S.eco = L.geoJSON(gj, {style: {color: '#c99700', weight: 2, dashArray: '6 4', fill: false}, onEachFeature: tip});
+				if ($('#s-eco-show').checked) S.eco.addTo(S.map);
+			}
+		}
+		if (a) {
+			const gj = await api('ecosim_outline', a.path, null, null, R.folder).catch(err => { fail(err); return null; });
+			if (S.ecoFor !== ek) return;
+			if (gj) {
+				S.area = L.geoJSON(gj, {style: {color: AREA_COLOUR, weight: 2.2, dashArray: '6 4', fill: false}, onEachFeature: tip});
+				if ($('#s-area-show').checked) S.area.addTo(S.map);
+			}
+		}
+	}
+
+	async function saLayer(sa) {
+		if (S.saFor === sa) return;
+		if (S.saLayer) { S.map.removeLayer(S.saLayer); S.saLayer = null; }
+		S.saFor = sa;
+		const gj = sa ? await api('study_outline', sa).catch(() => null) : null;
+		if (!gj || S.saFor !== sa) return;
+		S.saLayer = L.geoJSON(gj, {style: {color: '#ff3b30', weight: 2.2, fill: false}, interactive: false});
+		if ($('#s-sa-show').checked) S.saLayer.addTo(S.map);
+	}
+
+	function fitEco() { // to the comparison area, else the ecoregion, else the map; false when the map has no size (hidden)
+		if (!S.map) return false;
+		S.map.invalidateSize();
+		const z = S.map.getSize();
+		if (!z.x || !z.y) return false;
+		const b = S.area ? S.area.getBounds() : S.eco ? S.eco.getBounds() : S.overlay ? S.overlay.getBounds() : null;
+		if (b && b.isValid()) S.map.fitBounds(b, {padding: [12, 12]});
+		return true;
+	}
+	function fitSa() {
+		if (!S.map) return;
+		S.map.invalidateSize();
+		if (S.saLayer) S.map.fitBounds(S.saLayer.getBounds(), {padding: [30, 30], maxZoom: 14});
+	}
+
+	$('#s-runs').addEventListener('change', loadResult);
+	$('#s-open').addEventListener('click', () => S.res && api('open_folder', S.res.path).catch(fail));
+	$('#s-map-hft').addEventListener('change', drawMap);
+	$('#s-map-kind').addEventListener('change', drawMap);
+	$('#s-op').addEventListener('input', () => { (S.detail || S.overlay) && (S.detail || S.overlay).setOpacity(opacity()); });
+	const toggle = (box, layer) => { if (layer) box.checked ? layer.addTo(S.map) : S.map.removeLayer(layer); };
+	$('#s-eco-show').addEventListener('change', () => { toggle($('#s-eco-show'), S.eco); front(); });
+	$('#s-area-show').addEventListener('change', () => { toggle($('#s-area-show'), S.area); front(); });
+	$('#s-sa-show').addEventListener('change', () => { toggle($('#s-sa-show'), S.saLayer); front(); });
+	$('#s-fit-sa').addEventListener('click', fitSa);
+	$('#s-fit-eco').addEventListener('click', fitEco);
+
+	async function init() {
+		try {
+			const o = await api('ecosim_options');
+			fillFields(o.params);
+			S.cfg = Object.fromEntries(o.params.map(p => [p.name, p.value]));
+			setValues(S.cfg);
+		} catch (e) { fail(e); }
+		await loadList();
+		await loadSources();
+		S.saved = values();
+		markChanged();
+	}
+
+	return {
+		async onShow() {
+			if (!S.loaded) {
+				S.loaded = true;
+				await init();
+			} else {
+				const before = $('#s-sc').value;
+				await loadList();
+				if ($('#s-sc').value !== before || S.stale) await loadSources();
+				else await loadRuns();
+			}
+			if (S.map) setTimeout(() => S.map.invalidateSize(), 60);
+		},
+		attach(job) { view.start(job.id, job.title); },
+		// the HFTs or the areas changed (a model run, a download): read them again now if the page is shown, else when
+		// it is shown
+		reload() {
+			S.stale = true;
+			if (S.loaded && $('#page-similarity').classList.contains('active')) this.onShow();
+		},
+	};
+})();
 
 // Updates from GitHub ================================================================================================
 const updates = (() => {
@@ -1643,8 +2871,13 @@ const updates = (() => {
 		for (const j of await api('running')) {
 			if (j.kind === 'model') pages.model.attach(j);
 			else if (j.kind.startsWith('gee')) pages.gee.attach(j);
+			else if (j.kind === 'ecosim') pages.similarity.attach(j);
 		}
 	} catch (e) { /* nothing */ }
+	// MonitorEO at its last version of GitHub, in the background, when the app opens (if the app updates itself)
+	api('gee_auto_update').then(id => {
+		if (id) pages.gee.attach({id, kind: 'gee-update', title: 'Automatic update of MonitorEO'});
+	}).catch(() => {});
 	const p = store('page');
 	if (p && pages[p] && p !== 'inputs') show(p);
 })();

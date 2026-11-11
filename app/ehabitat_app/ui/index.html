@@ -45,7 +45,7 @@
 		</button>
 		<button data-page="similarity">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="16" r="3"/><circle cx="17" cy="6" r="2"/><path d="m9.5 9.8 5 4.4M9.8 7l5.4-.8"/></svg>
-			<span>Similarity &amp; landscape</span><span class="soon">soon</span>
+			<span>Similarity &amp; landscape</span><span class="dot hidden" id="dot-ecosim"></span>
 		</button>
 	</nav>
 	<div class="side-foot">
@@ -109,9 +109,12 @@
 			<span class="right" id="set-active"></span>
 		</div>
 		<p class="small muted" style="margin:0">A set is a subfolder of <code>inVars</code>: its GeoTIFFs are the variables
-		of the study area and those of its subfolder <code>ecoregion</code>, the variables of the ecoregion. The order of
-		the files is the order of the variables (the first one defines the pixels analysed). Unticked variables go to
-		<code>_excluded</code>, which is not used.</p>
+		of the study area and those of its subfolder <code>ecoregion</code>, the variables of the ecoregion (the RESOLVE
+		ecoregions that the study area touches, or a comparison area of your own). The order of the files is the order of
+		the variables (the first one defines the pixels analysed). Unticked variables go to <code>_excluded</code>, which
+		is not used. A set with only <code>ecoregion</code> is a comparison area for the similarity, not a set for the HFT
+		model.</p>
+		<div class="notice info hidden" id="set-area-only"></div>
 		<div class="grid-2">
 			<div class="stack" style="gap:10px">
 				<div class="scale-head"><h3>Plot scale (study area)</h3><span class="badge" id="badge-study"></span></div>
@@ -121,10 +124,21 @@
 			</div>
 			<div class="stack" style="gap:10px">
 				<div class="scale-head"><h3>Ecoregion scale</h3><span class="badge" id="badge-eco"></span></div>
+				<div class="eco-area small" id="eco-area"></div>
 				<div class="table-wrap"><table class="t" id="tbl-eco"></table></div>
 				<div class="btns"><button class="btn" data-add="ecoregion">Add GeoTIFFs…</button>
 					<button class="btn ghost hidden" id="eco-show">Show the ecoregions on the map</button></div>
 				<ul class="checks" id="chk-eco"></ul>
+				<details class="more hidden" id="eco-study"><summary id="eco-study-sum"></summary>
+					<div class="stack" style="gap:8px;margin-top:8px">
+						<p class="small muted" style="margin:0">The study area (the same rectangle as the plot scale) at the pixel
+						and CRS of the ecoregion grid, downloaded because the ecoregion or comparison area does not contain
+						it: the similarity takes the statistics of the HFTs from it, so that they come from the same
+						product and pixel as the area they are compared with.</p>
+						<div class="table-wrap"><table class="t" id="tbl-eco-study"></table></div>
+						<ul class="checks" id="chk-eco-study"></ul>
+					</div>
+				</details>
 			</div>
 		</div>
 		<ul class="checks" id="chk-both"></ul>
@@ -139,8 +153,9 @@
 			<h1>Download from MonitorEO</h1>
 			<p>Variables of the catalog of MonitorEO (OBSNEV, University of Granada) and of any collection or image of
 			Google Earth Engine, computed with the package <code>monitoreo</code> on aligned grids: the study area (with
-			its buffer) and the RESOLVE 2017 ecoregions it touches. They are saved as a set of variables of
-			<code>inVars</code>.</p>
+			its buffer) and the RESOLVE 2017 ecoregions it touches, or a comparison area of your own. They are saved as a
+			set of variables of <code>inVars</code>. The app keeps <code>monitoreo</code> at its last version of GitHub
+			(when it opens, if it updates itself, and with every download).</p>
 		</div>
 	</div>
 
@@ -159,6 +174,7 @@
 			<div class="small muted" id="ee-eecu"></div>
 			<hr class="sep">
 			<div class="row small"><span class="muted">Package monitoreo</span><b id="mo-version">—</b>
+				<span class="mono faint" id="mo-commit"></span>
 				<button class="btn small ghost right" id="mo-update">Update MonitorEO</button></div>
 		</div>
 
@@ -176,15 +192,30 @@
 				<label>Buffer</label><div class="row"><input type="number" id="r-st-buf" min="0" step="10" placeholder="PA_BUFFER"> <span class="small muted">m (empty = PA_BUFFER)</span></div>
 				<label></label><label class="check small"><input type="checkbox" id="r-st-drive"> Export through Google Drive</label>
 			</div>
-			<div class="section-title">Ecoregion</div>
+			<div class="section-title">Ecoregion or comparison area</div>
 			<div class="form-grid">
-				<label></label><label class="check"><input type="checkbox" id="r-eco-on"> Also download the variables of the ecoregion</label>
+				<label></label><label class="check"><input type="checkbox" id="r-eco-on"> Also download the variables of the ecoregion or comparison area</label>
+				<label>Area of the grid</label>
+				<div class="stack" style="gap:4px">
+					<label class="check small"><input type="radio" name="r-area" value="resolve" checked> RESOLVE ecoregions that the study area touches</label>
+					<label class="check small"><input type="radio" name="r-area" value="file"> A comparison area (vector file)</label>
+				</div>
+				<label class="r-area-f">Vector file</label>
+				<div class="row r-area-f" style="flex-wrap:nowrap"><input type="text" id="r-area" class="grow" placeholder=".gpkg, .shp or .geojson">
+					<button class="btn small" id="r-area-pick">Browse…</button></div>
+				<label class="r-area-f r-area-l">Layer</label><select id="r-area-layer" class="r-area-f r-area-l"></select>
+				<label class="r-area-f"></label><div class="small muted r-area-f" id="r-area-info"></div>
 				<label>Pixel size</label><div class="row"><input type="number" id="r-eco-res" min="10" step="10"> <span class="unit muted">m</span></div>
 				<label>CRS</label><input type="text" id="r-eco-crs" placeholder="that of the study area (e.g. EPSG:3035)">
 				<label></label><label class="check small"><input type="checkbox" id="r-eco-drive"> Export through Google Drive</label>
 				<label>Drive folder</label><input type="text" id="r-drive-folder">
 				<label>Local copy of Drive</label><div class="row"><input type="text" id="r-drive-dir" class="grow" placeholder="Google Drive for desktop"><button class="btn small" id="r-drive-pick">…</button></div>
 			</div>
+			<p class="small muted" style="margin:0">The ecoregion or comparison area can be outside the study area: then the
+				study area is also downloaded at the pixel and CRS of this grid (to <code>ecoregion/study_area</code>), so that
+				the statistics of the HFTs in the similarity come from the same product and pixel as the area they are
+				compared with.</p>
+			<div class="notice warn hidden" id="r-area-warn"></div>
 			<p class="small muted" id="r-size-note" style="margin:0"></p>
 		</div>
 
@@ -224,8 +255,8 @@
 	<div class="card">
 		<div class="card-head"><h2>Download</h2>
 			<div class="btns right">
-				<label class="check small"><input type="checkbox" id="g-use" checked> Use these variables in the model when done</label>
-				<select id="g-only" class="small"><option value="">Both grids</option><option value="study">Only the study area</option><option value="ecoregion">Only the ecoregion</option></select>
+				<label class="check small" id="g-use-lab"><input type="checkbox" id="g-use" checked> Use these variables in the model when done</label>
+				<select id="g-only" class="small"><option value="">Both grids</option><option value="study">Only the study area</option><option value="ecoregion">Only the ecoregion or comparison area</option></select>
 				<label class="check small"><input type="checkbox" id="g-over"> Download everything again</label>
 			</div>
 		</div>
@@ -235,6 +266,9 @@
 			<button class="btn danger hidden" id="g-stop">Stop</button>
 			<div class="job-bar grow" id="g-bar"></div>
 		</div>
+		<p class="small muted hidden" id="g-only-note" style="margin:0">Only the ecoregion or comparison area: in a new
+		folder it is a comparison area for the similarity ("Compare with" in "Similarity"), not a set of variables for
+		the HFT model, so it is not used in the model.</p>
 		<pre class="console" id="g-log"></pre>
 	</div>
 </section>
@@ -340,57 +374,154 @@
 	</div>
 </section>
 
-<!-- 5. Similarity (not yet functional) ========================================================================== -->
+<!-- 5. Similarity =============================================================================================== -->
 <section class="page" id="page-similarity">
 	<div class="page-head">
 		<div>
-			<h1>Similarity and landscape metrics</h1>
-			<p>Similarity of each HFT with the rest of its ecoregion (Mahalanobis distance at the ecoregion scale) and
-			landscape metrics of the similar areas, as in eHabitat+ (<code>ehab_optim.py</code>).</p>
+			<h1>Similarity in the ecoregion</h1>
+			<p>How similar the rest of its ecoregion (or a comparison area of your own, inside or outside the study area)
+			is to each HFT (the Mahalanobis distance of the variables of the ecoregion scale, as a χ² probability), its
+			similar areas and their landscape metrics (HSR, patches, aggregation), and the Total Habitat Diversity and
+			Replaceability (THDI) of each study area, as in eHabitat+ (<code>similarity.py</code>, <code>thdi.R</code>).</p>
 		</div>
 	</div>
-	<div class="soon-banner">
-		<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-		<div><b>In development.</b> This section does not work yet: it shows the planned options. It will use the HFTs of
-			a scenario and cut of "Results" and the variables of the ecoregion scale of "Input variables".</div>
+
+	<div class="grid-2">
+		<div class="card">
+			<div class="card-head"><h2>Starting HFTs</h2><span class="sub">the HFTs of a scenario of "Results" and the
+				variables of the ecoregion scale</span><button class="btn small ghost right" id="s-refresh">Refresh</button></div>
+			<div class="empty hidden" id="s-empty">No HFTs yet. Run the model in "HFT mapping".</div>
+			<div id="s-src">
+				<div class="field">
+					<label for="s-sc">Scenario</label>
+					<div class="ctl"><select id="s-sc"></select></div>
+					<div class="help">The HFTs of these results (study area / scenario) and the variables they were made
+						with; the ecoregion variables are their pairs (same name) in the subfolder <code>ecoregion</code> of
+						their set.</div>
+				</div>
+				<div class="field" id="sf-ECOSIM_CUT">
+					<label for="s-cut"></label>
+					<div class="ctl"><select id="s-cut"></select><span class="def"></span></div>
+					<div class="help"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_AREA">
+					<label for="s-area"></label>
+					<div class="ctl"><select id="s-area"></select><span class="def"></span></div>
+					<div class="help"></div>
+					<div class="help" id="s-area-info"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_ECOREGIONS">
+					<label for="s-eco"></label>
+					<div class="ctl" style="flex-wrap:nowrap"><input type="text" id="s-eco" class="grow">
+						<button class="btn small" id="s-eco-pick">Browse…</button>
+						<button class="btn small ghost" id="s-eco-clear" title="The ecoregions of the set of variables">Default</button></div>
+					<div class="help"></div>
+					<div class="help" id="s-eco-info"></div>
+				</div>
+				<div class="facts" id="s-facts"></div>
+				<div class="table-wrap"><table class="t" id="s-vars"></table></div>
+				<div class="stack" style="gap:8px" id="s-notes"></div>
+			</div>
+		</div>
+
+		<div class="card">
+			<div class="card-head"><h2>Similarity options</h2><span class="sub" id="s-changed"></span></div>
+			<div id="s-opts">
+				<div class="field" id="sf-ECOSIM_RESOLUTION">
+					<label for="s-res"></label>
+					<div class="ctl"><select id="s-res"></select>
+						<span class="inline hidden" id="s-res-other-box"><input type="number" id="s-res-other" min="1" step="1">
+							<span class="unit">m</span></span>
+						<span class="def"></span></div>
+					<div class="help"></div>
+					<div class="help err-text hidden" id="s-res-err"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_STAT">
+					<label for="s-stat"></label>
+					<div class="ctl"><select id="s-stat"></select><span class="def"></span></div>
+					<div class="help"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_NEIGHBOURS">
+					<label for="s-nb"></label>
+					<div class="ctl"><select id="s-nb"></select><span class="def"></span></div>
+					<div class="help"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_MIN_COVER">
+					<label for="s-cover"></label>
+					<div class="ctl"><input type="number" id="s-cover" min="0.01" max="1" step="0.05"><span class="def"></span></div>
+					<div class="help"></div>
+				</div>
+				<div class="field" id="sf-ECOSIM_MARINE">
+					<label for="s-marine"></label>
+					<div class="ctl" style="flex-wrap:nowrap"><input type="text" id="s-marine" class="grow" placeholder="none">
+						<button class="btn small" id="s-marine-pick">Browse…</button>
+						<button class="btn small ghost" id="s-marine-clear">None</button></div>
+					<div class="help"></div>
+				</div>
+			</div>
+		</div>
 	</div>
-	<div class="grid-2 disabled-zone" aria-disabled="true">
+
+	<div class="grid-2">
 		<div class="card">
-			<div class="card-head"><h2>Starting HFTs</h2></div>
-			<div class="form-grid">
-				<label>Scenario</label><select disabled id="s-sc"><option>—</option></select>
-				<label>Cut</label><select disabled id="s-cut"><option>p25 (suggested)</option></select>
-				<label>Ecoregion variables</label><select disabled id="s-set"><option>—</option></select>
-				<label>Ecoregions</label><input type="text" disabled placeholder="ecoregion/ecoregions.gpkg (MonitorEO) or a file of your own">
-			</div>
+			<div class="card-head"><h2>HFT pixels at this pixel size</h2><span class="sub" id="s-plan-sub"></span></div>
+			<div class="stack" style="gap:12px" id="s-plan"></div>
+			<div class="notice info" id="s-plan-note"></div>
 		</div>
 		<div class="card">
-			<div class="card-head"><h2>Similarity</h2></div>
-			<div class="form-grid">
-				<label>Measure</label><select disabled><option>Mahalanobis distance → χ² probability</option></select>
-				<label>Statistic of the HFT</label><select disabled><option>Mean (AveHFTSim)</option><option>Median (MedianHFTSim)</option></select>
-				<label>Similarity threshold</label><select disabled><option>Mean similarity within the HFT</option></select>
-				<label>Neighbourhood of the patches</label><select disabled><option>8 neighbours (most restrictive)</option></select>
-				<label>CPU cores</label><input type="number" disabled value="4">
+			<div class="card-head"><h2>Run</h2><span class="sub" id="s-run-sub"></span></div>
+			<div class="btns">
+				<button class="btn primary" id="s-run" disabled>Compute the similarity</button>
+				<button class="btn" id="s-save">Save options</button>
+				<button class="btn ghost" id="s-defaults">Default values</button>
+				<button class="btn danger hidden" id="s-stop">Stop</button>
+			</div>
+			<div class="small muted" id="s-run-why"></div>
+			<div class="job-bar" id="s-bar"></div>
+			<pre class="console tall" id="s-log"></pre>
+		</div>
+	</div>
+
+	<div class="card" id="s-res-card">
+		<div class="card-head"><h2>Results</h2>
+			<label class="muted" for="s-runs">Run</label><select id="s-runs"></select>
+			<span class="sub" id="s-res-sub"></span>
+			<div class="btns right"><button class="btn small ghost" id="s-open">Open folder</button></div>
+		</div>
+		<div class="empty hidden" id="s-res-empty">No similarity computed yet for this scenario.</div>
+		<div class="stack" style="gap:12px" id="s-res-body">
+			<div class="stack" style="gap:10px" id="s-thdi"></div>
+			<div class="stack" style="gap:6px">
+				<div class="row"><h3>Similarity and landscape metrics of each HFT</h3><span class="small faint" id="s-hri-file"></span></div>
+				<div class="table-wrap"><table class="t" id="s-hri"></table></div>
+				<p class="small muted" style="margin:0">T: the similarity threshold of the HFT. Similar pixels: those of the
+					rest of the ecoregion with a similarity of at least T. HSR (Habitat Similarity Ratio): pixels of the similar
+					patches at least as large as the HFT (or else of the largest patch) / pixels of the HFT. Aggregation:
+					similar pixels per patch. Click an HFT to see its maps.</p>
+			</div>
+			<details class="more"><summary>All the columns (hri_results.csv)</summary><div class="table-wrap"><table class="t" id="s-hri-all"></table></div></details>
+			<details class="more"><summary>Options, inputs and notes of the run (similarity_metadata.txt)</summary><pre id="s-meta"></pre></details>
+		</div>
+	</div>
+	<div class="card" id="s-map-card">
+		<div class="card-head"><h2 id="s-map-title">Similarity map</h2><span class="sub" id="s-map-sub"></span>
+			<div class="map-tools right">
+				<label>HFT <select id="s-map-hft"></select></label>
+				<label>Map <select id="s-map-kind"><option value="sim">Similarity (0–1)</option><option value="similar">Similar areas</option></select></label>
+				<label>Basemap <select id="s-base"></select></label>
+				<label>Opacity <input type="range" id="s-op" min="0" max="100" value="85"></label>
+				<label class="check"><input type="checkbox" id="s-eco-show" checked> Ecoregions</label>
+				<label class="check hidden" id="s-area-show-lab"><input type="checkbox" id="s-area-show" checked> Comparison area</label>
+				<label class="check"><input type="checkbox" id="s-sa-show" checked> Study area</label>
+				<button class="btn small" id="s-fit-sa">Zoom to the study area</button>
+				<button class="btn small" id="s-fit-eco">Zoom to the ecoregion</button>
 			</div>
 		</div>
-		<div class="card">
-			<div class="card-head"><h2>Landscape metrics</h2></div>
-			<div class="chips">
-				<span class="chip on">Similar area in the ecoregion</span><span class="chip on">HSR</span>
-				<span class="chip on">Number of similar patches</span><span class="chip on">Largest patch / HFT</span>
-				<span class="chip on">Patches ≥ area of the HFT</span><span class="chip on">Aggregation</span>
-				<span class="chip">Edge density</span><span class="chip">Shape index</span>
-			</div>
-		</div>
-		<div class="card">
-			<div class="card-head"><h2>Outputs</h2></div>
-			<div class="chips">
-				<span class="chip on">Probability maps (GeoTIFF)</span><span class="chip on">Table hri_results.csv</span>
-				<span class="chip on">Plots by HFT</span>
-			</div>
-			<div class="btns"><button class="btn primary" disabled>Compute the similarity</button></div>
-		</div>
+		<div class="map-wrap"><div class="map big" id="s-map"></div><div class="legend-box hidden" id="s-legend"></div></div>
+	</div>
+	<div class="card" id="s-plots-card">
+		<div class="card-head"><h2>Plots of the run</h2><span class="sub">similarity maps and metrics of each HFT (<code>similarity_plots.R</code>)</span></div>
+		<div class="gallery" id="s-plots"></div>
 	</div>
 </section>
 </main>

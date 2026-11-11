@@ -320,6 +320,8 @@ def run(values=None, nproc=None, first=None, scenario=None):
 	"""Save the parameters, write palist.csv, run setup.py if needed and run_hft.py (from the step FIRST)."""
 	if jobs.running('model'):
 		raise ValueError('the model is already running')
+	if jobs.running('ecosim'):
+		raise ValueError('the similarity is being computed with the results: run the model when it finishes')
 	if values:
 		save_params(values, nproc)
 	sa = study_area()

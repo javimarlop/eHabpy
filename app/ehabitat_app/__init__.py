@@ -5,8 +5,11 @@
     jobs      background jobs (scripts of eHabpy and other long tasks) with their log, progress and cancellation
     inputs    input variables (GeoTIFFs of the study area and ecoregion scales) and the study area
     model     parameters of config.py, palist.csv and the steps of the HFT model (run_hft.py)
-    gee       MonitorEO: catalog, Earth Engine connection and downloads (get_vars_gee.py)
+    gee       MonitorEO: catalog (read again when monitoreo is updated), Earth Engine connection and downloads of the
+              study area and its ecoregions or a comparison area (get_vars_gee.py)
     results   results of the HFT model: plots, tables and the HFT map
+    ecosim    similarity of the HFTs in their ecoregion or a comparison area (similarity.py): options, plan, runs and
+              their maps
     server    local HTTP server of the interface and the result files (and of the API without pywebview)
     api       functions called by the interface
     main      opens the window

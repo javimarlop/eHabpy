@@ -115,7 +115,6 @@ code, .mono { font-family: var(--mono); font-size: 12.5px; }
 .nav button.active { background: var(--side-active); color: #fff; box-shadow: inset 3px 0 0 #6fd3a4; }
 .nav button svg { width: 18px; height: 18px; flex: none; opacity: .9; }
 .nav .num { font-size: 11px; color: var(--side-muted); width: 14px; text-align: right; }
-.nav .soon { margin-left: auto; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; background: rgba(255,255,255,.1); color: var(--side-muted); padding: 1px 6px; border-radius: 10px; }
 .nav .dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #6fd3a4; box-shadow: 0 0 0 3px rgba(111,211,164,.2); animation: pulse 1.4s infinite; }
 @keyframes pulse { 50% { opacity: .35; } }
 .side-foot { margin-top: auto; font-size: 11.5px; color: var(--side-muted); display: flex; flex-direction: column; gap: 6px; padding: 0 6px; }
@@ -348,9 +347,6 @@ table.t .vname { font-weight: 550; word-break: break-all; }
 .toast.warn { border-left-color: var(--warn); }
 @keyframes toastin { from { transform: translateY(8px); opacity: 0; } }
 
-/* Similarity (not yet functional) ------------------------------------------------------------------------------- */
-.soon-banner { display: flex; gap: 14px; align-items: center; padding: 14px 18px; border-radius: var(--radius); background: repeating-linear-gradient(-45deg, var(--warn-soft), var(--warn-soft) 12px, color-mix(in srgb, var(--warn-soft) 70%, var(--panel)) 12px, color-mix(in srgb, var(--warn-soft) 70%, var(--panel)) 24px); border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--line)); }
-.soon-banner svg { width: 28px; height: 28px; color: var(--warn); flex: none; }
 .disabled-zone { opacity: .62; pointer-events: none; filter: grayscale(.3); }
 
 .scale-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -376,6 +372,30 @@ details.more pre { max-height: 300px; overflow: auto; background: var(--panel-2)
 .update-banner.ok { background: var(--ok-soft); }
 .update-banner.warn { background: var(--warn-soft); }
 .update-banner .btns { margin-left: auto; }
+
+/* Similarity ---------------------------------------------------------------------------------------------------- */
+.err-text { color: var(--err); }
+#page-similarity .field { grid-template-columns: 150px minmax(0, 1fr); }
+#page-similarity .field .ctl > select { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+#s-run-sub { word-break: break-all; }
+#s-vars { table-layout: fixed; }
+#s-vars td { overflow-wrap: anywhere; }
+.leaflet-image-layer.pixelated { image-rendering: pixelated; }
+#page-similarity .facts { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.swatch { display: inline-block; width: 14px; height: 11px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); vertical-align: -1px; flex: none; }
+table.t td .hft { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+.plan-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.plan-head .sub { color: var(--muted); font-size: 12.5px; }
+.legend-cat { display: grid; grid-template-columns: 16px 1fr; gap: 6px; align-items: center; padding: 2px 0; }
+.legend-cat .sw { width: 16px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,.25); }
+.ramp-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.thdi-id { font-size: 12px; font-weight: 650; color: var(--muted); }
+#s-area-info:empty { display: none; }
+
+/* Area of the ecoregion grid (Input variables) ----------------------------------------------------------------- */
+.eco-area { line-height: 1.6; }
+.eco-area:empty { display: none; }
+#eco-study summary { font-size: 12.5px; }
 
 /* Study areas to process ---------------------------------------------------------------------------------------- */
 .areas { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px; max-height: 280px; overflow: auto; }

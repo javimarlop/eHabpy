@@ -11,7 +11,7 @@ import time
 import traceback
 import webbrowser
 
-from . import __version__, envsetup, gee, inputs, jobs, model, paths, results, updater
+from . import __version__, ecosim, envsetup, gee, inputs, jobs, model, paths, results, updater
 
 import hft_state
 
@@ -195,7 +195,11 @@ class Api:
 
 	@exposed
 	def use_set(self, folder):
-		inputs.set_dir(folder)
+		d = inputs.set_dir(folder)
+		if inputs.area_only(d):
+			raise ValueError(f'inVars/{folder} has only the variables of an ecoregion or comparison area (no GeoTIFFs of '
+			                 'a study area): it cannot be the input of the HFT model; compare the HFTs with it in '
+			                 '"Similarity"')
 		hft_state.write_option('INVARS_FOLDER', repr((folder or '').strip('/\\')))
 		return True
 
@@ -352,6 +356,20 @@ class Api:
 		return gee.update()
 
 	@exposed
+	def gee_auto_update(self):
+		"""The update of monitoreo when the app opens (once, if the app updates itself): the id of its job or None."""
+		return gee.auto_update()
+
+	@exposed
+	def gee_area(self, path, layer=None):
+		"""A vector file chosen as the comparison area of the ecoregion grid (any folder)."""
+		return gee.area(path, layer)
+
+	@exposed
+	def gee_area_check(self, folder, comparison=None, layer=None, only=None):
+		return gee.area_check(folder, comparison, layer, only)
+
+	@exposed
 	def gee_recipe(self):
 		return gee.last_recipe()
 
@@ -399,3 +417,44 @@ class Api:
 	@exposed
 	def study_outline(self, study_area):
 		return results.study_outline(study_area)
+
+	# Similarity ---------------------------------------------------------------------------------------------------
+	@exposed
+	def ecosim_options(self):
+		return ecosim.options()
+
+	@exposed
+	def ecosim_save(self, values):
+		return ecosim.save(values)
+
+	@exposed
+	def ecosim_sources(self, study_area, scenario):
+		return ecosim.sources(study_area, scenario)
+
+	@exposed
+	def ecosim_plan(self, study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=None, area=None):
+		return ecosim.plan(study_area, scenario, cut, res, min_cover, ecoregions, area)
+
+	@exposed
+	def ecosim_areas(self, study_area, scenario):
+		return ecosim.areas(study_area, scenario)
+
+	@exposed
+	def ecosim_run(self, values, study_area, scenario, cut=''):
+		return ecosim.run(values, study_area, scenario, cut)
+
+	@exposed
+	def ecosim_runs(self, study_area, scenario):
+		return ecosim.runs(study_area, scenario)
+
+	@exposed
+	def ecosim_results(self, folder):
+		return ecosim.run_results(folder)
+
+	@exposed
+	def ecosim_preview(self, tif, kind='sim', bbox=None):
+		return ecosim.preview(tif, kind, bbox)
+
+	@exposed
+	def ecosim_outline(self, path, field=None, ids=None, folder=None):
+		return ecosim.outline(path, field, ids, folder)
