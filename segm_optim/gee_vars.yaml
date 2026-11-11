@@ -27,13 +27,26 @@ study:
   drive: false          # false = descarga directa en teselas; true = exportación a Google Drive (ver drive_folder)
 
 # ECORREGIONES de RESOLVE Ecoregions 2017 (Ecoregions2017) que toca el área de estudio: si toca varias, la unión de
-# todas. Los píxeles fuera de ellas quedan sin datos. Una ecorregión puede ser miles de veces mayor que el área de
-# estudio (la de Guajares tiene 298 000 km2): a 10 m serían 12 GB por variable, a 100 m 120 MB y a 1000 m 1.2 MB.
+# todas (o el área de comparación, abajo). Los píxeles fuera de ellas quedan sin datos. Una ecorregión puede ser miles
+# de veces mayor que el área de estudio (la de Guajares tiene 298 000 km2): a 10 m serían 12 GB por variable, a 100 m
+# 120 MB y a 1000 m 1.2 MB.
 ecoregion:
   resolution: 100       # tamaño de píxel (m); null = no descargar las variables de las ecorregiones
   drive: true           # exportación a Google Drive: sin límite de tamaño ni de tiempo por tesela
   crs: null             # null = el del área de estudio; para ecorregiones muy grandes, mejor uno de igual área
                         # (p. ej. 'EPSG:3035' en Europa)
+
+# ÁREA DE COMPARACIÓN: un fichero vectorial propio (gpkg, shp, geojson...) cuyos polígonos sustituyen a las
+# ecorregiones de RESOLVE en la rejilla de ecorregión (con su resolution, drive y crs), p. ej. otra sierra con la que
+# comparar los HFT en la similitud (similarity.py). Puede estar dentro o fuera del área de estudio. Cada polígono es un
+# área de ecoregion/ecoregions.gpkg (ECO_ID -1, -2, ...; su nombre, del campo name, NAME, nombre o Name, en ECO_NAME).
+# Si los polígonos de la rejilla de ecorregión (área de comparación o ecorregiones) no contienen todo el rectángulo del
+# área de estudio, se descarga también el área de estudio al píxel y en el CRS de la rejilla de ecorregión, en
+# ecoregion/study_area, para las estadísticas de los HFT en la similitud. También --area FICHERO y --area-layer CAPA.
+# Al cambiar de área en la misma carpeta, ecoregion/ sigue siendo la del área anterior hasta que estén todos los
+# ficheros de la nueva: si la descarga se interrumpe, repetir la misma orden la continúa.
+comparison_area: null   # ruta del fichero (relativa a segm_optim); null = las ecorregiones de RESOLVE
+comparison_area_layer: null   # capa del fichero, si tiene varias
 
 # OPCIONES COMUNES de las variables (cada variable puede cambiar cualquiera de ellas):
 period: ['2018-01-01', '2021-12-31']   # primer y último día
