@@ -146,6 +146,10 @@ hft_tree <- function(tree, cls_list, cols_list, ha, labels, hl=NA) {
 	paths <- paths[do.call(order, lapply(seq_len(nl), function(lv) xs[[lv]][as.character(paths[[cuts[lv]]])])), ]
 	paths$pct <- round(100 * paths$ha / sum(paths$ha), 2)
 	paths$ha <- round(paths$ha, 2)
+	# Also what the plot draws for each HFT: its colour and horizontal position in each cut (row y of the cut: 1 at
+	# the bottom, the most detailed one, as many as cuts at the top)
+	for (lv in seq_len(nl)) paths[[paste0('colour_', cuts[lv])]] <- cols_list[[lv]][as.integer(as.character(paths[[cuts[lv]]]))]
+	for (lv in seq_len(nl)) paths[[paste0('x_', cuts[lv])]] <- signif(as.vector(xs[[lv]][as.character(paths[[cuts[lv]]])]), 6)
 	list(plot=p, paths=paths, width=max(9, 0.5 * length(ord) + 4), height=1.3 * nl + 2.5)
 }
 
@@ -160,13 +164,43 @@ read_env_vars <- function() {
 }
 
 # Estadísticos de un boxplot (como geom_boxplot): cuartiles y bigotes hasta 1.5 x IQR
+# (n: values with data; outliers: values beyond the whiskers, not drawn; both only for the CSV of the plot)
 box_stats <- function(x) {
 	x <- x[!is.na(x)]
-	if (length(x) == 0) return(c(ymin = NA, lower = NA, middle = NA, upper = NA, ymax = NA))
+	if (length(x) == 0) return(c(ymin = NA, lower = NA, middle = NA, upper = NA, ymax = NA, n = 0, outliers = 0))
 	q <- quantile(x, c(0.25, 0.5, 0.75), names = FALSE)
 	iqr <- q[3] - q[1]
-	c(ymin = min(x[x >= q[1] - 1.5 * iqr]), lower = q[1], middle = q[2], upper = q[3], ymax = max(x[x <= q[3] + 1.5 * iqr]))
+	lo <- q[1] - 1.5 * iqr
+	hi <- q[3] + 1.5 * iqr
+	c(ymin = min(x[x >= lo]), lower = q[1], middle = q[2], upper = q[3], ymax = max(x[x <= hi]),
+	  n = length(x), outliers = sum(x < lo | x > hi))
 }
+
+# Data of a plot, next to it with the same name (X.png -> X.csv), so that it can be reused or the plot redrawn
+# elsewhere. Same format as the other tables of the results: separated by spaces, a header, NA for missing values,
+# no quotes except around the texts that need them (the colours #RRGGBB, which read.table would take as a comment).
+# Numbers with decimals rounded to 'digits' significant digits (NA: as they are), those of the columns 'precise'
+# (coordinates) to 10; whole numbers (IDs, counts) are written as they are
+write_plot_csv <- function(df, png, digits = 6, precise = character(0)) {
+	df <- as.data.frame(df, stringsAsFactors = FALSE)
+	rownames(df) <- NULL
+	for (i in seq_along(df)) {
+		x <- df[[i]]
+		if (is.factor(x)) x <- as.character(x)
+		if (!is.na(digits) && is.numeric(x) && any(x != round(x), na.rm = TRUE)) {
+			x <- signif(x, if (names(df)[i] %in% precise) 10 else digits)
+		}
+		df[[i]] <- x
+	}
+	q <- which(vapply(df, function(x) is.character(x) && any(grepl('[[:space:]#"\']', x)), logical(1)))
+	f <- sub('\\.png$', '.csv', png)
+	writeLines(paste(names(df), collapse = ' '), f)
+	write.table(df, f, sep = ' ', row.names = FALSE, col.names = FALSE, quote = if (length(q)) q else FALSE, append = TRUE)
+	invisible(f)
+}
+
+# Short label of the variables in the plots (short_labels) without spaces, for the CSVs of the plots
+csv_label <- function(x) gsub('[[:space:]]+', '_', x)
 
 # Distancias entre los segmentos del método original ('ward'): estadístico (media o mediana) y varianza
 # de cada variable, reescalados a 0-1 entre los segmentos
@@ -463,7 +497,8 @@ for (pmx in 1:mx) {
 	# Curvas reescaladas (media de las variables) y puntuación del método, con el umbral elegido
 	x1 <- thr_tab$moran_norm
 	x2 <- thr_tab$var_norm
-	png(file.path(outroot, paste(park, '_moran_var_mean.png', sep='')), width=640, height=540)
+	thr_png <- file.path(outroot, paste(park, '_moran_var_mean.png', sep=''))
+	png(thr_png, width=640, height=540)
 	par(mar=c(4.5, 4.5, 4.5, 1))
 	plot(thr_all, x1, ylim=c(0, 1.35), col=1, typ='o', pch=19, xaxt='n', xlab='Similarity threshold (x 0.1)',
 	     ylab="Rescaled Moran's I, variance and score", main=paste0(park, ': selected threshold 0.', res))
@@ -490,6 +525,19 @@ for (pmx in 1:mx) {
 	abline(v=res, lty=2, col='grey40')
 	legend('top', legend=leg, col=legcol, lty=1, pch=19, bty='n', cex=0.9)
 	dev.off()
+	# CSV of the plot: the columns of csv/<id>_threshold.csv (moranvar.py: moran_norm, black; var_norm, green;
+	# selected, dashed line) and what the plot computes from them: the score rescaled 0-1 with 1 = best (blue) and,
+	# with THRESHOLD_METHOD 'crossing' or 'crossing_first', the crossings of the curves (red points) between each
+	# threshold and the next one
+	thr_csv <- thr_tab
+	thr_csv$score_rescaled <- if (!all(is.na(thr_tab$score))) sc else NA
+	thr_csv$crossing_threshold <- NA
+	thr_csv$crossing_value <- NA
+	if (thr_method %in% c('crossing', 'crossing_first') && length(ip) > 0) {
+		thr_csv$crossing_threshold[ip] <- thr_all[ip] + tp * (thr_all[ip + 1] - thr_all[ip])
+		thr_csv$crossing_value[ip] <- x1[ip] + (x1[ip + 1] - x1[ip]) * tp
+	}
+	write_plot_csv(thr_csv, thr_png)
 
 	k <- paste('0.', res, sep='')
 	write.table(thr_tab, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', row.names=F, quote=F)
@@ -679,9 +727,25 @@ for (pmx in 1:mx) {
 			plot_subtitle <- paste0('ID ', park, ' | threshold ', k, if (simil == 3) paste0(' | cut ', cn, if (identical(cn, suggested)) ' (suggested)'),
 			                        ' | ', ncl, ' HFTs')
 
-			png(file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep='')))
+			hclust_png <- file.path(outdir, paste('hclust_', park, '_', res, tag, '_segms_mean.png', sep=''))
+			png(hclust_png)
 			try(plot(hclust_mh, hang=-1, main=park, sub=cophval, xlab=class_label)); try(rect.hclust(hclust_mh, k=ncl))
 			dev.off()
+			# CSV of the dendrogram: rows 'leaf', the segments from left to right (leaf: their label in the plot, the
+			# row of the segment in csv/park_<id>_hri_results<k>.csv; HFT; box: the rectangle that encloses them, the
+			# tree cut into as many groups as HFTs, which can differ from the HFTs with 'ward_area_kmeans'), and rows
+			# 'merge', the merges of hclust
+			# (merged_a, merged_b: a negative number -j is the leaf j, a positive one the merge of that step) with their
+			# height; cophenetic_r: the cophenetic correlation of the subtitle
+			nseg <- length(hclust_mh$order)
+			leaf_lab <- if (is.null(hclust_mh$labels)) seq_len(nseg) else hclust_mh$labels
+			ho <- hclust_mh$order
+			write_plot_csv(rbind(
+				data.frame(element='leaf', step=NA, merged_a=NA, merged_b=NA, height=NA, leaf=leaf_lab[ho], segm_id=hri$segm_id[ho],
+				           position=seq_len(nseg), HFT=hclust_mean[ho], box=cutree(hclust_mh, k=ncl)[ho], cophenetic_r=cophval),
+				data.frame(element='merge', step=seq_len(nseg - 1), merged_a=hclust_mh$merge[, 1], merged_b=hclust_mh$merge[, 2],
+				           height=hclust_mh$height, leaf=NA, segm_id=NA, position=NA, HFT=NA, box=NA, cophenetic_r=cophval)),
+			           hclust_png)
 
 			hrin <- cbind(hri[, 1:(2 + num_vars)], hclust_mean)
 			raw_names <- names(hri)[3:(2 + num_vars)]
@@ -705,6 +769,17 @@ for (pmx in 1:mx) {
 			radar <- radar + labs(title=area, subtitle=plot_subtitle) + theme(plot.title=element_text(size=16), plot.subtitle=element_text(size=14))
 			rpn <- file.path(outdir, paste('radarplot_', park, '_', res, tag, '_segms_mean.png', sep=''))
 			ggsave(filename=rpn, plot=radar, width=10, height=7.5, dpi=300)
+			# CSV of the radar plot: per HFT (in the order of the legend) and variable (axis 1 at the top, then
+			# clockwise), value: the mean over the segments of the HFT of their statistic (STAT_AGG: mean or median
+			# of the pixels); relative: that value rescaled 0-1 among the HFTs, the one drawn
+			rad_o <- match(hft_order, hri4$hclust_mean)
+			rad_o <- rad_o[!is.na(rad_o)]
+			rad_h <- hri4$hclust_mean[rad_o]
+			write_plot_csv(data.frame(HFT=rep(rad_h, each=num_vars), colour=rep(kolsn[rad_h], each=num_vars),
+			                          var=rep(clean_names, length(rad_h)), var_label=rep(csv_label(short_labels(clean_names)), length(rad_h)),
+			                          axis=rep(seq_len(num_vars), length(rad_h)),
+			                          value=as.vector(t(as.matrix(hri4[rad_o, 2:(num_vars + 1), drop=FALSE]))),
+			                          relative=as.vector(t(as.matrix(scaled[rad_o, 1:num_vars, drop=FALSE])))), rpn)
 
 			# Integración en Shapefile y Mapa final
 			shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
@@ -762,6 +837,16 @@ for (pmx in 1:mx) {
 				bb <- st_bbox(segm_pa_class)
 				asp <- as.numeric((bb['ymax'] - bb['ymin']) / (bb['xmax'] - bb['xmin']))
 				ggsave(rpn2, hftmap, width=12, height=min(max(10 * asp + 1.5, 5), 16), dpi=300)
+				# CSV of the map: one row per polygon of the segments (their geometry is the shapefile _class.shp of
+				# this folder; the outline is the study area of 'pa'), in the order of the legend, with its HFT, area,
+				# the colour of its HFT and its centroid (x, y in the CRS of the map, that of the shapefile)
+				map_g <- st_geometry(segm_pa_class)
+				map_ha <- st_area(map_g)
+				map_ha <- if (inherits(map_ha, 'units')) as.numeric(units::set_units(map_ha, 'ha', mode='standard')) else as.numeric(map_ha) / 1e4
+				map_xy <- st_coordinates(suppressWarnings(st_centroid(map_g)))
+				map_csv <- data.frame(segm_id=segm_pa_class$segm_id, HFT=segm_pa_class$hclust_mean, area_ha=map_ha,
+				                      colour=kolsn[segm_pa_class$hclust_mean], x=map_xy[, 'X'], y=map_xy[, 'Y'])
+				write_plot_csv(map_csv[order(match(map_csv$HFT, hfts), map_csv$segm_id), ], rpn2, precise=c('x', 'y'))
 
 				# --- BOXPLOTS DE CADA VARIABLE POR HFT CON LOS VALORES DE LOS PÍXELES ---
 				if (!is.null(pixvals)) {
@@ -793,6 +878,15 @@ for (pmx in 1:mx) {
 						theme_bw(base_size=13)
 					rpn3 <- file.path(outdir, paste('boxplot_', park, '_', res, tag, '_hft_pixels.png', sep=''))
 					ggsave(rpn3, boxp, width=4.5 * ncolf + 3.5, height=3.5 * nrowf + 1.5, dpi=300)
+					# CSV of the boxplots: per variable (panel) and HFT, the statistics of its pixels that the box draws
+					# (n: pixels with data; whiskers: the furthest values within 1.5 x IQR of the box; outliers: pixels
+					# beyond them, not drawn) and the area of the HFT of the legend
+					box_h <- as.integer(as.character(bstats$HFT))
+					write_plot_csv(data.frame(var=var_names[match(as.character(bstats$var), var_labels)], var_label=csv_label(as.character(bstats$var)),
+					                          HFT=box_h, area_ha=as.vector(ha[as.character(box_h)]),
+					                          area_pct=as.vector(100 * ha[as.character(box_h)] / sum(ha)), colour=kolsn[box_h],
+					                          n=bstats$n, lower_whisker=bstats$ymin, q1=bstats$lower, median=bstats$middle, q3=bstats$upper,
+					                          upper_whisker=bstats$ymax, outliers=bstats$outliers), rpn3)
 
 					# --- MAPA DE CALOR DE LOS PERFILES DE LOS HFTs ---
 					# Mediana de cada HFT como z respecto a la media y la desviación típica de los píxeles del
@@ -832,6 +926,16 @@ for (pmx in 1:mx) {
 						theme(panel.grid=element_blank(), axis.text.x.top=element_text(size=10))
 					rpn4 <- file.path(outdir, paste('heatmap_', park, '_', res, tag, '_hft_profiles.png', sep=''))
 					ggsave(rpn4, heatp, width=4.5 + 1.7 * length(var_names), height=2.5 + 0.4 * length(hfts), dpi=300)
+					# CSV of the heatmap: per HFT (row 1 at the top, with its area and colour) and variable (column 1 on
+					# the left, sorted by eta2), the median of its pixels (the number in the cell), the mean and sd of the
+					# variable in the pixels of all the HFTs, z = (median - mean) / sd (the colour, on a scale from
+					# -z_limit to z_limit) and eta2: part of the variance of the variable explained by the HFTs
+					heat_h <- as.integer(as.character(bstats$HFT))
+					heat_csv <- data.frame(HFT=heat_h, row=match(heat_h, hord), area_ha=as.vector(ha[as.character(heat_h)]),
+					                       area_pct=as.vector(100 * ha[as.character(heat_h)] / sum(ha)), colour=kolsn[heat_h],
+					                       var=var_names[vi], var_label=csv_label(var_labels[vi]), column=heat$x, eta2=eta2[vi],
+					                       median=heat$median, mean=as.vector(pmean[vi]), sd=as.vector(psd[vi]), z=heat$z, z_limit=zlim)
+					write_plot_csv(heat_csv[order(heat_csv$row, heat_csv$column), ], rpn4)
 
 					# --- BIPLOT DE LA PCA: CENTROIDES DE LOS HFTs Y VARIABLES COMO VECTORES ---
 					# PCA de los píxeles con las variables estandarizadas; los vectores son las correlaciones
@@ -856,10 +960,15 @@ for (pmx in 1:mx) {
 							e <- eigen(cov(s), symmetric=TRUE)
 							ang <- seq(0, 2 * pi, length.out=100)
 							xy <- t(mu + e$vectors %*% diag(sqrt(pmax(e$values, 0) * qchisq(0.5, 2))) %*% rbind(cos(ang), sin(ang)))
-							cents <- rbind(cents, data.frame(panel=panels[a], HFT=h, x=mu[1], y=mu[2], ha=ha[as.character(h)], colour=kolsn[h]))
+							# (pc_y, n, ell_*: for the CSV of the plot) semi-axes and angle of the ellipse
+							cents <- rbind(cents, data.frame(panel=panels[a], HFT=h, x=mu[1], y=mu[2], ha=ha[as.character(h)], colour=kolsn[h],
+							                                 pc_y=axes2[a], n=nrow(s), ell_a=sqrt(max(e$values[1], 0) * qchisq(0.5, 2)),
+							                                 ell_b=sqrt(max(e$values[2], 0) * qchisq(0.5, 2)),
+							                                 ell_angle=(atan2(e$vectors[2, 1], e$vectors[1, 1]) * 180 / pi) %% 180))
 							ells <- rbind(ells, data.frame(panel=panels[a], HFT=h, x=xy[, 1], y=xy[, 2], colour=kolsn[h]))
 						}
-						arrs <- rbind(arrs, data.frame(panel=panels[a], var=var_labels, x=loads[, 1], y=loads[, axes2[a]]))
+						arrs <- rbind(arrs, data.frame(panel=panels[a], var=var_labels, x=loads[, 1], y=loads[, axes2[a]],
+						                               pc_y=axes2[a], var_name=var_names, loading_x=loads[, 1], loading_y=loads[, axes2[a]]))
 					}
 					# Con muchos HFTs las elipses se convierten en una maraña: solo se dibujan con 10 o menos
 					show_ell <- length(hfts) <= 10
@@ -895,6 +1004,26 @@ for (pmx in 1:mx) {
 						theme_bw(base_size=13)
 					rpn5 <- file.path(outdir, paste('pca_biplot_', park, '_', res, tag, '_hft.png', sep=''))
 					ggsave(rpn5, biplot, width=7 * length(axes2) + 2.5, height=8, dpi=300)
+					# CSV of the biplot, one row per point or vector of each panel (axes pc_x and pc_y, with the % of
+					# the variance that they explain): 'centroid' rows, the HFTs (x, y: mean of the scores of their
+					# n_pixels pixels; area_ha: size of the point; ellipse_a, ellipse_b: semi-axes, ellipse_angle:
+					# degrees from the x axis, of the ellipse with half of the pixels, NA when not drawn, with more than
+					# 10 HFTs); 'variable' rows, the vectors (x, y: tip of the arrow as drawn; loading_x, loading_y: the
+					# correlations of the variable with the axes, before scaling them to the cloud of the HFTs;
+					# label_x, label_y: where the label points). The pixels themselves are not drawn
+					pca_na <- rep(NA, nrow(arrs))
+					pca_csv <- rbind(
+						data.frame(element='centroid', pc_x=1, pc_y=cents$pc_y, variance_x=ve[1], variance_y=ve[cents$pc_y],
+						           HFT=cents$HFT, colour=cents$colour, n_pixels=cents$n, area_ha=cents$ha, x=cents$x, y=cents$y,
+						           ellipse_a=if (show_ell) cents$ell_a else NA, ellipse_b=if (show_ell) cents$ell_b else NA,
+						           ellipse_angle=if (show_ell) cents$ell_angle else NA,
+						           var=NA, var_label=NA, loading_x=NA, loading_y=NA, label_x=NA, label_y=NA),
+						data.frame(element='variable', pc_x=1, pc_y=arrs$pc_y, variance_x=ve[1], variance_y=ve[arrs$pc_y],
+						           HFT=pca_na, colour=pca_na, n_pixels=pca_na, area_ha=pca_na, x=arrs$x, y=arrs$y,
+						           ellipse_a=pca_na, ellipse_b=pca_na, ellipse_angle=pca_na,
+						           var=arrs$var_name, var_label=csv_label(arrs$var), loading_x=arrs$loading_x, loading_y=arrs$loading_y,
+						           label_x=arrs$lx, label_y=arrs$ly))
+					write_plot_csv(pca_csv[order(pca_csv$pc_y), ], rpn5)
 				}
 			}
 		}
@@ -914,8 +1043,13 @@ for (pmx in 1:mx) {
 		treep <- ht$plot + labs(title=area, subtitle=paste0('ID ', park, ' | threshold ', k,
 			' | HFTs of the cuts of the tree, from broad (top) to detailed (bottom)\n',
 			'circles: HFTs with their number and colour of the maps, sized by area | lines: area shared by the HFTs of consecutive cuts'))
-		ggsave(file.path(outroot, paste0('hft_tree_', park, '_', res, '.png')), treep, width=ht$width, height=ht$height, dpi=300)
-		write.table(ht$paths, file.path(outroot, paste0('hft_tree_', park, '_', res, '.csv')), sep=' ', row.names=F, quote=F)
+		tree_png <- file.path(outroot, paste0('hft_tree_', park, '_', res, '.png'))
+		ggsave(tree_png, treep, width=ht$width, height=ht$height, dpi=300)
+		# With the R2 of each cut and the suggested cut of the labels (the area of the circles and lines are sums of
+		# 'ha'); the colours in quotes
+		if (!is.null(r2_tree)) for (j in seq_along(rows)) ht$paths[[paste0('r2_', rows[j])]] <- signif(r2_tree[j], 6)
+		ht$paths$suggested_cut <- if (is.na(suggested)) NA else suggested
+		write_plot_csv(ht$paths, tree_png, digits=NA)
 	}
 
 	# --- VARIANZA DE LOS PÍXELES EXPLICADA POR LOS HFTs (R2) SEGÚN EL NÚMERO DE HFTs, EN CADA UMBRAL ---
@@ -943,7 +1077,31 @@ for (pmx in 1:mx) {
 		cut_r2$r2_share <- cut_r2$r2 / curves$r2_segments[curves$threshold == res / 10][1]
 		cut_r2$suggested <- as.integer(cut_r2$cut %in% suggested)
 		cut_r2 <- cut_r2[, c('cut', 'hfts', 'r2', 'r2_share', 'suggested', var_names)]
-		write.table(curves, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
+		# Also what the plot marks on the curves (r2_<id>_hfts.png): selected, the selected threshold (thick orange
+		# line); bend, the bend of its curve (dashed line); cut, the cuts drawn as an orange point at that number of HFTs
+		# (several separated by commas if they have the same HFTs), with their R2 (cut_r2) and suggested = 1 if one
+		# of them is the suggested cut. A cut beyond the curve (one HFT per segment) gets a row of its own
+		r2_csv <- curves
+		r2_csv$selected <- as.integer(r2_csv$threshold == res / 10)
+		r2_csv$bend <- as.integer(r2_csv$selected == 1 & r2_csv$hfts %in% knee)
+		r2_csv$cut <- NA
+		r2_csv$cut_r2 <- NA
+		r2_csv$suggested <- 0L
+		for (h in unique(cut_r2$hfts)) {
+			w <- cut_r2$hfts == h
+			i <- which(r2_csv$selected == 1 & r2_csv$hfts == h)
+			if (length(i) == 0) {
+				new <- r2_csv[NA_integer_, ]
+				new[, c('threshold', 'hfts', 'selected', 'bend')] <- list(res / 10, h, 1L, 0L)
+				new[, c('segments', 'r2_segments')] <- r2_csv[r2_csv$selected == 1, c('segments', 'r2_segments')][1, ]
+				r2_csv <- rbind(r2_csv, new)
+				i <- nrow(r2_csv)
+			}
+			r2_csv$cut[i] <- paste(cut_r2$cut[w], collapse=',')
+			r2_csv$cut_r2[i] <- cut_r2$r2[w][1]
+			r2_csv$suggested[i] <- as.integer(any(cut_r2$suggested[w] == 1))
+		}
+		write.table(r2_csv, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
 		write.table(cut_r2, file.path(outroot, paste0('r2_', park, '_cuts.csv')), sep=' ', row.names=F, quote=F)
 		if (!is.na(knee)) {
 			s <- cut_r2[cut_r2$suggested == 1, ]
