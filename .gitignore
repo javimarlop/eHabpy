@@ -41,3 +41,7 @@ segm_optim/app_recipe.yaml
 # record of the version installed by the updates of the app
 .ehabitat_version.json
 .ehabitat_version.json.tmp
+# similarity of the HFTs in the ecoregion (segm_optim/similarity.py): records of each run
+similarity_metadata.txt
+similarity_run.json
+similarity_run.json.tmp

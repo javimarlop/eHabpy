@@ -6,7 +6,7 @@
 GRASSDB = '~/grassdata' # REQUIRED: GRASS database folder (not the GRASS install folder)
 GRASSLOC = 'Guajares_zona_quemada_dNBR2022_10m' # REQUIRED
 
-ENV_VARS0 = ['Guajares_1_NDVImax_P95_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_2_NDVImin_P05_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_5_TempMediaAnual_gradosC_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_6_PrecipAnual_mm_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m,Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m'] # REQUIRED
+ENV_VARS0 = ['gee_guajares_1_NDVI_S2_p95,gee_guajares_2_NDVI_S2_p5,gee_guajares_3_LSWI_S2_median,gee_guajares_4_slope,gee_guajares_5_temp,gee_guajares_6_precip'] # REQUIRED
 STUDY_AREA = 'Guajares_zona_quemada_dNBR2022_10m' # REQUIRED
 COL_ID = 'cat' # REQUIRED
 
@@ -14,13 +14,12 @@ RESOLUTION = 10 # REQUIRED
 CLIP_TO_PA = False
 
 ENV_VARS = { # REQUIRED
-    'Guajares_1_NDVImax_P95_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_1_NDVImax_P95_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_2_NDVImin_P05_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_2_NDVImin_P05_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018_2021_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_3_NDWI_Gao_mediana_S2_preincendio_2018-2021_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_4_Pendiente_grados_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_5_TempMediaAnual_gradosC_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_5_TempMediaAnual_gradosC_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_6_PrecipAnual_mm_CHELSA1981_2010_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_6_PrecipAnual_mm_CHELSA1981-2010_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
-    ,'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos_SIOSE_DERA_10m': {'file': 'Guajares_7_TWI_CopernicusDEM_sinAguaUrbanoCultivos-SIOSE-DERA_10m.tif', 'nodata': -9999}
+    'gee_guajares_1_NDVI_S2_p95': {'file': 'gee_guajares/1_NDVI_S2_p95.tif', 'nodata': -9999}
+    ,'gee_guajares_2_NDVI_S2_p5': {'file': 'gee_guajares/2_NDVI_S2_p5.tif', 'nodata': -9999}
+    ,'gee_guajares_3_LSWI_S2_median': {'file': 'gee_guajares/3_LSWI_S2_median.tif', 'nodata': -9999}
+    ,'gee_guajares_4_slope': {'file': 'gee_guajares/4_slope.tif', 'nodata': -9999}
+    ,'gee_guajares_5_temp': {'file': 'gee_guajares/5_temp.tif', 'nodata': -9999}
+    ,'gee_guajares_6_precip': {'file': 'gee_guajares/6_precip.tif', 'nodata': -9999}
 }
 
 # CARPETA DE LAS VARIABLES DE ENTRADA: subcarpeta de ../inVars con los GeoTIFF de las variables,
@@ -29,7 +28,7 @@ ENV_VARS = { # REQUIRED
 # Al cambiarla, run_hft.py ejecuta antes setup.py, que importa en GRASS las variables de esa carpeta
 # (con su nombre delante, p. ej. sin_twi_ndvi) y rellena ENV_VARS0, ENV_VARS y RESOLUTION, y después
 # repite todos los pasos. Con SCENARIO = '' los resultados van al escenario con el nombre de la carpeta.
-INVARS_FOLDER = ''
+INVARS_FOLDER = 'gee_guajares'
 
 # ESCENARIO: nombre de la subcarpeta de los resultados, results/<STUDY_AREA>/<SCENARIO>
 # (letras, números, - y _), para guardar aparte los resultados de distintas opciones.
@@ -138,3 +137,56 @@ SIMIL = 3
 # 'mean'   = Utiliza la media (numpy.mean)
 # 'median' = Utiliza la mediana (numpy.median)
 STAT_AGG = 'mean'
+
+# ---------------------------------------------------------------------------------------------------------------------
+# SIMILARIDAD DE LOS HFTs EN SU ECORREGIÓN Y MÉTRICAS DEL PAISAJE (similarity.py, después de run_hft.py).
+# Usa las variables de ../inVars/<INVARS_FOLDER>/ecoregion (las mismas que las del área de estudio, con el mismo
+# nombre) y los HFTs de un corte del escenario. Ver la wiki, Similarity and landscape metrics, y How the HFT model
+# works, A12 y A13.
+
+# ÁREA CON LA QUE SE COMPARAN LOS HFTs (su tamaño de píxel se detecta en sus GeoTIFF):
+# ''    = Las ecorregiones del conjunto de variables de los HFTs (../inVars/<INVARS_FOLDER>/ecoregion).
+# 'ruta' = Otra carpeta de ../inVars con las mismas variables (mismo nombre), p. ej. un área de comparación
+#          descargada con get_vars_gee.py --area: 'gee_snevada/ecoregion'. Puede estar dentro o fuera del área de
+#          estudio: si no la contiene, la media y la covarianza de los HFTs salen de su subcarpeta study_area (el área
+#          de estudio con el píxel del área, que get_vars_gee.py descarga con ella).
+ECOSIM_AREA = ''
+
+# CORTE DEL ÁRBOL CUYOS HFTs SE COMPARAN CON LA ECORREGIÓN:
+# ''    = El corte sugerido (_optim) de cada ID.
+# 'p25' = Un corte concreto (p10, p25, p50, p75 o p90 con SIMIL = 3; con SIMIL 1 o 2 solo hay uno).
+ECOSIM_CUT = ''
+
+# TAMAÑO DE PÍXEL DE LA SIMILARIDAD (en las unidades del mapa, ej. metros):
+# 0     = El píxel de las variables de la ecorregión (100 m con las de MonitorEO por defecto).
+# > 0   = Un múltiplo entero de ese píxel (p. ej. 200, 500 o 1000): cada píxel grueso es la media de los píxeles
+#         con datos de las variables de la ecorregión que contiene (necesita datos en al menos la mitad de su
+#         superficie). Es más rápido y ocupa menos memoria, pero los HFTs pequeños se quedan con pocos píxeles
+#         (con menos de max(5, nº de variables + 1) no se calculan). La media y la covarianza de cada HFT se
+#         calculan siempre con los píxeles de este mismo tamaño, no con los de 10 m.
+ECOSIM_RESOLUTION = 0
+
+# UMBRAL DE LAS ÁREAS SIMILARES: estadístico de la similaridad de los píxeles del HFT (los que tienen
+# similaridad mayor que 0); son similares los píxeles de la ecorregión con una similaridad igual o mayor.
+# 'mean'   = La media (columna AveHFTSim, como ehab_optim.py).
+# 'median' = La mediana (columna MedianHFTSim, como ehab_optim_median.py).
+ECOSIM_STAT = 'mean'
+
+# VECINOS DE LAS MANCHAS DE PÍXELES SIMILARES:
+# 8 = También los que solo se tocan en una esquina (como eHabitat+): menos manchas, más grandes.
+# 4 = Solo los que comparten un lado.
+ECOSIM_NEIGHBOURS = 8
+
+# FRACCIÓN MÍNIMA DE UN PÍXEL DE LA SIMILARIDAD CUBIERTA POR UN HFT para que el píxel sea de ese HFT (cada píxel es
+# del HFT que más lo cubre, según los polígonos del corte). Los píxeles mixtos que no llegan no son de ningún HFT.
+ECOSIM_MIN_COVER = 0.5
+
+# POLÍGONOS DE LAS ECORREGIONES (para saber la ecorregión de cada HFT si hay varias, y para TerrEco del THDI):
+# ''      = ../inVars/<INVARS_FOLDER>/ecoregion/ecoregions.gpkg (los descarga get_vars_gee.py).
+# 'ruta'  = Un archivo propio (columna ECO_ID, o su primera columna de números enteros); relativa a la carpeta
+#           del repositorio si no es absoluta.
+ECOSIM_ECOREGIONS = ''
+
+# POLÍGONOS DE LAS ECORREGIONES MARINAS (opcional, p. ej. MEOW), para MarEco del THDI (thdi.R):
+# '' = Ninguno (MarEco = 0).
+ECOSIM_MARINE = ''
