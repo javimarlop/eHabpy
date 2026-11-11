@@ -283,6 +283,8 @@ def list_sets():
 def get_set(folder):
 	"""The variables of a set at both scales, with the left out ones and the checks."""
 	d = set_dir(folder)
+	if not os.path.isdir(d) and os.path.normcase(d) == os.path.normcase(os.path.normpath(paths.INVARS)):
+		os.makedirs(d, exist_ok=True)  # a new copy of eHabpy (installer, zip of GitHub) has no inVars: it starts empty
 	if not os.path.isdir(d):
 		raise ValueError(f'folder {paths.rel(d)} not found')
 	study = [raster_info(f) for f in _tifs(d)]
