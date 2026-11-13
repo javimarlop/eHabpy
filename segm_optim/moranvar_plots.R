@@ -1063,14 +1063,18 @@ for (pmx in 1:mx) {
 	# made with the same variables can be joined by rows for multivariate comparisons (an NMDS or a cluster analysis
 	# of the HFTs of all of them): the variables are named after their files (var_keys), the values are in the
 	# original units of the variables (standardize them after joining the tables, not in each area) and 'label'
-	# identifies each HFT among all the areas (study area/scenario/ID/cut/HFT<n>).
+	# identifies each HFT among all the areas (study area/scenario/ID/cut/HFT<n>). Compare only HFTs made with the
+	# same pixel size (column resolution).
 	# - hft_means_<id>_<k>.csv: one row per HFT and cut with its segments, pixels and area, and the mean of its
 	#   pixels in each variable (a column per variable after area_pct): the matrix of HFTs x variables
 	# - hft_stats_<id>_<k>.csv: one row per HFT, cut and variable with the statistics of its pixels (n: pixels with
 	#   data, mean, sd, min, quartiles, max), e.g. for distances between HFTs that take their spread into account
 	if (length(hft_rows)) {
+		# resolution: pixel size of the variables whose pixels give the statistics (units of their CRS, projected: m);
+		# HFTs made with other pixel sizes are not directly comparable (the variables and the segments change with it)
 		hft_id <- function(d) data.frame(label=paste0(area, '/', scenario, '/', park, '/', if (simil == 3) paste0(d$cut, '/'), 'HFT', d$HFT),
-		                                 study_area=area, scenario=scenario, id=park, threshold=res / 10, d, check.names=FALSE)
+		                                 study_area=area, scenario=scenario, id=park, resolution=terra::res(pixgrid)[1],
+		                                 threshold=res / 10, d, check.names=FALSE)
 		info <- do.call(rbind, lapply(hft_rows, `[[`, 'info'))
 		info <- info[order(match(info$cut, names(cuts)), info$HFT), ]
 		hst <- do.call(rbind, lapply(hft_rows, `[[`, 'stats'))

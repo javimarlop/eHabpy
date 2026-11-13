@@ -1707,7 +1707,7 @@ pages.results = (() => {
 			if (t.file.startsWith('r2_') && t.file.endsWith('_hfts.csv')) continue; // long: shown in the R² plot
 			// hft_means_*.csv: without the columns that identify the scenario (the same in every row), kept in the file
 			// to join the tables of several study areas
-			const same = t.file.startsWith('hft_means_') ? new Set(['label', 'study_area', 'scenario', 'id', 'threshold']) : new Set();
+			const same = t.file.startsWith('hft_means_') ? new Set(['label', 'study_area', 'scenario', 'id', 'resolution', 'threshold']) : new Set();
 			const cols = t.header.map((h, j) => j).filter(j => !same.has(t.header[j]));
 			const head = cols.map(j => t.header[j]);
 			const tbl = el('table', {class: 't'});
