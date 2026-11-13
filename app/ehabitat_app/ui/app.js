@@ -1705,15 +1705,19 @@ pages.results = (() => {
 		box.textContent = '';
 		for (const t of rec.tables) {
 			if (t.file.startsWith('r2_') && t.file.endsWith('_hfts.csv')) continue; // long: shown in the R² plot
-			const head = t.header;
+			// hft_means_*.csv: without the columns that identify the scenario (the same in every row), kept in the file
+			// to join the tables of several study areas
+			const same = t.file.startsWith('hft_means_') ? new Set(['label', 'study_area', 'scenario', 'id', 'threshold']) : new Set();
+			const cols = t.header.map((h, j) => j).filter(j => !same.has(t.header[j]));
+			const head = cols.map(j => t.header[j]);
 			const tbl = el('table', {class: 't'});
 			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', {title: h}, shortName(h))))));
-			const sugCol = head.indexOf('suggested');
-			const selCol = head.indexOf('selected');
+			const sugCol = t.header.indexOf('suggested');
+			const selCol = t.header.indexOf('selected');
 			const body = el('tbody');
 			for (const r of t.rows) {
 				const hi = (sugCol >= 0 && r[sugCol] === '1') || (selCol >= 0 && r[selCol] === '1');
-				body.append(el('tr', {class: hi ? 'sel' : ''}, ...r.map(v => el('td', {class: /^-?[\d.]+(e-?\d+)?$/.test(v) ? 'num' : ''}, /^-?\d+\.\d{4,}/.test(v) ? fmt(v, 3) : v))));
+				body.append(el('tr', {class: hi ? 'sel' : ''}, ...cols.map(j => r[j] ?? '').map(v => el('td', {class: /^-?[\d.]+(e-?\d+)?$/.test(v) ? 'num' : ''}, /^-?\d+\.\d{4,}/.test(v) ? fmt(v, 3) : v))));
 			}
 			tbl.append(body);
 			box.append(el('div', {class: 'stack', style: {gap: '6px'}}, el('div', {class: 'row'}, el('h3', {}, t.label), el('span', {class: 'small faint'}, t.file)),

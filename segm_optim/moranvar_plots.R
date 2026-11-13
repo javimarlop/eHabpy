@@ -176,8 +176,18 @@ box_stats <- function(x) {
 	  n = length(x), outliers = sum(x < lo | x > hi))
 }
 
+# Statistics of the pixels of an HFT in a variable (original units), for the tables of the HFTs (hft_stats_*.csv):
+# n: pixels with data; quartiles as in box_stats
+pixel_stats <- function(x) {
+	x <- x[!is.na(x)]
+	if (length(x) == 0) return(c(n = 0, mean = NA, sd = NA, min = NA, q1 = NA, median = NA, q3 = NA, max = NA))
+	q <- quantile(x, c(0.25, 0.5, 0.75), names = FALSE)
+	c(n = length(x), mean = mean(x), sd = if (length(x) > 1) sd(x) else NA, min = min(x), q1 = q[1], median = q[2],
+	  q3 = q[3], max = max(x))
+}
+
 # Data of a plot, next to it with the same name (X.png -> X.csv), so that it can be reused or the plot redrawn
-# elsewhere. Same format as the other tables of the results: separated by spaces, a header, NA for missing values,
+# elsewhere (or a table given as X.csv). Same format as the other tables of the results: separated by spaces, a header, NA for missing values,
 # no quotes except around the texts that need them (the colours #RRGGBB, which read.table would take as a comment).
 # Numbers with decimals rounded to 'digits' significant digits (NA: as they are), those of the columns 'precise'
 # (coordinates) to 10; whole numbers (IDs, counts) are written as they are
@@ -564,6 +574,10 @@ for (pmx in 1:mx) {
 	var_names <- sub("pamean$", "", names(hri)[3:(2 + num_vars)])
 	ev <- read_env_vars()
 	ev <- ev[match(var_names, ev$var), ]
+	# Name of each variable in the tables of the HFTs: that of its file without the folder (INVARS_FOLDER) and the
+	# extension, with _ instead of other characters (as setup.py names the maps, without the folder), so that it is
+	# the same in every study area whose variables have the same file names (e.g. those of get_vars_gee.py)
+	var_keys <- gsub('[^A-Za-z0-9_]', '_', tools::file_path_sans_ext(basename(ev$file)))
 	pixvals <- NULL
 	if (anyNA(ev$var) || !all(file.exists(file.path('..', 'inVars', ev$file)))) {
 		print("WARNING: variable files of config.py (ENV_VARS) not found in ../inVars, boxplots skipped")
@@ -665,6 +679,7 @@ for (pmx in 1:mx) {
 		}
 	}
 
+	hft_rows <- list() # HFTs of each cut and statistics of their pixels, for the tables of the HFTs
 	for (cn in names(cuts)) {
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
 		# el corte también va en el nombre de cada fichero, con _optim si es el sugerido
@@ -888,6 +903,20 @@ for (pmx in 1:mx) {
 					                          n=bstats$n, lower_whisker=bstats$ymin, q1=bstats$lower, median=bstats$middle, q3=bstats$upper,
 					                          upper_whisker=bstats$ymax, outliers=bstats$outliers), rpn3)
 
+					# HFTs of this cut (segments, pixels and area) and statistics of their pixels in each variable,
+					# written after the last cut to the tables of the HFTs (hft_means_ and hft_stats_<id>_<k>.csv)
+					hft_cut <- if (simil == 3) cn else NA
+					hft_sug <- if (simil == 3) as.integer(identical(cn, suggested)) else NA
+					hft_rows[[cn]] <- list(
+						info=data.frame(cut=hft_cut, suggested=hft_sug, hfts=ncl, HFT=hfts, colour=kolsn[hfts],
+						                segments=as.integer(table(factor(hclust_mean, levels=hfts))), pixels=as.integer(table(hftcls)),
+						                area_ha=as.vector(ha), area_pct=as.vector(100 * ha / sum(ha))),
+						stats=do.call(rbind, lapply(seq_along(var_names), function(i) {
+							s <- t(sapply(split(pixvals[inhft, i], hftcls), pixel_stats))
+							data.frame(cut=hft_cut, suggested=hft_sug, HFT=hfts, area_ha=as.vector(ha), variable=var_keys[i],
+							           map=var_names[i], s, row.names=NULL)
+						})))
+
 					# --- MAPA DE CALOR DE LOS PERFILES DE LOS HFTs ---
 					# Mediana de cada HFT como z respecto a la media y la desviación típica de los píxeles del
 					# área; variables ordenadas por eta2 (parte de su varianza que explican los HFTs) y HFTs
@@ -1027,6 +1056,33 @@ for (pmx in 1:mx) {
 				}
 			}
 		}
+	}
+
+	# --- TABLES OF THE HFTs, TO COMPARE THEM WITH THOSE OF OTHER STUDY AREAS ---
+	# The HFTs of every cut, one table per ID for the whole scenario. Those of several study areas (or scenarios)
+	# made with the same variables can be joined by rows for multivariate comparisons (an NMDS or a cluster analysis
+	# of the HFTs of all of them): the variables are named after their files (var_keys), the values are in the
+	# original units of the variables (standardize them after joining the tables, not in each area) and 'label'
+	# identifies each HFT among all the areas (study area/scenario/ID/cut/HFT<n>).
+	# - hft_means_<id>_<k>.csv: one row per HFT and cut with its segments, pixels and area, and the mean of its
+	#   pixels in each variable (a column per variable after area_pct): the matrix of HFTs x variables
+	# - hft_stats_<id>_<k>.csv: one row per HFT, cut and variable with the statistics of its pixels (n: pixels with
+	#   data, mean, sd, min, quartiles, max), e.g. for distances between HFTs that take their spread into account
+	if (length(hft_rows)) {
+		hft_id <- function(d) data.frame(label=paste0(area, '/', scenario, '/', park, '/', if (simil == 3) paste0(d$cut, '/'), 'HFT', d$HFT),
+		                                 study_area=area, scenario=scenario, id=park, threshold=res / 10, d, check.names=FALSE)
+		info <- do.call(rbind, lapply(hft_rows, `[[`, 'info'))
+		info <- info[order(match(info$cut, names(cuts)), info$HFT), ]
+		hst <- do.call(rbind, lapply(hft_rows, `[[`, 'stats'))
+		hst <- hst[order(match(hst$cut, names(cuts)), hst$HFT, match(hst$map, var_names)), ]
+		hst$n <- as.integer(hst$n)
+		means <- hft_id(info)
+		for (j in seq_along(var_names)) {
+			s <- hst[hst$map == var_names[j], ]
+			means[[var_keys[j]]] <- s$mean[match(paste(info$cut, info$HFT), paste(s$cut, s$HFT))]
+		}
+		write_plot_csv(means, file.path(outroot, paste0('hft_means_', park, '_', res, '.csv')))
+		write_plot_csv(hft_id(hst), file.path(outroot, paste0('hft_stats_', park, '_', res, '.csv')))
 	}
 
 	# --- ÁRBOL DE LOS HFTs DE LOS CORTES (SIMIL = 3) ---

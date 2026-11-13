@@ -112,6 +112,12 @@ def scenario(study_area, scen):
 			p = os.path.join(root, name)
 			if os.path.isfile(p):
 				rec['tables'].append(dict(_table(p), label=label))
+		# the HFTs of every cut with the mean of their variables (hft_stats_<id>_<k>.csv, with more statistics,
+		# is only in the folder)
+		for f in sorted(files):
+			if re.match(rf'^hft_means_{re.escape(i)}_\d+\.csv$', f):
+				rec['tables'].append(dict(_table(os.path.join(root, f)),
+				                          label='HFTs of each cut: area and mean of the variables (to compare study areas)'))
 		for d, shp, m in shps:
 			if m.group('id') != i:
 				continue
