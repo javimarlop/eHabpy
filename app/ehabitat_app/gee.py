@@ -185,6 +185,70 @@ def describe(ref):
 	return {k: (v if isinstance(v, (str, int, float, bool, list, dict, type(None))) else str(v)) for k, v in d.items()}
 
 
+def community():
+	"""The images and collections of images of the GEE Community Catalog (https://gee-community-catalog.org), from the
+	copy of its index in MonitorEO (services.community_themes and community_datasets, without Earth Engine): {'themes':
+	[{theme, name, datasets}], 'datasets': [{id, title, type, theme, provider, license, tags, docs}], 'date' (of the
+	copy), 'site', 'licence'}, or None with a version of monitoreo without it. A dataset goes into a recipe as any data
+	of Earth Engine, by its ID (image or collection, with its band)."""
+	_, services = _monitoreo()
+	if not hasattr(services, 'community_datasets'):
+		return None
+	from monitoreo import community as index
+	snap = index.load()
+	return {'themes': services.community_themes('en'), 'datasets': services.community_datasets(),
+	        'date': snap.get('date'), 'site': snap.get('site'), 'licence': snap.get('licence')}
+
+
+_ee_lock = threading.Lock()
+
+
+def _earth_engine(services, account=None, project=None):
+	"""Earth Engine initialized in the app with ACCOUNT ('shared': the shared account of MonitorEO; 'own': PROJECT, with
+	the credentials of the Google account), by default those of the downloads (the settings of the app), unless it
+	already is."""
+	s = paths.load_settings()
+	account = account or s.get('ee_account') or ('own' if s.get('ee_project') else 'shared')
+	project = (project or s.get('ee_project') or os.environ.get('EE_PROJECT') or '').strip()
+	with _ee_lock:
+		try:
+			if account == 'shared':
+				if not hasattr(services, 'shared'):
+					raise ValueError('this version of monitoreo has no shared account: press "Update MonitorEO"')
+				if services.project() and services.shared():
+					return
+				os.environ.pop('EE_PROJECT', None)
+				services.init(None, shared=True)
+			else:
+				if not project:
+					raise ValueError('write the Google Cloud project registered in Earth Engine, or use the shared account '
+					                 'of MonitorEO')
+				if services.project() == project and not (hasattr(services, 'shared') and services.shared()):
+					return
+				services.init(project)
+		except ValueError:
+			raise
+		except Exception as e:
+			raise ValueError(f'cannot connect to Earth Engine ({e}): press "Connect" (and, with your own account, '
+			                 '"Authenticate…")') from e
+
+
+def describe_asset(asset, account=None, project=None):
+	"""What an image or a collection of images of Earth Engine given by its ID is, read in Earth Engine with the account
+	of the downloads (ACCOUNT and PROJECT; it connects first if the app is not connected): services.describe_asset, its
+	type, how it is used (use: collection, with dates; image, a fixed image or the mosaic of a collection of tiles), its
+	bands with their scale, offset and unit (if its record gives them), its title, source (Earth Engine data catalog or
+	GEE Community Catalog), provider, licence, page and notes. Only metadata: nothing is computed."""
+	_, services = _monitoreo()
+	if not hasattr(services, 'describe_asset'):
+		raise ValueError('this version of monitoreo cannot read data of Earth Engine: press "Update MonitorEO"')
+	asset = str(asset or '').strip()
+	if not asset:
+		raise ValueError('write the ID of an image or a collection of images of Earth Engine')
+	_earth_engine(services, account, project)
+	return json.loads(json.dumps(services.describe_asset(asset), default=str))
+
+
 def connect(account, project=None):
 	"""Connect to Earth Engine (in a job: it may take a while): ACCOUNT 'shared' (the shared account of MonitorEO) or
 	'own' (PROJECT, with the credentials of the Google account)."""

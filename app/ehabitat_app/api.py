@@ -336,6 +336,14 @@ class Api:
 		return gee.describe(ref)
 
 	@exposed
+	def gee_community(self):
+		return gee.community()
+
+	@exposed
+	def gee_describe_asset(self, asset, account=None, project=None):
+		return gee.describe_asset(asset, account, project)
+
+	@exposed
 	def gee_connect(self, account, project=None):
 		return gee.connect(account, project)
 

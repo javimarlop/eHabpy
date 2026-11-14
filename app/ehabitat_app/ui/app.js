@@ -672,7 +672,7 @@ pages.inputs = (() => {
 
 // 2. Download from MonitorEO =========================================================================================
 pages.gee = (() => {
-	const S = {recipe: null, catalog: null, mo: null, areaInfo: null, areaLayer: null, check: null, checkSeq: 0};
+	const S = {recipe: null, catalog: null, community: undefined, mo: null, areaInfo: null, areaLayer: null, check: null, checkSeq: 0};
 	const view = new JobView($('#g-log'), $('#g-bar'), {
 		onStart: () => { $('#g-stop').classList.remove('hidden'); $('#dot-gee').classList.remove('hidden'); },
 		onEnd: s => {
@@ -723,9 +723,11 @@ pages.gee = (() => {
 			if (S.mo !== null && mo !== S.mo) {
 				// another version of monitoreo was installed: its catalog, without opening the app again
 				S.catalog = null;
+				S.community = undefined;
 				try {
 					S.catalog = await api('gee_catalog');
 					lcTable(S.catalog.landcover);
+					ensureCommunity().then(() => { if (S.recipe) renderVars(); }, () => {});
 					toast(`MonitorEO updated to ${s.version}${s.commit ? ' (' + s.commit.slice(0, 7) + ')' : ''}: the catalog has its variables.`, 'ok');
 				} catch (e) { fail(e); }
 			}
@@ -1088,10 +1090,12 @@ pages.gee = (() => {
 			body.append(el('tr', {},
 				el('td', {class: 'num faint'}, files > 1 ? `${first}–${n}` : String(first)),
 				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || v.band || '?')),
-					el('div', {class: 'var-src'}, k === 'catalog' ? 'catalog of MonitorEO' : k === 'image' ? 'Earth Engine image' : 'Earth Engine collection')),
+					el('div', {class: 'var-src'}, k === 'catalog' ? 'catalog of MonitorEO'
+						: `${communityRecord(v.image || v.collection) ? 'GEE Community Catalog' : 'Earth Engine'} ${k === 'image' ? 'image' : 'collection'}`)),
 				el('td', {class: 'small'}, src),
 				el('td', {}, k === 'image' ? el('span', {class: 'faint'}, 'fixed image') : ms.map(m => el('span', {class: 'badge brand', style: {marginRight: '3px'}}, m))),
-				el('td', {class: 'small'}, k === 'image' ? '—' : (TEMPORAL[v.temporal || 'period'] + (v.temporal && v.temporal !== 'period' ? ' · ' + (v.interannual || 'mean') : ''))),
+				el('td', {class: 'small'}, k === 'image' ? '—' : (TEMPORAL[v.temporal || 'period'] + (v.temporal && v.temporal !== 'period' ? ' · ' + (v.interannual || 'mean') : '')
+					+ (Array.isArray(v.period) ? ` · ${v.period[0]} to ${v.period[1]}` : ''))),
 				el('td', {class: 'small mono'}, v.name || el('span', {class: 'faint'}, 'automatic')),
 				el('td', {class: 'nowrap'},
 					el('button', {class: 'btn small ghost', title: 'Move up', disabled: i === 0, onclick: () => move(i, -1)}, '↑'),
@@ -1206,47 +1210,238 @@ pages.gee = (() => {
 			}}]});
 	}
 
-	async function eeDialog(existing) {
+	// The GEE Community Catalog (gee-community-catalog.org): its images and collections of images, from the copy of its
+	// index in MonitorEO (no Earth Engine), read once; null with a version of monitoreo without it. A dataset goes into
+	// the recipe as any data of Earth Engine, by its ID.
+	const LEGACY = 'projects/earthengine-legacy/assets/';
+	async function ensureCommunity() {
+		if (S.community === undefined) {
+			const c = await api('gee_community');
+			S.community = c ? {...c, byId: new Map(c.datasets.map(d => [d.id.replace(LEGACY, ''), d]))} : null;
+		}
+		return S.community;
+	}
+	function communityRecord(asset) {
+		return S.community && asset ? S.community.byId.get(String(asset).trim().replace(LEGACY, '')) || null : null;
+	}
+	const licenceOf = d => d.license === 'custom' ? d.license_text : d.license;
+	const extLink = (url, text) => el('a', {href: url, onclick: e => { e.preventDefault(); api('open_url', url).catch(fail); }}, text || url);
+
+	// Any image or collection of images of Earth Engine by its ID (of its data catalog, of the GEE Community Catalog or
+	// any other asset): Read asks Earth Engine what it is (services.describe_asset, only metadata) and fills its bands,
+	// how it is used and the scale, offset and unit of the band when its record gives them
+	async function eeDialog(existing, fromCommunity = false) {
 		const v0 = existing || {};
-		const kindSel = el('select', {}, el('option', {value: 'image'}, 'Fixed image (e.g. a DEM)'), el('option', {value: 'collection'}, 'Image collection'));
+		const OWN = ['name', 'image', 'collection', 'band', 'scale', 'offset', 'unit', 'terrain', 'metric', 'metrics', 'temporal', 'interannual', 'period'];
+		let info = null;  // what Earth Engine said of the ID (describe_asset), once read
+		let com = null;
+		try { com = await ensureCommunity(); } catch (e) { com = null; }
+		const asset0 = v0.image || v0.collection || '';
+		const UNIT_HINT = 'e.g. mm, degC, kg m-2 or 1 (dimensionless)';
+
+		const source = el('select', {},
+			el('option', {value: 'id'}, 'An ID of Earth Engine (its data catalog or any asset)'),
+			el('option', {value: 'community', disabled: !com}, com ? `GEE Community Catalog (${com.datasets.length} datasets)` : 'GEE Community Catalog (press "Update MonitorEO")'));
+		source.value = com && (fromCommunity || communityRecord(asset0)) ? 'community' : 'id';
+
+		// the datasets of the GEE Community Catalog, by theme and words
+		const theme = el('select', {}, el('option', {value: ''}, 'All the themes'),
+			...(com ? com.themes.map(t => el('option', {value: t.theme}, `${t.name} (${t.datasets})`)) : []));
+		const search = el('input', {type: 'search', class: 'grow', placeholder: 'Search in the title, ID, provider or tags'});
+		const list = el('select', {size: 9, style: {width: '100%'}});
+		const found = el('div', {class: 'small faint'});
+		const drawList = () => {
+			if (!com) return;
+			const words = search.value.toLowerCase().split(/\s+/).filter(Boolean);
+			const rows = com.datasets.filter(d => (!theme.value || d.theme === theme.value)
+				&& words.every(w => [d.title, d.id, d.provider, d.tags].join(' ').toLowerCase().includes(w)));
+			const keep = list.value;
+			list.textContent = '';
+			for (const d of rows) {
+				list.append(el('option', {value: d.id, title: [d.id, d.provider, licenceOf(d) && 'Licence: ' + licenceOf(d)].filter(Boolean).join('\n')},
+					`${d.title} (${d.type === 'image' ? 'image' : 'collection'})`));
+			}
+			list.value = keep;
+			found.textContent = `${rows.length} of ${com.datasets.length} datasets (index of the catalog of ${com.date}, in MonitorEO). `
+				+ 'Choose one to read its bands in Earth Engine.';
+		};
+		theme.addEventListener('change', drawList);
+		search.addEventListener('input', drawList);
+		const comBox = el('div', {class: 'stack', style: {gap: '6px'}}, el('div', {class: 'row'}, theme, search), list, found);
+		const comLabel = el('label', {}, 'Dataset');
+
+		const id = el('input', {type: 'text', class: 'grow', value: asset0, placeholder: 'e.g. COPERNICUS/DEM/GLO30 or projects/sat-io/open-datasets/…'});
+		const readBtn = el('button', {class: 'btn small', title: 'Read in Earth Engine its type, bands, scale, offset and unit (only metadata: nothing is computed)'}, 'Read');
+		const about = el('div', {class: 'small muted stack', style: {gap: '3px'}});
+		const kindSel = el('select', {}, el('option', {value: 'image'}, 'Fixed image (or the mosaic of a collection of tiles, e.g. a DEM)'),
+			el('option', {value: 'collection'}, 'Image collection with dates (aggregated in time)'));
 		kindSel.value = existing ? kind(existing) : 'image';
-		const id = el('input', {type: 'text', value: v0.image || v0.collection || '', placeholder: 'COPERNICUS/DEM/GLO30', style: {width: '100%'}});
-		const band = el('input', {type: 'text', value: v0.band || '', placeholder: 'DEM'});
+		const bands = el('datalist', {id: 'ee-bands-' + Date.now()});
+		const band = el('input', {type: 'text', value: v0.band || '', placeholder: 'e.g. DEM', list: bands.id});
+		const bandNote = el('div', {class: 'small faint'});
 		const scale = el('input', {type: 'number', value: v0.scale ?? '', step: 'any', placeholder: '1'});
 		const offset = el('input', {type: 'number', value: v0.offset ?? '', step: 'any', placeholder: '0'});
+		const unit = el('input', {type: 'text', value: v0.unit ?? '', placeholder: UNIT_HINT});
 		const terrain = el('select', {}, el('option', {value: ''}, 'The value of the band'), el('option', {value: 'slope'}, 'Slope (degrees)'), el('option', {value: 'aspect'}, 'Aspect (degrees)'));
 		terrain.value = v0.terrain || '';
 		const mbox = metricChips(existing ? metrics(existing) : ['mean']);
 		const tctl = temporalCtl(v0);
+		// a collection is aggregated over the period of the recipe, or over its own (e.g. a dataset of other years)
+		const ownP = el('input', {type: 'checkbox', checked: !!v0.period});
+		const p0 = el('input', {type: 'date', value: (v0.period || [])[0] || $('#r-p0').value});
+		const p1 = el('input', {type: 'date', value: (v0.period || [])[1] || $('#r-p1').value});
+		const pHint = el('div', {class: 'small muted'});
 		const name = el('input', {type: 'text', value: v0.name || '', placeholder: 'automatic'});
 		const rowsImg = [el('label', {}, 'Computation'), terrain];
-		const rowsCol = [el('label', {}, 'Metrics'), mbox, el('label', {}, 'Temporal aggregation'), tctl.t, el('label', {}, 'Between years'), tctl.inter];
-		const grid = el('div', {class: 'form-grid'}, el('label', {}, 'Type'), kindSel, el('label', {}, 'Earth Engine ID'), id,
-			el('label', {}, 'Band'), band, el('label', {}, 'Scale and offset'), el('div', {class: 'row'}, scale, offset),
+		const rowsCol = [el('label', {}, 'Metrics'), mbox, el('label', {}, 'Temporal aggregation'), tctl.t, el('label', {}, 'Between years'), tctl.inter,
+			el('label', {}, 'Period'), el('div', {}, el('div', {class: 'row'}, el('label', {class: 'check'}, ownP, ' its own'), p0, '–', p1), pHint)];
+
+		const periodHint = () => {
+			p0.disabled = p1.disabled = !ownP.checked;
+			const [a, b] = ownP.checked ? [p0.value, p1.value] : [$('#r-p0').value, $('#r-p1').value];
+			const first = info && info.dates ? info.dates[0] : null, last = info && info.dates ? info.dates[1] : null;
+			pHint.textContent = (ownP.checked ? '' : `That of the recipe, ${a} to ${b}. `)
+				+ (first && b && first > b ? `Its first image is of ${first}, after the end of this period: give it its own period. `
+					: last && a && last < a ? `Its last image is of ${last}, before the start of this period: give it its own period. ` : '');
+		};
+		ownP.addEventListener('change', periodHint);
+		p0.addEventListener('change', periodHint);
+		p1.addEventListener('change', periodHint);
+
+		// the scale, offset and unit of the band, as the record of its data says; REPLACE: also empty those it does not give
+		const applyBand = replace => {
+			const b = info && (info.bands || []).find(x => x.band === band.value.trim());
+			unit.placeholder = b && b.units && !b.unit ? `its record says ${b.units}: write it in UDUNITS` : UNIT_HINT;
+			bandNote.textContent = b ? [b.description, b.units, b.resolution_m && `${Math.round(b.resolution_m)} m`, b.data_type,
+				b.classes || b.bitmask ? 'codes, not quantities: use the metric mode (or min, max)' : null].filter(Boolean).join(' · ') : '';
+			if (!b) return;
+			for (const [input, val] of [[scale, b.band_scale], [offset, b.band_offset], [unit, b.unit]]) {
+				if (val !== undefined && val !== null && val !== '') input.value = val;
+				else if (replace) input.value = '';
+			}
+		};
+		band.addEventListener('change', () => applyBand(true));
+
+		const showAbout = d => {
+			about.textContent = '';
+			const head = [d.title && d.title !== d.asset ? d.title : null, d.source, d.provider, d.licence && `licence: ${d.licence}`].filter(Boolean).join(' · ');
+			about.append(el('div', {}, el('b', {}, head || d.asset)));
+			if (d.page || d.docs) about.append(el('div', {}, 'Page (units, scale and how to cite it): ', extLink(d.page || d.docs)));
+			if (d.bands) {
+				const n = d.bands.length;
+				const dates = d.dates ? ` Dates: ${d.dates[0] || '?'} to ${d.dates[1] || 'its last image'}.` : '';
+				about.append(el('div', {}, `${d.type === 'image' ? 'An image' : 'A collection of images'} with ${n} band${n === 1 ? '' : 's'}.${dates}`));
+				// the notes of MonitorEO name the arguments of its functions: here, the fields below
+				for (const note of d.notes || []) about.append(el('div', {}, note
+					.replace(/\(unit, in UDUNITS\)/g, '(Unit, in UDUNITS)').replace(/band_scale and band_offset/g, 'Scale and offset')
+					.replace(/\bunit, Scale and offset/g, 'Unit, Scale and offset')));
+			}
+		};
+		const readAsset = async () => {
+			const asset = id.value.trim();
+			if (!asset) { toast('Write the ID of the image or collection.', 'warn'); return; }
+			readBtn.disabled = true;
+			about.textContent = `Reading ${asset} in Earth Engine… (the first time, it connects: a few seconds)`;
+			try {
+				const d = await api('gee_describe_asset', asset, account(), $('#ee-project').value.trim());
+				if (id.value.trim() !== asset) return;  // another ID was written or chosen meanwhile
+				info = d;
+				id.value = d.asset;
+				bands.textContent = '';
+				for (const b of d.bands || []) bands.append(el('option', {value: b.band}, [b.description, b.units].filter(Boolean).join(' · ')));
+				const names = (d.bands || []).map(b => b.band);
+				const other = !names.includes(band.value.trim());
+				if (other) band.value = (d.arguments || {}).band || names[0] || '';
+				applyBand(other);
+				if (!(existing && asset0 === d.asset)) kindSel.value = d.use || kindSel.value;  // a choice of before stays
+				kindSel.options[1].disabled = d.type === 'image';  // an image has no dates
+				if (d.type === 'image') kindSel.value = 'image';
+				sync();
+				showAbout(d);
+			} catch (e) {
+				if (id.value.trim() === asset) about.textContent = `${asset} could not be read in Earth Engine: ${e.message}`;
+			} finally { readBtn.disabled = false; }
+		};
+		readBtn.addEventListener('click', readAsset);
+		id.addEventListener('input', () => {
+			info = null;
+			kindSel.options[1].disabled = false;
+			bands.textContent = '';
+			bandNote.textContent = '';
+			about.textContent = 'Read shows its bands, how it is used and what its record says.';
+		});
+		// a dataset of the GEE Community Catalog chosen: its ID and its record, then its bands, read in Earth Engine
+		list.addEventListener('change', () => {
+			const d = communityRecord(list.value);
+			if (!d) return;
+			id.value = d.id;
+			info = null;
+			for (const input of [band, scale, offset, unit]) input.value = '';
+			kindSel.options[1].disabled = false;
+			kindSel.value = d.type === 'image' ? 'image' : 'collection';
+			sync();
+			showAbout({asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
+			readAsset();
+		});
+
+		const grid = el('div', {class: 'form-grid'},
+			el('label', {}, 'Source'), source, comLabel, comBox,
+			el('label', {}, 'Earth Engine ID'), el('div', {class: 'row', style: {flexWrap: 'nowrap'}}, id, readBtn),
+			el('label', {}, ''), about,
+			el('label', {}, 'Use'), kindSel,
+			el('label', {}, 'Band'), el('div', {}, band, bands, bandNote),
+			el('label', {}, 'Scale and offset'), el('div', {class: 'row'}, scale, offset),
+			el('label', {}, 'Unit'), unit,
 			...rowsImg, ...rowsCol, el('label', {}, 'File name'), name);
 		const sync = () => {
 			rowsImg.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'image'));
 			rowsCol.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'collection'));
+			[comLabel, comBox].forEach(e => e.classList.toggle('hidden', source.value !== 'community'));
+			periodHint();
 		};
-		kindSel.addEventListener('change', sync); sync();
-		return modal({title: existing ? 'Edit the variable' : 'Other collection or image of Earth Engine', body: el('div', {class: 'stack'},
-			el('div', {class: 'small muted'}, 'Any dataset of the Earth Engine catalog (developers.google.com/earth-engine/datasets): '
-				+ 'e.g. WORLDCLIM/V1/BIO band bio01 with scale 0.1 (mean annual temperature), or IDAHO_EPSCOR/TERRACLIMATE band pr.'), grid),
+		kindSel.addEventListener('change', sync);
+		source.addEventListener('change', sync);
+		drawList();
+		if (communityRecord(asset0)) {
+			list.value = communityRecord(asset0).id;
+			const d = communityRecord(asset0);
+			showAbout({asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
+		} else about.textContent = asset0 ? 'Read shows its bands, how it is used and what its record says.' : '';
+		sync();
+
+		const title = existing ? 'Edit the variable' : fromCommunity ? 'Dataset of the GEE Community Catalog' : 'Other collection or image of Earth Engine';
+		return modal({title, wide: true, body: el('div', {class: 'stack'},
+			el('div', {class: 'small muted'}, 'Any image or collection of images of Earth Engine: of its data catalog '
+				+ '(developers.google.com/earth-engine/datasets), e.g. WORLDCLIM/V1/BIO band bio01 with scale 0.1 (mean annual '
+				+ 'temperature), or of the GEE Community Catalog (gee-community-catalog.org), shared by the community of Earth '
+				+ 'Engine. Read shows its bands and what its record says; the land cover mask of the recipe applies to them too.'), grid),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
-				if (!id.value.trim() || !band.value.trim()) { toast('Write the ID and the band.', 'warn'); return undefined; }
+				if (!id.value.trim() || !band.value.trim()) { toast('Write the ID and the band (Read lists its bands).', 'warn'); return undefined; }
+				const names = info ? (info.bands || []).map(b => b.band) : [];
+				if (names.length && !names.includes(band.value.trim())) {
+					toast(`${id.value.trim()} has no band ${band.value.trim()}: use one of ${names.join(', ')}.`, 'warn');
+					return undefined;
+				}
 				const v = {};
 				if (name.value.trim()) v.name = name.value.trim();
 				v[kindSel.value] = id.value.trim();
 				v.band = band.value.trim();
 				if (scale.value !== '') v.scale = Number(scale.value);
 				if (offset.value !== '') v.offset = Number(offset.value);
+				if (unit.value.trim() && !(kindSel.value === 'image' && terrain.value)) v.unit = unit.value.trim();
 				if (kindSel.value === 'image') { if (terrain.value) v.terrain = terrain.value; }
 				else {
 					const ms = chosenMetrics(mbox);
 					if (!ms.length) { toast('Choose at least one metric.', 'warn'); return undefined; }
 					v.metric = ms.length === 1 ? ms[0] : ms;
 					if (tctl.t.value !== 'period') { v.temporal = tctl.t.value; v.interannual = tctl.inter.value; }
+					if (ownP.checked) {
+						if (!p0.value || !p1.value || p0.value > p1.value) { toast('Write its own period (first and last day).', 'warn'); return undefined; }
+						v.period = [p0.value, p1.value];
+					}
 				}
+				// its other options (season, quality, where, ...) stay as they were
+				for (const [k, x] of Object.entries(v0)) if (!OWN.includes(k)) v[k] = x;
 				return v;
 			}}]});
 	}
@@ -1263,6 +1458,10 @@ pages.gee = (() => {
 	});
 	$('#r-add-ee').addEventListener('click', async () => {
 		const v = await eeDialog(null);
+		if (v) { S.recipe.variables.push(v); renderVars(); }
+	});
+	$('#r-add-com').addEventListener('click', async () => {
+		const v = await eeDialog(null, true);
 		if (v) { S.recipe.variables.push(v); renderVars(); }
 	});
 	$('#r-default').addEventListener('click', async () => {
@@ -1349,6 +1548,7 @@ pages.gee = (() => {
 			syncOnly();
 			// the land cover maps of the mask come with the catalog of MonitorEO
 			ensureCatalog().then(c => lcTable(c.landcover), () => lcTable(null, true));
+			ensureCommunity().then(() => { if (S.recipe) renderVars(); }, () => {});
 		},
 		attach(job) {
 			const kinds = {'gee': 'download', 'gee-update': 'update', 'gee-connect': 'connect', 'gee-auth': 'auth'};
