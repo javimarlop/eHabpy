@@ -16,7 +16,8 @@ metrics and the THDI, the outputs and how the model works). The diagram of the w
 
 **What's new: [changelog](#changelog)**, what each release brings, at the end of this page.
 
-Cite eHabitat+ as https://doi.org/10.5281/zenodo.5643271
+Cite eHabitat+ as https://doi.org/10.5281/zenodo.595844 (the DOI of all its versions, which leads to the last one;
+the DOI of each release is on its page of Zenodo)
 
 ---
 
@@ -28,6 +29,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Similarity**: `similarity.py` and `thdi.R`, the **Earth Engine variables**: `get_vars_gee.py`, and the
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it already has what is under **Unreleased** before its release.
+
+### Unreleased
+
+- **Documentation**: The README and the wiki cite eHabitat+ with the DOI of all its versions, https://doi.org/10.5281/zenodo.595844, which leads to the last one, instead of the DOI of version 1.3.
 
 ### [1.5](https://github.com/javimarlop/eHabpy/releases/tag/1.5) · 2026-11-14
 
