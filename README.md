@@ -32,6 +32,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Documentation**: Every release in Zenodo has the same title, "eHabitat+ model: mapping habitat functional types and similar areas", its author with ORCID and the licence of eHabitat+, CC BY-SA 3.0 (`.zenodo.json`), instead of the name of the release, the authors of GitHub and CC BY 4.0.
 - **Documentation**: The README and the wiki cite eHabitat+ with the DOI of all its versions, https://doi.org/10.5281/zenodo.595844, which leads to the last one, instead of the DOI of version 1.3.
 
 ### [1.5](https://github.com/javimarlop/eHabpy/releases/tag/1.5) · 2026-11-14

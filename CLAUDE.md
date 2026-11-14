@@ -16,5 +16,9 @@ history).
 - A release (a tag and a GitHub release, archived in Zenodo) renames `### Unreleased` to
   `### [X.Y](https://github.com/javimarlop/eHabpy/releases/tag/X.Y) · YYYY-MM-DD`, and its notes are the output of
   `python .github/changelog.py notes X.Y`.
+- Zenodo archives every GitHub release (concept DOI 10.5281/zenodo.595844). `.zenodo.json` keeps the same title,
+  author (with ORCID) and licence (CC BY-SA 3.0, that of `LICENSE`) in every release; the description of each one is
+  its release notes. Do not add `description` or `related_identifiers` to `.zenodo.json`: they would replace the notes
+  and the link to the code of each release.
 - `python .github/changelog.py check` checks the format; the workflow `.github/workflows/changelog.yml` runs it on every
   push and warns when the commits change the app, the scripts or the environment without an entry.
