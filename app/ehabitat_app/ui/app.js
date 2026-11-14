@@ -3138,8 +3138,12 @@ const updates = (() => {
 		let st;
 		try { st = await api('update_status'); } catch (e) { return; }
 		const c = st.commit ? st.commit.slice(0, 7) : 'unknown';
-		$('#upd-version').textContent = `${c} · ${st.branch || ''}`;
-		$('#upd-version').title = `${st.repo} (${st.mode === 'git' ? 'git clone' : 'copy without git'})`;
+		// the date of the version: when its commit was published in GitHub (in the local time of this computer)
+		const d = st.commit_date ? new Date(st.commit_date) : null;
+		const day = d && !isNaN(d) ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` : '';
+		$('#upd-version').textContent = `${c} · ${st.branch || ''}${day ? ' · ' + day : ''}`;
+		$('#upd-version').title = `${st.repo} (${st.mode === 'git' ? 'git clone' : 'copy without git'})`
+			+ (day ? `\nPublished ${d.toLocaleString()}` : '');
 		$('#upd-auto').checked = !!st.auto;
 		const envRunning = st.env_job && (await api('running').catch(() => [])).some(j => j.id === st.env_job);
 		if (envRunning) {

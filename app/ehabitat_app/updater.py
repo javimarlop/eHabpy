@@ -106,17 +106,29 @@ def enabled():
 
 
 def current():
-	"""What this copy is: {mode, branch, commit}."""
+	"""What this copy is: {mode, branch, commit, commit_date (when that commit was made: the date of the version,
+	ISO 8601, or None if unknown)}; a copy without git also has date, when it was updated."""
 	if mode() == 'git':
 		head, _ = _git('rev-parse', 'HEAD')
 		br, _ = _git('rev-parse', '--abbrev-ref', 'HEAD')
 		up, _ = _git('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
-		return {'mode': 'git', 'branch': br, 'upstream': up, 'commit': head}
+		date, _ = _git('log', '-1', '--format=%cI', 'HEAD')
+		return {'mode': 'git', 'branch': br, 'upstream': up, 'commit': head, 'commit_date': date}
 	rec = load_record()
-	return {'mode': 'archive', 'branch': branch(), 'commit': rec.get('commit'), 'date': rec.get('date')}
+	return {'mode': 'archive', 'branch': branch(), 'commit': rec.get('commit'), 'commit_date': rec.get('commit_date'),
+	        'date': rec.get('date')}
 
 
 # Copies without git ------------------------------------------------------------------------------------------------
+
+def _commit_date(sha):
+	"""The date of the commit SHA of the repository in GitHub (ISO 8601, UTC), or None if it cannot be read."""
+	try:
+		d = json.loads(_get(f'{API}/commits/{sha}'))
+		return ((d.get('commit') or {}).get('committer') or {}).get('date')
+	except Exception:
+		return None
+
 
 def _archive_update(log=None):
 	rec = load_record()
@@ -126,6 +138,10 @@ def _archive_update(log=None):
 		raise RuntimeError(f'unexpected answer of GitHub: {latest[:60]}')
 	installed = rec.get('commit')
 	if installed == latest:
+		if rec and not rec.get('commit_date'):  # a copy updated before the record kept the date of its commit
+			date = _commit_date(latest)
+			if date:
+				_save_record(dict(rec, commit_date=date))
 		return {'updated': False, 'commit': latest, 'message': f'up to date ({br} {latest[:7]})'}
 	if installed:
 		cmp = json.loads(_get(f'{API}/compare/{installed}...{latest}'))
@@ -180,7 +196,7 @@ def _archive_update(log=None):
 		if os.path.isfile(dst) and _file_sha1(dst) == h:
 			os.remove(dst)
 			removed.append(rel)
-	_save_record({'repo': REPO, 'branch': br, 'commit': latest,
+	_save_record({'repo': REPO, 'branch': br, 'commit': latest, 'commit_date': _commit_date(latest),
 	              'date': time.strftime('%Y-%m-%d %H:%M:%S'), 'files': new_manifest})
 	env_changed = 'environment.yml' in updated
 	if kept:

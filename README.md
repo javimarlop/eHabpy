@@ -31,6 +31,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Desktop app**: The version, at the bottom of the side bar, shows the date its commit was published next to the commit and the branch (e.g. `def0624 · master · 2026-11-14`).
 - **Documentation**: The changelog of eHabitat+ is this section of the README, which every change updates, instead of `changelog.txt`.
 - **Desktop app**: In Download from MonitorEO, the button **GEE Community Catalog…** adds to the recipe any of the 1,068 images and collections of images of the [GEE Community Catalog](https://gee-community-catalog.org), found by theme or by words of their title, ID, provider or tags. **Read** shows the bands of any ID of Earth Engine, whether it is a fixed image or a collection with dates, and the scale, offset and unit of the band when its record gives them; a collection can have its own period, and the unit of the values goes into the recipe.
 - **Desktop app** (fix): Editing a variable of another collection or image of Earth Engine keeps its own season, pixel filters and conditions, which were lost.
