@@ -121,13 +121,34 @@ def current():
 
 # Copies without git ------------------------------------------------------------------------------------------------
 
-def _commit_date(sha):
+def _commit_date(sha, timeout=10):
 	"""The date of the commit SHA of the repository in GitHub (ISO 8601, UTC), or None if it cannot be read."""
 	try:
-		d = json.loads(_get(f'{API}/commits/{sha}'))
+		d = json.loads(_get(f'{API}/commits/{sha}', timeout=timeout))
 		return ((d.get('commit') or {}).get('committer') or {}).get('date')
 	except Exception:
 		return None
+
+
+_date_tried = {'commit': None}  # the commit whose date was already asked to GitHub (once per run of the app)
+
+
+def _ensure_commit_date():
+	"""The date of the commit of a copy without git, read from GitHub (once per run of the app) when its record does
+	not have it: a copy updated by an updater that did not keep it, before the app opened again with the new one, or
+	when GitHub did not answer then."""
+	if mode() != 'archive':
+		return
+	rec = load_record()
+	sha = rec.get('commit')
+	if not sha or rec.get('commit_date') or _date_tried['commit'] == sha:
+		return
+	_date_tried['commit'] = sha
+	date = _commit_date(sha, timeout=5)
+	if date:
+		rec = load_record()
+		if rec.get('commit') == sha:  # not updated meanwhile
+			_save_record(dict(rec, commit_date=date))
 
 
 def _archive_update(log=None):
@@ -404,6 +425,7 @@ def start_environment_update():
 def status():
 	with _lock:
 		st = dict(_state)
+	_ensure_commit_date()
 	st.update(current())
 	st['auto'] = enabled()
 	st['repo'] = REPO

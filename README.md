@@ -32,6 +32,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Desktop app** (fix): The date of the version shows also in a copy that was updated before the app kept it: the app reads it from GitHub when it is missing.
 - **Documentation**: Every release in Zenodo has the same title, "eHabitat+ model: mapping habitat functional types and similar areas", its author with ORCID and the licence of eHabitat+, CC BY-SA 3.0 (`.zenodo.json`), instead of the name of the release, the authors of GitHub and CC BY 4.0.
 - **Documentation**: The README and the wiki cite eHabitat+ with the DOI of all its versions, https://doi.org/10.5281/zenodo.595844, which leads to the last one, instead of the DOI of version 1.3.
 
