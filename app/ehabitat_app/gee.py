@@ -29,9 +29,6 @@ SENSORS = ['Sentinel-2', 'Landsat', 'Modis']
 METRICS = ['mean', 'median', 'min', 'max', 'std', 'sum', 'count', 'mode', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95']
 TEMPORAL = [['period', 'Whole period'], ['annual', 'Each year, then between years'],
             ['monthly', 'Each month, between years and mean of the months'], ['16-day', 'Each 16 days, between years and mean']]
-WORLDCOVER = [[10, 'Tree cover'], [20, 'Shrubland'], [30, 'Grassland'], [40, 'Cropland'], [50, 'Built-up'],
-              [60, 'Bare / sparse vegetation'], [70, 'Snow and ice'], [80, 'Permanent water bodies'],
-              [90, 'Herbaceous wetland'], [95, 'Mangroves'], [100, 'Moss and lichen']]
 
 
 # The package monitoreo, read again when it changes ------------------------------------------------------------------
@@ -168,7 +165,18 @@ def catalog():
 		rows = services.list_variables()
 	src = cat.load().get('source', {})
 	return {'variables': rows, 'source': src, 'sensors': SENSORS, 'metrics': METRICS, 'temporal': TEMPORAL,
-	        'worldcover': WORLDCOVER, 'monitoreo': _label(installed())}
+	        'landcover': _landcover_maps(services), 'monitoreo': _label(installed())}
+
+
+def _landcover_maps(services):
+	"""The land cover maps of the land cover masks of MonitorEO (services.landcover_maps: the maps, their years and the
+	broad land covers common to all of them, with the classes of each map that are each one), or None with a version of
+	monitoreo without them (before 0.3.40). A mask is a condition of where in the recipe:
+	{landcover: CORINE, year: 2018, exclude: [water, built]}."""
+	if not hasattr(services, 'landcover_maps'):
+		return None
+	out = services.landcover_maps('en')
+	return {k: out.get(k) for k in ('classes', 'maps', 'rule')}
 
 
 def describe(ref):
@@ -325,7 +333,8 @@ def _normal(rec):
 		q.setdefault(k, True)
 	q.setdefault('cloud_score', 0.6)
 	q.setdefault('scene_clouds', None)
-	rec.setdefault('exclude_landcover', [])
+	rec.setdefault('exclude_landcover', [])  # the old mask of ESA WorldCover 2021 classes (the app now uses where)
+	rec.setdefault('where', None)  # e.g. the land cover mask {landcover: CORINE, year: 2018, exclude: [water, built]}
 	rec.setdefault('drive_folder', 'eHabitat_GEE')
 	rec.setdefault('drive_dir', None)
 	rec.setdefault('variables', [])
@@ -337,8 +346,8 @@ def _normal(rec):
 def clean_recipe(rec):
 	"""The recipe as get_vars_gee.py reads it: without empty optional keys."""
 	rec = copy.deepcopy(rec)
-	for k in ('season', 'drive_dir', 'exclude_landcover'):
-		if rec.get(k) in (None, '', []):
+	for k in ('season', 'drive_dir', 'exclude_landcover', 'where'):
+		if rec.get(k) in (None, '', [], {}):
 			rec.pop(k, None)
 	if rec.get('ecoregion') and not rec['ecoregion'].get('resolution'):
 		rec['ecoregion'] = {'resolution': None}

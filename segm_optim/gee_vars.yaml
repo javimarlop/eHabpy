@@ -63,7 +63,14 @@ quality:
   cloud_score: 0.6      # nubes de Sentinel-2: Cloud Score+ (cs_cdf) mínimo de un píxel despejado; null = clases de
                         # SCL, como MonitorEO (en Guajares, Cloud Score+ dio un NDVI p5 más parecido al de referencia)
   scene_clouds: null    # Sentinel-2 y Landsat: % máximo de nubes de una escena; null = todas
-exclude_landcover: []   # clases de ESA WorldCover 2021 que quedan sin datos: 40 cultivos, 50 urbano, 80 agua, ...
+# Máscara de usos del suelo de MonitorEO: quedan sin datos los píxeles de algunos usos del suelo según un mapa de un
+# año, p. ej. {landcover: CORINE, year: 2018, exclude: [water, built]}. landcover: WorldCover (2020, 2021),
+# DynamicWorld (desde 2016), CORINE (1990, 2000, 2006, 2012, 2018; solo Europa) o MODIS (MCD12Q1, 2001-2025); year: su
+# año (por defecto el último); exclude: usos comunes a todos los mapas (water, trees, grassland, wetland, cropland,
+# shrubland, built, bare, snow), con la tabla de correspondencias de MonitorEO (monitoreo landcover la muestra). Un
+# píxel queda fuera si esos usos cubren la mitad o más de él, y donde el mapa no tiene datos. null = sin máscara.
+# (La opción de antes, exclude_landcover: [40, 50, 80], con clases de ESA WorldCover 2021, sigue funcionando.)
+where: null
 
 # VARIABLES, en este orden (el prefijo 1_, 2_, ... de los ficheros; la primera define los píxeles analizados).
 # Cada una es:

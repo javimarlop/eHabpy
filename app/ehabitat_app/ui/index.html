@@ -232,8 +232,16 @@
 				<label>Minimum Cloud Score+</label><div class="row"><label class="check"><input type="checkbox" id="r-cs-on"></label><input type="number" id="r-cs" min="0" max="1" step="0.05"><span class="small muted">Sentinel-2</span></div>
 				<label>Max. % of scene clouds</label><input type="number" id="r-scene" min="0" max="100" step="5" placeholder="all">
 			</div>
-			<div class="section-title">No data in the ESA WorldCover classes</div>
-			<div class="chips" id="r-wc"></div>
+			<div class="section-title">Land cover mask</div>
+			<div class="form-grid">
+				<label>Land cover map</label><select id="r-lc-map"><option value="">None: keep every land cover</option></select>
+				<label class="r-lc-f">Year of the map</label><div class="row r-lc-f"><select id="r-lc-year"></select><span class="small muted" id="r-lc-years"></span></div>
+				<label class="r-lc-f"></label><div class="small muted r-lc-f" id="r-lc-about"></div>
+			</div>
+			<div class="small r-lc-f" style="margin:2px 0 6px">Leave out (no data):</div>
+			<div class="chips r-lc-f" id="r-lc"></div>
+			<p class="small muted r-lc-f" id="r-lc-note" style="margin:6px 0 0"></p>
+			<div class="notice warn hidden" id="r-lc-warn"></div>
 		</div>
 	</div>
 

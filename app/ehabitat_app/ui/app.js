@@ -725,6 +725,7 @@ pages.gee = (() => {
 				S.catalog = null;
 				try {
 					S.catalog = await api('gee_catalog');
+					lcTable(S.catalog.landcover);
 					toast(`MonitorEO updated to ${s.version}${s.commit ? ' (' + s.commit.slice(0, 7) + ')' : ''}: the catalog has its variables.`, 'ok');
 				} catch (e) { fail(e); }
 			}
@@ -773,8 +774,7 @@ pages.gee = (() => {
 		$('#r-cs-on').checked = q.cloud_score !== null && q.cloud_score !== undefined;
 		$('#r-cs').value = q.cloud_score ?? 0.6;
 		$('#r-scene').value = q.scene_clouds ?? '';
-		const wc = new Set((rec.exclude_landcover || []).map(Number));
-		for (const c of $$('#r-wc .chip')) c.classList.toggle('on', wc.has(Number(c.dataset.v)));
+		lcShow(rec);
 		syncEco();
 		syncAccount();
 		renderVars();
@@ -803,7 +803,7 @@ pages.gee = (() => {
 		rec.quality.cloud_score = $('#r-cs-on').checked ? num('#r-cs') : null;
 		const sc = num('#r-scene');
 		if (sc !== null) rec.quality.scene_clouds = sc;
-		rec.exclude_landcover = $$('#r-wc .chip.on').map(c => Number(c.dataset.v));
+		lcRead(rec);
 		rec.variables = S.recipe.variables;
 		if (!rec.folder) throw new Error('Write the destination folder in inVars.');
 		if (!/^[A-Za-z0-9_-]+$/.test(rec.folder)) throw new Error('The folder can only have letters (without accents), digits, - and _.');
@@ -932,13 +932,138 @@ pages.gee = (() => {
 			+ `${fmt(px * 4 / 1048576, 1)} MB per variable. An ecoregion can be thousands of times larger: use a coarse pixel (100–1000 m).`;
 	}
 
-	// World cover chips
-	for (const [v, label] of [[10, 'Tree cover'], [20, 'Shrubland'], [30, 'Grassland'], [40, 'Cropland'], [50, 'Built-up'],
-		[60, 'Bare / sparse vegetation'], [70, 'Snow and ice'], [80, 'Water'], [90, 'Herbaceous wetland'], [95, 'Mangroves'], [100, 'Moss and lichen']]) {
-		const c = el('span', {class: 'chip', 'data-v': v}, `${v} ${label}`);
-		c.addEventListener('click', () => c.classList.toggle('on'));
-		$('#r-wc').append(c);
+	// Land cover mask: the pixels of some land covers left out of every variable, after a land cover map of a year
+	// (a condition of where of MonitorEO, see monitoreo.landcover): {landcover: 'CORINE', year: 2018, exclude:
+	// ['water', 'built']}. Every map goes to the same broad land covers (the table of correspondences of MonitorEO), so
+	// the land covers chosen stay when the map changes. The table comes with the catalog (landcover_maps).
+	const LC = {maps: null, classes: [], rule: '', state: 'loading'};
+	const conditions = where => !where ? [] : Array.isArray(where) ? where : [where];
+	const isLc = c => !!c && typeof c === 'object' && !Array.isArray(c) && 'landcover' in c;
+	function lcFind(key) {
+		const low = s => String(s ?? '').toLowerCase().replace(/[\s_-]/g, '');
+		return key ? (LC.maps || []).find(m => low(m.key) === low(key) || low(m.name) === low(key)) || null : null;
 	}
+	function lcYears(m) {
+		if (Array.isArray(m.years)) return m.years.map(Number);
+		const [a, b] = String(m.years).split('-').map(Number);  // '2016-2026'
+		const out = [];
+		for (let y = a; y <= b; y++) out.push(y);
+		return out;
+	}
+	// the year of the map M closest to the end of the period of the recipe (without a period, that of MonitorEO)
+	function lcYear(m) {
+		const ys = lcYears(m);
+		const end = parseInt(($('#r-p1').value || '').slice(0, 4), 10);
+		if (!end) return m.default_year;
+		return ys.reduce((best, y) => Math.abs(y - end) < Math.abs(best - end) ? y : best, ys[0]);
+	}
+	function lcYearOptions(m, year) {
+		const sel = $('#r-lc-year');
+		sel.textContent = '';
+		if (!m) return;
+		const ys = lcYears(m);
+		for (const y of ys.slice().reverse()) sel.append(el('option', {value: y}, String(y)));
+		sel.value = String(ys.includes(year) ? year : lcYear(m));
+		$('#r-lc-years').textContent = `available: ${Array.isArray(m.years) ? ys.join(', ') : `every year from ${ys[0]} to ${ys[ys.length - 1]}`}`;
+	}
+	function lcChips() { return $$('#r-lc .chip.on').map(c => c.dataset.v); }
+	function lcWarn(text) {
+		$('#r-lc-warn').textContent = text || '';
+		$('#r-lc-warn').classList.toggle('hidden', !text);
+	}
+	function lcSync() {
+		const m = lcFind($('#r-lc-map').value);
+		for (const e of $$('.r-lc-f')) e.classList.toggle('hidden', !m);
+		if (!m) return;
+		const cap = s => s ? s[0].toUpperCase() + s.slice(1) : '';
+		$('#r-lc-about').textContent = `${cap(m.how)}; ${m.resolution_m} m, ${m.coverage}. Its classes in the land covers of the mask: ${m.crosswalk}.`;
+		for (const chip of $$('#r-lc .chip')) {
+			const c = LC.classes.find(k => k.key === chip.dataset.v) || {};
+			chip.title = `${cap(c.help || '')}.\n${m.name}: ${(m.classes[chip.dataset.v] || []).join(', ') || 'none of its classes'}`;
+		}
+		const on = lcChips();
+		$('#r-lc-note').textContent = on.length
+			? `Leaves out the classes ${on.flatMap(k => m.classes[k] || []).join(', ')} of ${m.name} ${$('#r-lc-year').value}. ${LC.rule}`
+			: 'Choose the land covers to leave out.';
+	}
+	// the table of the land cover maps (that of the catalog; null: a version of monitoreo without it)
+	function lcTable(table, failed) {
+		const had = !!LC.maps;
+		const keep = {map: $('#r-lc-map').value, year: Number($('#r-lc-year').value), on: lcChips()};
+		LC.maps = table ? table.maps : null;
+		LC.classes = table ? table.classes : [];
+		LC.rule = table ? table.rule || '' : '';
+		LC.state = table ? 'ok' : failed ? 'failed' : 'old';
+		const sel = $('#r-lc-map');
+		sel.length = 1;  // None
+		for (const m of LC.maps || []) sel.append(el('option', {value: m.key}, `${m.name} (${m.resolution_m} m, ${m.coverage})`));
+		sel.disabled = !LC.maps;
+		$('#r-lc').textContent = '';
+		for (const c of LC.classes) {
+			const chip = el('span', {class: 'chip', 'data-v': c.key}, c.name);
+			chip.addEventListener('click', () => { chip.classList.toggle('on'); lcSync(); });
+			$('#r-lc').append(chip);
+		}
+		if (!had) return lcShow(S.recipe || {});  // the mask of the recipe, now that the maps are known
+		// another version of monitoreo: the same choice, if its maps still have it
+		sel.value = lcFind(keep.map) ? lcFind(keep.map).key : '';
+		lcYearOptions(lcFind(sel.value), keep.year);
+		for (const chip of $$('#r-lc .chip')) chip.classList.toggle('on', keep.on.includes(chip.dataset.v));
+		lcSync();
+	}
+	// the land cover mask of the recipe REC in the form: its land cover condition of where or, in a recipe of before,
+	// its classes of ESA WorldCover 2021 (exclude_landcover) as the land covers of the mask that have them
+	function lcShow(rec) {
+		lcWarn('');
+		if (!LC.maps) {
+			$('#r-lc-map').value = '';
+			lcSync();
+			const has = conditions(rec.where).some(isLc) || (rec.exclude_landcover || []).length;
+			if (LC.state === 'loading') return;
+			lcWarn(LC.state === 'old'
+				? `This version of monitoreo has no land cover maps: press "Update MonitorEO" to choose one.${has ? ' The land cover mask of the recipe is kept as it is.' : ''}`
+				: `The land cover maps of MonitorEO could not be read (see "Update MonitorEO").${has ? ' The land cover mask of the recipe is kept as it is.' : ''}`);
+			return;
+		}
+		let c = conditions(rec.where).find(isLc) || null;
+		const old = (rec.exclude_landcover || []).map(Number);
+		const wc = lcFind('WorldCover');
+		if (!c && old.length && wc) {
+			const ex = LC.classes.map(k => k.key).filter(k => (wc.classes[k] || []).some(t => old.includes(parseInt(t, 10))));
+			c = {landcover: wc.key, year: 2021, exclude: ex};
+			lcWarn(`The recipe left out the classes ${old.join(', ')} of ESA WorldCover 2021 (exclude_landcover, the mask of `
+				+ `before): they are now its land covers ${ex.map(k => (LC.classes.find(x => x.key === k) || {}).name || k).join(', ')}, `
+				+ `which leave out the classes below. Check them before downloading.`);
+		}
+		const m = c ? lcFind(c.landcover) : null;
+		if (c && !m) lcWarn(`The land cover map ${c.landcover} of the recipe is not one of MonitorEO: choose another one, or none.`);
+		const year = c && c.year !== undefined && c.year !== null && c.year !== '' ? Number(c.year) : null;
+		if (m && year !== null && !lcYears(m).includes(year))
+			lcWarn(`${m.name} has no map of ${year} (the year of the recipe): choose one of its years.`);
+		$('#r-lc-map').value = m ? m.key : '';
+		lcYearOptions(m, year ?? m?.default_year);
+		const ex = new Set(conditions(c && c.exclude).map(x => String(x).trim().toLowerCase()));
+		for (const chip of $$('#r-lc .chip')) chip.classList.toggle('on', ex.has(chip.dataset.v));
+		lcSync();
+	}
+	// the land cover mask of the form into the recipe REC (where; without the table, the mask of the recipe as it was)
+	function lcRead(rec) {
+		if (!LC.maps) return;
+		const m = lcFind($('#r-lc-map').value);
+		const others = conditions(rec.where).filter(c => !isLc(c));  // conditions on variables: kept as they are
+		let c = null;
+		if (m) {
+			const ex = lcChips();
+			if (!ex.length) throw new Error('Choose the land covers to leave out with the land cover map (or no land cover map).');
+			c = {landcover: m.key, year: Number($('#r-lc-year').value), exclude: ex};
+		}
+		const all = c ? [c, ...others] : others;
+		rec.where = !all.length ? null : all.length === 1 && c ? c : all;
+		delete rec.exclude_landcover;  // the mask of before (classes of ESA WorldCover 2021), now in where
+	}
+	$('#r-lc-map').addEventListener('change', () => { lcWarn(''); lcYearOptions(lcFind($('#r-lc-map').value), null); lcSync(); });
+	$('#r-lc-year').addEventListener('change', () => { lcWarn(''); lcSync(); });
+	lcSync();
 
 	// Variables of the recipe -----------------------------------------------------------------------------------
 	function kind(v) { return v.index ? 'catalog' : v.image ? 'image' : 'collection'; }
@@ -1076,7 +1201,7 @@ pages.gee = (() => {
 				v.metric = ms.length === 1 ? ms[0] : ms;
 				if (tctl.t.value !== 'period') { v.temporal = tctl.t.value; v.interannual = tctl.inter.value; }
 				if (name.value.trim()) v.name = name.value.trim();
-				for (const k of ['period', 'season', 'quality', 'exclude_landcover', 'resample', 'aggregate']) if (existing && existing[k] !== undefined) v[k] = existing[k];
+				for (const k of ['period', 'season', 'quality', 'exclude_landcover', 'where', 'resample', 'aggregate']) if (existing && existing[k] !== undefined) v[k] = existing[k];
 				return v;
 			}}]});
 	}
@@ -1222,6 +1347,8 @@ pages.gee = (() => {
 			await status();
 			try { const r = await api('gee_recipe'); fill(r.recipe, r.source); } catch (e) { fail(e); }
 			syncOnly();
+			// the land cover maps of the mask come with the catalog of MonitorEO
+			ensureCatalog().then(c => lcTable(c.landcover), () => lcTable(null, true));
 		},
 		attach(job) {
 			const kinds = {'gee': 'download', 'gee-update': 'update', 'gee-connect': 'connect', 'gee-auth': 'auth'};
