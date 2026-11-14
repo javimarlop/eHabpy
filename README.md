@@ -29,10 +29,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it already has what is under **Unreleased** before its release.
 
-### Unreleased
+### [1.5](https://github.com/javimarlop/eHabpy/releases/tag/1.5) · 2026-11-14
 
 - **Desktop app**: The version, at the bottom of the side bar, shows the date its commit was published next to the commit and the branch (e.g. `def0624 · master · 2026-11-14`).
-- **Documentation**: The changelog of eHabitat+ is this section of the README, which every change updates, instead of `changelog.txt`.
+- **Documentation**: The changelog of eHabitat+ is the section Changelog at the end of the README, which every change updates, instead of `changelog.txt`.
 - **Desktop app**: In Download from MonitorEO, the button **GEE Community Catalog…** adds to the recipe any of the 1,068 images and collections of images of the [GEE Community Catalog](https://gee-community-catalog.org), found by theme or by words of their title, ID, provider or tags. **Read** shows the bands of any ID of Earth Engine, whether it is a fixed image or a collection with dates, and the scale, offset and unit of the band when its record gives them; a collection can have its own period, and the unit of the values goes into the recipe.
 - **Desktop app** (fix): Editing a variable of another collection or image of Earth Engine keeps its own season, pixel filters and conditions, which were lost.
 - **Desktop app, Earth Engine variables**: A land cover mask leaves out of every variable the pixels of some land covers (water, trees, grassland, wetlands, cropland, shrubland, built-up, bare ground, snow and ice) after a land cover map and a year of your choice: ESA WorldCover (2020, 2021), Dynamic World (every year since 2016), CORINE Land Cover (Europe, 1990 to 2018) or MODIS MCD12Q1 (2001 to 2025). In the recipe it is `where: {landcover: CORINE, year: 2018, exclude: [water, built]}`; the classes of ESA WorldCover 2021 of before (`exclude_landcover`) still work.
