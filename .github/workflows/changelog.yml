@@ -1,0 +1,32 @@
+# The changelog of README.md (section "## Changelog", see .github/changelog.py): its format on every push and pull
+# request, and a warning when the commits change eHabitat+ (the app, the scripts, the environment) without an entry
+# under "### Unreleased".
+name: Changelog
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the tags (releases) and the commits before the push
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Format of the changelog
+        run: python .github/changelog.py check
+      - name: Changes without an entry
+        env:
+          OLD: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          NEW: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          why=$(python .github/changelog.py unrecorded "$OLD" "$NEW")
+          if [ -n "$why" ]; then echo "::warning title=Changelog::$why"; fi
