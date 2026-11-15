@@ -32,7 +32,30 @@ RGB_METRICS = ['median', 'mean', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90',
 METRICS = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'sum', 'count', 'mode']
 INTERANNUAL = ['mean', 'median', 'min', 'max', 'std', 'p10', 'p25', 'p75', 'p90']
 CV_VERSION = '0.3.46'  # the first version of monitoreo with the metric cv
+BANDS_VERSION = '0.3.50'  # the first version of monitoreo that combines several bands into one (band_reducer)
 FIND_LIMIT = 50  # the datasets of the Earth Engine data catalog that a search gives at most
+# data of Earth Engine ready to add to a recipe (Other collection or image…, Source "Ready to use"): the variable of the
+# recipe, what it is (note) and the record of its dataset (title, source, provider, licence, page, as describe_asset)
+MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+READY = [
+	{'key': 'precip-openlandmap', 'title': 'Annual precipitation, OpenLandMap (1 km, 2007–2018)',
+	 'variable': {'name': 'PRECIP_OLM', 'image': 'OpenLandMap/CLM/CLM_PRECIPITATION_SM2RAIN_M/v01', 'band': MONTHS,
+	              'band_reducer': 'sum', 'unit': 'mm'},
+	 'note': 'The annual precipitation (mm), the sum of the 12 bands of the monthly precipitation (mm of each month), a '
+	         'fixed layer of about 1 km. Each month is the mean of WorldClim, CHELSA Climate, IMERG and SM2RAIN-ASCAT '
+	         '2007–2018 (this one weighs 3 times), resampled to 1 km: finer than the precipitation of ERA5-Land (about '
+	         '11 km), CHIRPS (about 5.5 km) or TerraClimate (about 4 km), and more recent than that of WorldClim (BIO12, '
+	         '1960–1990), but a climatology, without years (no period, metric or temporal aggregation). Its coarser '
+	         'sources smooth the relief: in mountains it varies less than WorldClim (in Sierra Nevada, Spain, 379 to 706 '
+	         'mm against 349 to 1308 mm).',
+	 'like': ['PRECIP', 'BIO12'],  # the variables of the catalog of MonitorEO that Add from the catalog… offers it with
+	 'source': 'Earth Engine data catalog', 'provider': 'EnvirometriX Ltd', 'licence': 'CC-BY-SA-4.0',
+	 'page': 'https://developers.google.com/earth-engine/datasets/catalog/OpenLandMap_CLM_CLM_PRECIPITATION_SM2RAIN_M_v01',
+	 # as the page of the Earth Engine data catalog cites it (the DOI of all its versions, which leads to the last one)
+	 'cite': 'Hengl, T. (2018). Monthly precipitation in mm at 1 km resolution based on SM2RAIN-ASCAT 2007-2018 and IMERG '
+	         '2014-2018. Zenodo. https://doi.org/10.5281/zenodo.1435912',
+	 'version': BANDS_VERSION},
+]
 TEMPORAL = [['period', 'Whole period'], ['annual', 'Each year, then between years'],
             ['monthly', 'Each month, between years and mean of the months'], ['16-day', 'Each 16 days, between years and mean']]
 
@@ -172,11 +195,24 @@ def _has_cv():
 	return 'cv' in getattr(composite, 'SIMPLE', ())
 
 
+def _band_reducers():
+	"""How the installed monitoreo combines several bands of the data of Earth Engine by their ID into one value on each
+	pixel (band_reducer: ['sum', 'mean'], since 0.3.50), or [] with a version without it."""
+	try:
+		_monitoreo()
+		from monitoreo import variable
+	except Exception:  # noqa: BLE001 (not installed, or a version that cannot be imported: one band only)
+		return []
+	return list(getattr(variable, 'BAND_REDUCERS', ()))
+
+
 def catalog():
 	"""Variables of the catalog of MonitorEO and the options of a recipe: the metrics of the images of each pixel
-	('metrics') and those between years ('interannual'), with cv when the installed monitoreo computes it, and the
-	search in the Earth Engine data catalog ('eecatalog': {date (of the copy of its index), datasets (how many)}, or
-	None with a version of monitoreo without it: see find_datasets)."""
+	('metrics') and those between years ('interannual'), with cv when the installed monitoreo computes it, the search in
+	the Earth Engine data catalog ('eecatalog': {date (of the copy of its index), datasets (how many)}, or None with a
+	version of monitoreo without it: see find_datasets), how several bands of other data of Earth Engine are combined
+	('band_reducers', [] with a version without it) and the data ready to use (READY, with 'ok': whether the installed
+	monitoreo computes it)."""
 	cat, services = _monitoreo()
 	try:
 		rows = services.list_variables(lang='en')
@@ -186,9 +222,12 @@ def catalog():
 	# the sensors of the catalog (also those of the climate and the fixed layers: Copernicus, ERA5-Land, WorldClim...)
 	sensors = SENSORS + [x for x in dict.fromkeys(r['sensor'] for r in rows) if x not in SENSORS]
 	cv = ['cv'] if _has_cv() else []
+	reducers = _band_reducers()
+	ready = [dict(copy.deepcopy(r), ok=bool(reducers) or not r['variable'].get('band_reducer')) for r in READY]
 	return {'variables': rows, 'source': src, 'sensors': sensors, 'metrics': METRICS[:5] + cv + METRICS[5:],
 	        'interannual': INTERANNUAL[:5] + cv + INTERANNUAL[5:], 'temporal': TEMPORAL, 'rgb_metrics': RGB_METRICS,
-	        'landcover': _landcover_maps(services), 'eecatalog': _eecatalog(services), 'monitoreo': _label(installed())}
+	        'landcover': _landcover_maps(services), 'eecatalog': _eecatalog(services), 'band_reducers': reducers,
+	        'bands_version': BANDS_VERSION, 'ready': ready, 'monitoreo': _label(installed())}
 
 
 def _eecatalog(services):
@@ -526,6 +565,9 @@ def check_recipe(rec):
 		# that of a variable (or its conditions); the true colour takes no cv in any version
 		if m and re.search(r'\bunknown metric cv\b', msg, re.I) and not _has_cv():
 			msg += f'. cv needs monitoreo {CV_VERSION} or later: press "Update MonitorEO".'
+		# several bands combined into one (band_reducer); before it, a list of bands was taken as one band
+		elif m and re.search(r'\bunknown keys?\b.*\bband_reducer\b', msg, re.I) and not _band_reducers():
+			msg += f'. Combining several bands needs monitoreo {BANDS_VERSION} or later: press "Update MonitorEO".'
 		out['error'] = msg
 		# the conditions of where of the recipe are checked with each variable: not an error of the first one
 		out['variable'] = int(m.group(1)) if m and ' of where' not in msg else None

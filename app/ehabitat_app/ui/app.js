@@ -1230,6 +1230,14 @@ pages.gee = (() => {
 	// Variables of the recipe -----------------------------------------------------------------------------------
 	function kind(v) { return v.index ? 'catalog' : v.image ? 'image' : 'collection'; }
 	function metrics(v) { const m = v.metric ?? v.metrics; return m === undefined || m === null ? [] : Array.isArray(m) ? m : [m]; }
+	// the bands of other data of Earth Engine: one (a text) or several (a list, or a text with commas) that band_reducer
+	// combines into one value on each pixel, their sum or their mean (monitoreo 0.3.50 or later)
+	function bandList(b) { return (Array.isArray(b) ? b : String(b ?? '').split(',')).map(x => String(x).trim()).filter(Boolean); }
+	function bandText(v) {
+		const bs = bandList(v.band);
+		if (bs.length < 2) return `band ${bs[0] || '?'}`;
+		return `${v.band_reducer || '?'} of ${bs.length} bands (${bs.length > 3 ? bs[0] + '…' + bs[bs.length - 1] : bs.join(', ')})`;
+	}
 	const TEMPORAL = {period: 'period', annual: 'annual', monthly: 'monthly', '16-day': '16 days'};
 
 	// the row of the catalog of a variable of the recipe (null without the catalog, or for other data of Earth Engine)
@@ -1267,10 +1275,10 @@ pages.gee = (() => {
 			const files = Math.max(1, ms.length);
 			const first = n + 1; n += files;
 			const src = k === 'catalog' ? `${v.sensor || ''}${v.collection ? ' · ' + v.collection : ''}`
-				: `${v.image || v.collection} · band ${v.band || '?'}${v.terrain ? ' · ' + v.terrain : ''}`;
+				: `${v.image || v.collection} · ${bandText(v)}${v.terrain ? ' · ' + v.terrain : ''}`;
 			body.append(el('tr', {'data-var': i + 1},
 				el('td', {class: 'num faint'}, files > 1 ? `${first}–${n}` : String(first)),
-				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || v.band || '?')), ' ', twoPeriods(row) ? catFlag(row) : null,
+				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || (bandList(v.band).length > 1 ? bandText(v) : v.band) || '?')), ' ', twoPeriods(row) ? catFlag(row) : null,
 					el('div', {class: 'var-src'}, k === 'catalog' ? 'catalog of MonitorEO'
 						: `${communityRecord(v.image || v.collection) ? 'GEE Community Catalog' : 'Earth Engine'} ${k === 'image' ? 'image' : 'collection'}`)),
 				el('td', {class: 'small'}, src),
@@ -1456,6 +1464,20 @@ pages.gee = (() => {
 			tbl.append(body);
 		};
 		let mbox, tctl, name;
+		// data ready to use like the variable chosen (READY of gee.py: the annual precipitation of OpenLandMap for PRECIP
+		// and BIO12), added instead of it with its button (the same as Other collection or image…, Source "Ready to use")
+		let readyPick = null;
+		const alsoReady = () => {
+			const rows = (cat.ready || []).filter(r => (r.like || []).includes(chosen.variable));
+			if (!rows.length) return null;
+			return el('div', {class: 'notice ok'}, el('div', {class: 'stack', style: {gap: '8px'}}, ...rows.map(r => el('div', {class: 'stack', style: {gap: '4px'}},
+				el('div', {}, el('b', {}, `Also: ${r.title}. `), el('span', {class: 'small muted'}, r.note)),
+				el('div', {}, el('button', {class: 'btn small', disabled: !r.ok,
+					title: r.ok ? `${r.variable.image || r.variable.collection}, as in Other collection or image…, Source "Ready to use"`
+						: `It needs MonitorEO ${r.version} or later: press "Update MonitorEO"`,
+					onclick: e => { readyPick = r; e.target.closest('.modal').querySelector('footer .btn.primary').click(); }},
+				existing ? 'Use it instead' : 'Add it instead'))))));
+		};
 		const filtersText = r => !r.fixed_filters ? null : r.fixed_filters.length
 			? `Pixel filters always on: ${r.fixed_filters.join(', ')} (whatever the pixel filters of the recipe).`
 			: 'No pixel filters (those of the recipe do not apply to it).';
@@ -1479,7 +1501,7 @@ pages.gee = (() => {
 			if (isStatic(chosen)) {
 				// elevation, slope, WorldClim: a fixed layer, without dates
 				mbox = null; tctl = null;
-				detail.append(head, el('div', {class: 'small muted'}, 'A fixed layer, without dates: no metric, period or temporal aggregation (the period, '
+				detail.append(head, alsoReady() || '', el('div', {class: 'small muted'}, 'A fixed layer, without dates: no metric, period or temporal aggregation (the period, '
 					+ 'season and pixel filters of the recipe do not apply to it). One file.'),
 					el('div', {class: 'form-grid'}, el('label', {}, 'File name'), name));
 				return;
@@ -1519,7 +1541,7 @@ pages.gee = (() => {
 						+ 'between years cv): how stable the variable is from one year to another. With few years it is unstable (relative error ≈ 1/√(2n): about 25 % '
 						+ 'with the 8 years of Sentinel-2); MODIS (since 2000) or Landsat suit it better.' + caveats},
 					'Interannual variability (CV)')) : null;
-			detail.append(head,
+			detail.append(head, alsoReady() || '',
 				el('div', {class: 'form-grid'},
 					el('label', {}, 'Metrics (one file each)'), mbox,
 					shortcuts ? el('label', {}, 'Shortcuts') : null, shortcuts,
@@ -1537,6 +1559,7 @@ pages.gee = (() => {
 			body: el('div', {class: 'stack', style: {gap: '10px'}}, el('div', {class: 'row'}, search, sensor), wrap, detail,
 				el('div', {class: 'small faint'}, `Catalog of MonitorEO (${(cat.source || {}).imported || ''}), package monitoreo ${cat.monitoreo || ''}.`)),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
+				if (readyPick) return JSON.parse(JSON.stringify(readyPick.variable));  // Add it instead
 				if (!chosen) { toast('Choose a variable.', 'warn'); return undefined; }
 				if (twoPeriods(chosen)) { toast(`${chosen.variable} only comes with the burn severity: make the burned area with "From MonitorEO…".`, 'warn'); return undefined; }
 				const fixed = isStatic(chosen);
@@ -1578,21 +1601,36 @@ pages.gee = (() => {
 	// how it is used and the scale, offset and unit of the band when its record gives them
 	async function eeDialog(existing, fromCommunity = false) {
 		const v0 = existing || {};
-		const OWN = ['name', 'image', 'collection', 'band', 'scale', 'offset', 'unit', 'terrain', 'metric', 'metrics', 'temporal', 'interannual', 'period'];
+		const OWN = ['name', 'image', 'collection', 'band', 'band_reducer', 'scale', 'offset', 'unit', 'terrain', 'metric', 'metrics', 'temporal', 'interannual', 'period'];
 		let info = null;  // what Earth Engine said of the ID (describe_asset), once read
 		let com = null;
 		try { com = await ensureCommunity(); } catch (e) { com = null; }
 		// the catalog of MonitorEO: the metrics of the installed monitoreo (cv) and the search in the Earth Engine data catalog
 		try { await ensureCatalog(); } catch (e) { /* without it: the metrics of before and no search */ }
 		const eeCat = (S.catalog && S.catalog.eecatalog) || null;
+		// how several bands are combined into one (band_reducer: [] with a monitoreo before 0.3.50) and the data ready to use
+		const reducers = (S.catalog && S.catalog.band_reducers) || [];
+		const readyRows = (S.catalog && S.catalog.ready) || [];
+		const readyOf = asset => readyRows.find(r => (r.variable.image || r.variable.collection) === String(asset || '').trim()) || null;
 		const asset0 = v0.image || v0.collection || '';
 		const UNIT_HINT = 'e.g. mm, degC, kg m-2 or 1 (dimensionless)';
 
 		const source = el('select', {},
 			el('option', {value: 'id'}, 'An ID of Earth Engine (its data catalog or any asset)'),
+			el('option', {value: 'ready', disabled: !readyRows.length}, `Ready to use (${readyRows.length})`),
 			el('option', {value: 'community', disabled: !com}, com ? `GEE Community Catalog (${com.datasets.length} datasets)` : 'GEE Community Catalog (press "Update MonitorEO")'),
 			el('option', {value: 'eecatalog', disabled: !eeCat}, eeCat ? 'Earth Engine data catalog (search)' : 'Earth Engine data catalog (press "Update MonitorEO")'));
-		source.value = com && (fromCommunity || communityRecord(asset0)) ? 'community' : 'id';
+		source.value = com && (fromCommunity || communityRecord(asset0)) ? 'community' : readyOf(asset0) ? 'ready' : 'id';
+
+		// data ready to use (READY of gee.py), e.g. the annual precipitation of OpenLandMap: the fields below, filled with it
+		const readyList = el('select', {size: Math.min(6, Math.max(2, readyRows.length)), style: {width: '100%'}},
+			...readyRows.map(r => el('option', {value: r.key, disabled: !r.ok, title: r.note},
+				r.ok ? r.title : `${r.title} (needs MonitorEO ${r.version}: press "Update MonitorEO")`)));
+		const readyBox = el('div', {class: 'stack', style: {gap: '6px'}}, readyList,
+			el('div', {class: 'small faint'}, 'Choose one to fill the fields below with it (they can still be changed); its bands are read in Earth Engine.'));
+		const readyLabel = el('label', {}, 'Data');
+		const readyRecord = r => ({asset: r.variable.image || r.variable.collection, title: r.title, source: r.source, provider: r.provider,
+			licence: r.licence, page: r.page, note: r.note, cite: r.cite});
 
 		// the datasets of the GEE Community Catalog, by theme and words
 		const theme = el('select', {}, el('option', {value: ''}, 'All the themes'),
@@ -1687,8 +1725,18 @@ pages.gee = (() => {
 			el('option', {value: 'collection'}, 'Image collection with dates (aggregated in time)'));
 		kindSel.value = existing ? kind(existing) : 'image';
 		const bands = el('datalist', {id: 'ee-bands-' + Date.now()});
-		const band = el('input', {type: 'text', value: v0.band || '', placeholder: 'e.g. DEM', list: bands.id});
+		const band = el('input', {type: 'text', class: 'grow', value: bandList(v0.band).join(', '), placeholder: 'e.g. DEM, or several separated by commas', list: bands.id});
+		const allBtn = el('button', {class: 'btn small', disabled: true, title: 'All the bands of the data, to combine them into one (e.g. the 12 monthly bands into the annual total)'}, 'All');
 		const bandNote = el('div', {class: 'small faint'});
+		// several bands: combined into one value on each pixel, their sum or their mean (band_reducer)
+		const reducer = el('select', {disabled: !reducers.length}, el('option', {value: ''}, 'Choose how to combine them'),
+			el('option', {value: 'sum'}, 'Their sum (e.g. 12 monthly bands into the annual total)'),
+			el('option', {value: 'mean'}, 'Their mean (e.g. the depths of a soil)'));
+		reducer.value = v0.band_reducer || '';
+		const reducerNote = el('div', {class: 'small faint'}, reducers.length
+			? 'On each pixel where all of them have data, after the scale and offset of each band. The unit is that of every band (a sum of bands is not turned from a rate into a total).'
+			: `Combining several bands needs MonitorEO ${(S.catalog && S.catalog.bands_version) || '0.3.50'} or later: press "Update MonitorEO".`);
+		const rowsReducer = [el('label', {}, 'Combine the bands'), el('div', {}, reducer, reducerNote)];
 		const scale = el('input', {type: 'number', value: v0.scale ?? '', step: 'any', placeholder: '1'});
 		const offset = el('input', {type: 'number', value: v0.offset ?? '', step: 'any', placeholder: '0'});
 		const unit = el('input', {type: 'text', value: v0.unit ?? '', placeholder: UNIT_HINT});
@@ -1720,31 +1768,55 @@ pages.gee = (() => {
 		p0.addEventListener('change', periodHint);
 		p1.addEventListener('change', periodHint);
 
-		// the scale, offset and unit of the band, as the record of its data says; REPLACE: also empty those it does not give
+		// the scale, offset and unit of the band (of the first one, with several), as the record of its data says;
+		// REPLACE: also empty those it does not give
 		const applyBand = replace => {
-			const b = info && (info.bands || []).find(x => x.band === band.value.trim());
+			const bs = bandList(band.value);
+			const all = info ? info.bands || [] : [];
+			const recs = bs.map(n => all.find(x => x.band === n)).filter(Boolean);
+			const missing = info ? bs.filter(n => !all.some(x => x.band === n)) : [];
+			const b = recs[0] || null;
 			unit.placeholder = b && b.units && !b.unit ? `its record says ${b.units}: write it in UDUNITS` : UNIT_HINT;
-			bandNote.textContent = b ? [b.description, b.units, b.resolution_m && `${Math.round(b.resolution_m)} m`, b.data_type,
+			if (bs.length > 1) {
+				const units = [...new Set(recs.map(x => x.units || x.unit || '').filter(Boolean))];
+				bandNote.textContent = `${bs.length} bands` + (units.length === 1 ? `, in ${units[0]}`
+					: units.length > 1 ? `, in different units (${units.join(', ')}): check that they can be combined` : '') + '.';
+			} else bandNote.textContent = b ? [b.description, b.units, b.resolution_m && `${Math.round(b.resolution_m)} m`, b.data_type,
 				b.classes || b.bitmask ? 'codes, not quantities: use the metric mode (or min, max)' : null].filter(Boolean).join(' · ') : '';
+			if (missing.length) bandNote.textContent += ` It has no band ${missing.join(', ')}.`;
 			if (!b) return;
 			for (const [input, val] of [[scale, b.band_scale], [offset, b.band_offset], [unit, b.unit]]) {
 				if (val !== undefined && val !== null && val !== '') input.value = val;
 				else if (replace) input.value = '';
 			}
 		};
-		band.addEventListener('change', () => { applyBand(true); syncCv(); });  // its unit can be another
+		// the row of how to combine them, only with several bands; All, with data of several bands
+		const syncBands = () => {
+			rowsReducer.forEach(e => e.classList.toggle('hidden', bandList(band.value).length < 2));
+			allBtn.disabled = !(info && (info.bands || []).length > 1);
+		};
+		band.addEventListener('input', syncBands);
+		band.addEventListener('change', () => { applyBand(true); syncBands(); syncCv(); });  // its unit can be another
+		allBtn.addEventListener('click', () => {
+			band.value = (info.bands || []).map(b => b.band).join(', ');
+			applyBand(true); syncBands(); syncCv();
+		});
 
 		const showAbout = d => {
 			about.textContent = '';
 			const head = [d.title && d.title !== d.asset ? d.title : null, d.source, d.provider, d.licence && `licence: ${d.licence}`].filter(Boolean).join(' · ');
 			about.append(el('div', {}, el('b', {}, head || d.asset)));
+			if (d.note) about.append(el('div', {}, d.note));  // of the data ready to use
 			if (d.page || d.docs) about.append(el('div', {}, 'Page (units, scale and how to cite it): ', extLink(d.page || d.docs)));
+			if (d.cite) about.append(el('div', {}, `Cite it: ${d.cite}`));
 			if (d.bands) {
 				const n = d.bands.length;
 				const dates = d.dates ? ` Dates: ${d.dates[0] || '?'} to ${d.dates[1] || 'its last image'}.` : '';
 				about.append(el('div', {}, `${d.type === 'image' ? 'An image' : 'A collection of images'} with ${n} band${n === 1 ? '' : 's'}.${dates}`));
 				// the notes of MonitorEO name the arguments of its functions: here, the fields below
 				for (const note of d.notes || []) about.append(el('div', {}, note
+					.replace(/band=\[\.\.\.\] with band_reducer 'sum'/g, 'several in Band (All writes every one) with Combine the bands, their sum')
+					.replace(/ or 'mean' \(e\.g\./g, ' or their mean (e.g.').replace(/band_scale, band_offset and unit/g, 'Scale and offset and Unit')
 					.replace(/\(unit, in UDUNITS\)/g, '(Unit, in UDUNITS)').replace(/band_scale and band_offset/g, 'Scale and offset')
 					.replace(/\bunit, Scale and offset/g, 'Unit, Scale and offset')));
 			}
@@ -1766,14 +1838,16 @@ pages.gee = (() => {
 				bands.textContent = '';
 				for (const b of d.bands || []) bands.append(el('option', {value: b.band}, [b.description, b.units].filter(Boolean).join(' · ')));
 				const names = (d.bands || []).map(b => b.band);
-				const other = !names.includes(band.value.trim());
-				if (other) band.value = (d.arguments || {}).band || names[0] || '';
+				// the bands written stay if any is of these data (applyBand says which are not)
+				const other = !bandList(band.value).some(n => names.includes(n));
+				if (other) band.value = bandList((d.arguments || {}).band)[0] || names[0] || '';
 				applyBand(other);
 				if (!(existing && asset0 === d.asset)) kindSel.value = d.use || kindSel.value;  // a choice of before stays
 				kindSel.options[1].disabled = d.type === 'image';  // an image has no dates
 				if (d.type === 'image') kindSel.value = 'image';
 				sync();
-				showAbout(d);
+				// what the record of the data ready to use says of it stays
+				showAbout(record && record.asset === d.asset && (record.note || record.cite) ? {...d, note: record.note, cite: record.cite} : d);
 			} catch (e) {
 				if (id.value.trim() === asset) status(`${asset} could not be read in Earth Engine: ${e.message}`);
 			} finally { readBtn.disabled = false; }
@@ -1792,13 +1866,36 @@ pages.gee = (() => {
 			id.value = asset;
 			info = null;
 			record = rec;
-			for (const input of [band, scale, offset, unit]) input.value = '';
+			for (const input of [band, reducer, scale, offset, unit]) input.value = '';
 			kindSel.options[1].disabled = false;
 			kindSel.value = type === 'image' ? 'image' : 'collection';
 			sync();
 			showAbout(rec);
 			readAsset();
 		};
+		// data ready to use: its variable in the fields (its file name too), then its bands, read in Earth Engine
+		const useReady = r => {
+			const x = r.variable;
+			id.value = x.image || x.collection;
+			info = null;
+			record = readyRecord(r);
+			band.value = bandList(x.band).join(', ');
+			reducer.value = x.band_reducer || '';
+			scale.value = x.scale ?? '';
+			offset.value = x.offset ?? '';
+			unit.value = x.unit ?? '';
+			terrain.value = x.terrain || '';
+			name.value = x.name || '';
+			kindSel.options[1].disabled = false;
+			kindSel.value = x.image ? 'image' : 'collection';
+			sync();
+			showAbout(record);
+			readAsset();
+		};
+		readyList.addEventListener('change', () => {
+			const r = readyRows.find(x => x.key === readyList.value);
+			if (r && r.ok) useReady(r);
+		});
 		list.addEventListener('change', () => {  // of the GEE Community Catalog
 			const d = communityRecord(list.value);
 			if (d) useDataset(d.id, d.type, {asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
@@ -1809,20 +1906,23 @@ pages.gee = (() => {
 		});
 
 		const grid = el('div', {class: 'form-grid'},
-			el('label', {}, 'Source'), source, comLabel, comBox, eeLabel, eeBox,
+			el('label', {}, 'Source'), source, readyLabel, readyBox, comLabel, comBox, eeLabel, eeBox,
 			el('label', {}, 'Earth Engine ID'), el('div', {class: 'row', style: {flexWrap: 'nowrap'}}, id, readBtn),
 			el('label', {}, ''), about,
 			el('label', {}, 'Use'), kindSel,
-			el('label', {}, 'Band'), el('div', {}, band, bands, bandNote),
+			el('label', {}, 'Band'), el('div', {}, el('div', {class: 'row', style: {flexWrap: 'nowrap'}}, band, allBtn), bands, bandNote),
+			...rowsReducer,
 			el('label', {}, 'Scale and offset'), el('div', {class: 'row'}, scale, offset),
 			el('label', {}, 'Unit'), unit,
 			...rowsImg, ...rowsCol, cvWarn, el('label', {}, 'File name'), name);
 		const sync = () => {
 			rowsImg.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'image'));
 			rowsCol.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'collection'));
+			[readyLabel, readyBox].forEach(e => e.classList.toggle('hidden', source.value !== 'ready'));
 			[comLabel, comBox].forEach(e => e.classList.toggle('hidden', source.value !== 'community'));
 			[eeLabel, eeBox].forEach(e => e.classList.toggle('hidden', source.value !== 'eecatalog'));
 			periodHint();
+			syncBands();
 			syncCv();
 		};
 		kindSel.addEventListener('change', sync);
@@ -1839,6 +1939,10 @@ pages.gee = (() => {
 			const d = communityRecord(asset0);
 			record = {asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs};
 			showAbout(record);
+		} else if (readyOf(asset0)) {
+			readyList.value = readyOf(asset0).key;
+			record = readyRecord(readyOf(asset0));
+			showAbout(record);
 		} else about.textContent = asset0 ? 'Read shows its bands, how it is used and what its record says.' : '';
 		sync();
 
@@ -1847,18 +1951,28 @@ pages.gee = (() => {
 			el('div', {class: 'small muted'}, 'Any image or collection of images of Earth Engine: of its data catalog '
 				+ '(developers.google.com/earth-engine/datasets; search it in Source), e.g. WORLDCLIM/V1/BIO band bio01 with scale 0.1 (mean annual '
 				+ 'temperature), or of the GEE Community Catalog (gee-community-catalog.org), shared by the community of Earth '
-				+ 'Engine. Read shows its bands and what its record says; the land cover mask of the recipe applies to them too.'), grid),
+				+ 'Engine. Several bands (e.g. the 12 monthly bands of a precipitation) are combined into one, their sum or their mean. '
+				+ 'Ready to use has data already set, e.g. the annual precipitation of OpenLandMap. Read shows its bands and what its record '
+				+ 'says; the land cover mask of the recipe applies to them too.'), grid),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
-				if (!id.value.trim() || !band.value.trim()) { toast('Write the ID and the band (Read lists its bands).', 'warn'); return undefined; }
+				const bs = bandList(band.value);
+				if (!id.value.trim() || !bs.length) { toast('Write the ID and the band (Read lists its bands).', 'warn'); return undefined; }
 				const names = info ? (info.bands || []).map(b => b.band) : [];
-				if (names.length && !names.includes(band.value.trim())) {
-					toast(`${id.value.trim()} has no band ${band.value.trim()}: use one of ${names.join(', ')}.`, 'warn');
+				const missing = names.length ? bs.filter(n => !names.includes(n)) : [];
+				if (missing.length) {
+					toast(`${id.value.trim()} has no band ${missing.join(', ')}: use ${bs.length > 1 ? 'some' : 'one'} of ${names.join(', ')}.`, 'warn');
 					return undefined;
+				}
+				if (bs.length > 1) {
+					if (!reducers.length) { toast(reducerNote.textContent, 'warn'); return undefined; }
+					if (!reducer.value) { toast(`Choose how to combine the ${bs.length} bands: their sum or their mean.`, 'warn'); return undefined; }
+					if (kindSel.value === 'image' && terrain.value) { toast('The slope or the aspect is that of one band (an elevation): give one band.', 'warn'); return undefined; }
 				}
 				const v = {};
 				if (name.value.trim()) v.name = name.value.trim();
 				v[kindSel.value] = id.value.trim();
-				v.band = band.value.trim();
+				v.band = bs.length > 1 ? bs : bs[0];
+				if (bs.length > 1) v.band_reducer = reducer.value;
 				if (scale.value !== '') v.scale = Number(scale.value);
 				if (offset.value !== '') v.offset = Number(offset.value);
 				if (unit.value.trim() && !(kindSel.value === 'image' && terrain.value)) v.unit = unit.value.trim();

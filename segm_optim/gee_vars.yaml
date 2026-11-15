@@ -79,6 +79,11 @@ where: null
 #  - otra colección de Earth Engine: collection, band y metric (scale y offset opcionales)
 #  - una imagen fija (o una colección de teselas, que se unen): image y band (scale y offset opcionales;
 #    terrain: slope o aspect para la pendiente o la orientación en grados)
+#  En las dos últimas, band puede ser una lista de bandas con band_reducer: sum o mean, que las combina en un valor
+#  por píxel (monitoreo 0.3.50 o posterior), p. ej. la precipitación anual de OpenLandMap (~1 km, 2007-2018), la suma
+#  de sus 12 bandas mensuales:
+#  - {name: PRECIP_OLM, image: OpenLandMap/CLM/CLM_PRECIPITATION_SM2RAIN_M/v01, band: [jan, feb, mar, apr, may, jun,
+#     jul, aug, sep, oct, nov, dec], band_reducer: sum, unit: mm}
 # metric: mean, median, mode, min, max, sum, std, count o pN (percentil N: p5, p95, ...). Una lista da un fichero
 #   por métrica.
 # temporal: period = la métrica sobre todas las imágenes del periodo (por defecto)
