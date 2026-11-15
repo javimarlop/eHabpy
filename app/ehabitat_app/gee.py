@@ -27,7 +27,12 @@ SLUG_RE = re.compile(r'[^A-Za-z0-9_-]+')
 
 SENSORS = ['Sentinel-2', 'Landsat', 'Modis']  # first in the list of sensors of the catalog; then the others it has
 RGB_METRICS = ['median', 'mean', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95']  # those of a true colour
-METRICS = ['mean', 'median', 'min', 'max', 'std', 'sum', 'count', 'mode', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95']
+# the metrics of the images of each pixel and those between years (composite.check_metric), in the order of the form;
+# the coefficient of variation ('cv') goes after std when the installed monitoreo computes it (see _has_cv)
+METRICS = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'sum', 'count', 'mode']
+INTERANNUAL = ['mean', 'median', 'min', 'max', 'std', 'p10', 'p25', 'p75', 'p90']
+CV_VERSION = '0.3.46'  # the first version of monitoreo with the metric cv
+FIND_LIMIT = 50  # the datasets of the Earth Engine data catalog that a search gives at most
 TEMPORAL = [['period', 'Whole period'], ['annual', 'Each year, then between years'],
             ['monthly', 'Each month, between years and mean of the months'], ['16-day', 'Each 16 days, between years and mean']]
 
@@ -157,8 +162,21 @@ def status():
 	return out
 
 
+def _has_cv():
+	"""Whether the installed monitoreo computes the coefficient of variation ('cv', since 0.3.46)."""
+	try:
+		_monitoreo()
+		from monitoreo import composite
+	except Exception:  # noqa: BLE001 (not installed, or a version that cannot be imported: without cv)
+		return False
+	return 'cv' in getattr(composite, 'SIMPLE', ())
+
+
 def catalog():
-	"""Variables of the catalog of MonitorEO and the options of a recipe."""
+	"""Variables of the catalog of MonitorEO and the options of a recipe: the metrics of the images of each pixel
+	('metrics') and those between years ('interannual'), with cv when the installed monitoreo computes it, and the
+	search in the Earth Engine data catalog ('eecatalog': {date (of the copy of its index), datasets (how many)}, or
+	None with a version of monitoreo without it: see find_datasets)."""
 	cat, services = _monitoreo()
 	try:
 		rows = services.list_variables(lang='en')
@@ -167,8 +185,38 @@ def catalog():
 	src = cat.load().get('source', {})
 	# the sensors of the catalog (also those of the climate and the fixed layers: Copernicus, ERA5-Land, WorldClim...)
 	sensors = SENSORS + [x for x in dict.fromkeys(r['sensor'] for r in rows) if x not in SENSORS]
-	return {'variables': rows, 'source': src, 'sensors': sensors, 'metrics': METRICS, 'temporal': TEMPORAL,
-	        'rgb_metrics': RGB_METRICS, 'landcover': _landcover_maps(services), 'monitoreo': _label(installed())}
+	cv = ['cv'] if _has_cv() else []
+	return {'variables': rows, 'source': src, 'sensors': sensors, 'metrics': METRICS[:5] + cv + METRICS[5:],
+	        'interannual': INTERANNUAL[:5] + cv + INTERANNUAL[5:], 'temporal': TEMPORAL, 'rgb_metrics': RGB_METRICS,
+	        'landcover': _landcover_maps(services), 'eecatalog': _eecatalog(services), 'monitoreo': _label(installed())}
+
+
+def _eecatalog(services):
+	"""The copy of the index of the Earth Engine data catalog in monitoreo (since 0.3.47): {date (when it was
+	downloaded), datasets (how many), source}, or None with a version of monitoreo without it."""
+	if not hasattr(services, 'find_datasets'):
+		return None
+	try:
+		from monitoreo import eecatalog
+		snap = eecatalog.load()
+	except Exception:  # noqa: BLE001 (an index that cannot be read: the search would fail too)
+		return None
+	return {'date': snap.get('downloaded'), 'datasets': len(snap.get('datasets') or []), 'source': snap.get('source')}
+
+
+def find_datasets(text, bbox=None, start=None, end=None):
+	"""Images and collections of the Earth Engine data catalog with the words of TEXT (in English, at least half of
+	them), with data between START and END (the collections; the images, fixed layers, whatever their dates) and over
+	BBOX ([west, south, east, north], degrees), those with most words first, at most FIND_LIMIT: services.find_datasets,
+	from the copy of its index in MonitorEO, without Earth Engine nor the internet ([{id, title, type, start, end, bbox,
+	provider, keywords, gsd, description, page}]), or None with a version of monitoreo without it. A dataset goes into
+	a recipe as any data of Earth Engine, by its ID (describe_asset reads its bands)."""
+	_, services = _monitoreo()
+	if not hasattr(services, 'find_datasets'):
+		return None
+	found = services.find_datasets(str(text or '').strip() or None, start or None, end or None, bbox or None, None,
+	                               FIND_LIMIT)
+	return json.loads(json.dumps(found, default=str))
 
 
 def _landcover_maps(services):
@@ -475,6 +523,9 @@ def check_recipe(rec):
 			out['unchecked'] = msg
 			return out
 		m = re.match(r'variable (\d+) of the recipe: ', msg)
+		# that of a variable (or its conditions); the true colour takes no cv in any version
+		if m and re.search(r'\bunknown metric cv\b', msg, re.I) and not _has_cv():
+			msg += f'. cv needs monitoreo {CV_VERSION} or later: press "Update MonitorEO".'
 		out['error'] = msg
 		# the conditions of where of the recipe are checked with each variable: not an error of the first one
 		out['variable'] = int(m.group(1)) if m and ' of where' not in msg else None

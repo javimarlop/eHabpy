@@ -16,6 +16,7 @@ CUT_FILES = [
 	('heatmap', 'Heatmap of the HFT profiles', r'heatmap_{id}_(?P<k>\d+){tag}_hft_profiles\.png'),
 	('biplot', 'PCA biplot of the HFTs', r'pca_biplot_{id}_(?P<k>\d+){tag}_hft\.png'),
 	('hclust', 'Classification tree of the segments', r'hclust_{id}_(?P<k>\d+){tag}_segms_mean\.png'),
+	('silhouette', 'Silhouette of the segments by HFT', r'silhouette_{id}_(?P<k>\d+){tag}_segms\.png'),
 ]
 SCENARIO_FILES = [
 	('threshold', "Moran's I and variance by threshold", r'{id}_moran_var_mean\.png'),
@@ -107,7 +108,7 @@ def scenario(study_area, scen):
 			for f in sorted(files):
 				if rx.match(f):
 					rec['plots'].append({'kind': kind, 'label': label, 'file': f, 'url': _url(os.path.join(root, f))})
-		for name, label in ((f'r2_{i}_cuts.csv', 'R² of each cut'), (f'{i}_optim_thresholds.csv', 'Segmentation thresholds'),
+		for name, label in ((f'r2_{i}_cuts.csv', 'R² and silhouette of each cut'), (f'{i}_optim_thresholds.csv', 'Segmentation thresholds'),
 		                    (f'r2_{i}_hfts.csv', 'R² by number of HFTs')):
 			p = os.path.join(root, name)
 			if os.path.isfile(p):
@@ -117,7 +118,7 @@ def scenario(study_area, scen):
 		for f in sorted(files):
 			if re.match(rf'^hft_means_{re.escape(i)}_\d+\.csv$', f):
 				rec['tables'].append(dict(_table(os.path.join(root, f)),
-				                          label='HFTs of each cut: area and mean of the variables (to compare study areas)'))
+				                          label='HFTs of each cut: area, silhouette and mean of the variables (to compare study areas)'))
 		for d, shp, m in shps:
 			if m.group('id') != i:
 				continue
@@ -217,8 +218,8 @@ def hft_layer(shp, colours=None, metadata=None):
 	try:
 		var_cols = cols[cols.index('cat_pa') + 1:cols.index('wdpaid')]
 	except ValueError:
-		var_cols = [c for c in cols if c not in ('hclst_m', 'segm_id', 'cat', 'label', 'cat_pa', 'wdpaid', 'geometry',
-		                                         'hft', 'ha')]
+		var_cols = [c for c in cols if c not in ('hclst_m', 'segm_id', 'cat', 'label', 'cat_pa', 'wdpaid', 'silhouette',
+		                                         'geometry', 'hft', 'ha')]
 	names = _variable_names(metadata, len(var_cols)) or var_cols
 	total = float(g['ha'].sum()) if 'ha' in g else None
 	legend = []

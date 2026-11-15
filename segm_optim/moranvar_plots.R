@@ -219,16 +219,9 @@ segm_dist <- function(hri) {
 	vegdist(as.data.frame(lapply(hri[, 3:(2 + 2 * nv)], rescale01)), "euclidean", na.rm=T)
 }
 
-# Árbol de la clasificación de los segmentos según CLASS_METHOD (ver config.py) y distancias entre ellos
-# (para la correlación cofenética). Con 'ward_area' y 'ward_area_kmeans', Ward ponderado por el
-# nº de píxeles de cada segmento sobre su estadístico de cada variable tipificado con la desviación típica
-# de los píxeles (dentro + entre segmentos): con la distancia de Ward entre grupos y members = nº de
-# píxeles, hclust da el mismo árbol que el Ward de todos los píxeles partiendo de los segmentos
-class_tree <- function(hri, method) {
-	if (method == 'ward') {
-		d <- segm_dist(hri)
-		return(list(tree=hclust(d, "ward.D2"), dist=d))
-	}
+# Statistic (mean, or median with STAT_AGG = 'median') of each variable in each segment standardized with the
+# standard deviation of the pixels (within + between segments), z, and the number of pixels of each segment, n
+std_stats <- function(hri) {
 	nv <- (ncol(hri) - 3) / 3
 	m <- as.matrix(hri[, 3:(2 + nv)])
 	v <- as.matrix(hri[, (3 + nv):(2 + 2 * nv)])
@@ -241,10 +234,53 @@ class_tree <- function(hri, method) {
 		x[is.na(x)] <- 0 # sin datos en el segmento: la media de la variable
 		x
 	})
-	d <- dist(z)
-	w <- sqrt(2 * outer(n, n) / outer(n, n, '+')) * as.matrix(d)
-	list(tree=hclust(as.dist(w), "ward.D2", members=n), dist=d, z=z, n=n)
+	list(z=z, n=n)
 }
+
+# Árbol de la clasificación de los segmentos según CLASS_METHOD (ver config.py) y distancias entre ellos
+# (para la correlación cofenética). Con 'ward_area' y 'ward_area_kmeans', Ward ponderado por el
+# nº de píxeles de cada segmento sobre su estadístico de cada variable tipificado con la desviación típica
+# de los píxeles (dentro + entre segmentos): con la distancia de Ward entre grupos y members = nº de
+# píxeles, hclust da el mismo árbol que el Ward de todos los píxeles partiendo de los segmentos.
+# z and n (std_stats) also with 'ward', for the silhouette of the HFTs (sil_width)
+class_tree <- function(hri, method) {
+	s <- std_stats(hri)
+	if (method == 'ward') {
+		d <- segm_dist(hri)
+		return(list(tree=hclust(d, "ward.D2"), dist=d, z=s$z, n=s$n))
+	}
+	n <- s$n
+	d <- dist(s$z)
+	w <- sqrt(2 * outer(n, n) / outer(n, n, '+')) * as.matrix(d)
+	list(tree=hclust(as.dist(w), "ward.D2", members=n), dist=d, z=s$z, n=n)
+}
+
+# Silhouette width of each segment (Rousseeuw 1987, https://doi.org/10.1016/0377-0427(87)90125-7) in the HFTs cl,
+# with D the matrix of distances between the segments: a = mean distance to the other segments of its HFT, b = the
+# smallest mean distance to the segments of another HFT (its neighbour), s = (b - a) / max(a, b), from -1 to 1
+# (negative: the segment is on average closer to the segments of its neighbour). A segment alone in its HFT gets 0,
+# as in cluster::silhouette. All NA with one HFT or one HFT per segment. Returns s and the neighbour of each segment
+sil_width <- function(D, cl) {
+	lev <- sort(unique(cl))
+	k <- length(lev)
+	ns <- length(cl)
+	if (k < 2 || k >= ns) return(list(s=rep(NA_real_, ns), neighbour=rep(NA, ns)))
+	g <- match(cl, lev)
+	own <- cbind(g, seq_len(ns))
+	nh <- tabulate(g, k)
+	md <- rowsum(D, g, reorder=TRUE) / nh # mean distance from each segment (column) to the segments of each HFT (row)
+	a <- md[own] * nh[g] / pmax(nh[g] - 1, 1) # without the distance 0 to itself
+	md[own] <- Inf
+	nb <- max.col(-t(md), ties.method='first')
+	b <- md[cbind(nb, seq_len(ns))]
+	s <- ifelse(pmax(a, b) > 0, (b - a) / pmax(a, b), 0)
+	s[nh[g] == 1] <- 0
+	list(s=s, neighbour=lev[nb])
+}
+
+# Mean silhouette width of the segments weighted by their area (n: pixels), of all of them or of those of each HFT
+sil_mean <- function(s, n) sum(s * n) / sum(n)
+sil_hft <- function(s, n, cl) tapply(s * n, cl, sum) / tapply(n, cl, sum)
 
 # Consolidación con k-medias ponderadas por el nº de píxeles ('ward_area_kmeans'): cada segmento pasa al
 # HFT de media más próxima, hasta que no cambia ninguno; los HFTs conservan los números de cl
@@ -622,6 +658,13 @@ for (pmx in 1:mx) {
 	cophval <- 0
 	try(chcl <- cophenetic(hclust_mh))
 	try(cophval <- cor(chcl, dmh))
+	# Distances for the silhouette of the HFTs: Euclidean between the standardized statistics z of the segments that
+	# the classification used (with CLIP_PERCENTILE and STAT_AGG), with every CLASS_METHOD, also with 'ward', whose
+	# tree uses other distances, so that the silhouettes of the methods are comparable
+	dsil <- as.matrix(dist(ct$z))
+	sil_stat <- paste0(if (median_stat) 'medians' else 'means',
+	                   if (!is.null(pixclip)) paste0('\n(variables clipped to percentiles ', clip_pct, '-', 100 - clip_pct, ', as for the classification)'))
+	cut_sil <- c() # mean silhouette width of each cut
 
 	# --- CORRELACIÓN ENTRE LAS VARIABLES ---
 	# Correlación de Pearson entre cada par de variables en los píxeles de los segmentos (con datos en las dos),
@@ -717,10 +760,18 @@ for (pmx in 1:mx) {
 			ncl <- length(unique(hclust_mean))
 		}
 
+		# Silhouette width of the segments in the HFTs of this cut (sil_width), its mean weighted by area and that of
+		# each HFT
+		sil <- sil_width(dsil, hclust_mean)
+		cut_sil[cn] <- sil_mean(sil$s, ct$n)
+		sil_h <- sil_hft(sil$s, ct$n, hclust_mean)
+		if (!is.na(cut_sil[cn])) print(sprintf('Mean silhouette width of the segments in the %d HFTs%s (weighted by area): %.2f',
+		                                       ncl, if (simil == 3) paste0(' of ', cn) else '', cut_sil[[cn]]))
+
 		# Varianza de los píxeles explicada por los HFTs de este corte (media y por variable)
 		if (!is.null(ss_sel)) {
 			r2v <- r2_groups(ss_sel, hclust_mean)
-			cut_r2 <- rbind(cut_r2, data.frame(cut=cn, hfts=ncl, r2=mean(r2v, na.rm=TRUE),
+			cut_r2 <- rbind(cut_r2, data.frame(cut=cn, hfts=ncl, r2=mean(r2v, na.rm=TRUE), silhouette=cut_sil[[cn]],
 			                                   as.list(setNames(r2v, var_names)), check.names=FALSE))
 		}
 
@@ -796,6 +847,61 @@ for (pmx in 1:mx) {
 			                          value=as.vector(t(as.matrix(hri4[rad_o, 2:(num_vars + 1), drop=FALSE]))),
 			                          relative=as.vector(t(as.matrix(scaled[rad_o, 1:num_vars, drop=FALSE])))), rpn)
 
+			# --- SILHOUETTE OF THE SEGMENTS BY HFT ---
+			# Silhouette width of each segment (sil_width) as a bar from 0, as thick as the area of the segment, so that
+			# the mean weighted by area (dashed line) is the visual mean of the bars: the HFTs from top to bottom in the
+			# order of the legends, and in each one its segments from the widest to the narrowest. Each HFT has a band as
+			# tall as its bars or as its label if they are thinner (lab_in inches, with 5 in for all the bars) plus a gap,
+			# with the bars and the label in its middle, and the labels left of -1, so that a label is always level with
+			# its bars and does not cover any bar
+			if (!is.na(cut_sil[cn])) {
+				sil_ha <- ct$n * cell_ha
+				hs <- hft_order[hft_order %in% hclust_mean]
+				so <- order(match(hclust_mean, hs), -sil$s, hri$segm_id)
+				g <- match(hclust_mean[so], hs)
+				hft_ha <- as.vector(rowsum(sil_ha[so], g))
+				ha_in <- 5 / sum(sil_ha) # inches per ha
+				lab_in <- 0.24
+				band <- pmax(hft_ha, lab_in / ha_in) + 0.06 / ha_in
+				mid <- cumsum(band) - band / 2
+				ymin <- mid[g] - hft_ha[g] / 2 + cumsum(sil_ha[so]) - sil_ha[so] - c(0, cumsum(hft_ha))[g]
+				sil_df <- data.frame(segm_id=hri$segm_id[so], HFT=hclust_mean[so], colour=kolsn[hclust_mean[so]], area_ha=sil_ha[so],
+				                     silhouette=sil$s[so], neighbour=sil$neighbour[so], ymin=ymin, ymax=ymin + sil_ha[so], label_y=mid[g])
+				sil_n <- table(factor(hclust_mean, levels=hs))
+				# Label of each HFT next to its bars, with its colour (number in white on the dark ones)
+				sil_lab <- data.frame(y=mid, label=sprintf('HFT %d: %.2f (%d %s)', hs, sil_h[as.character(hs)], sil_n, ifelse(sil_n == 1, 'segment', 'segments')),
+				                      fill=kolsn[hs])
+				sil_lab$txt <- ifelse(colSums(col2rgb(sil_lab$fill) / 255 * c(0.299, 0.587, 0.114)) < 0.55, 'white', 'black')
+				# Labels without border (linewidth in recent versions of ggplot2, label.size in older ones)
+				no_border <- if ('linewidth' %in% names(GeomLabel$default_aes)) list(linewidth=0) else list(label.size=0)
+				sil_sub <- paste0(plot_subtitle, '\n',
+				                  'silhouette width of the segments (Rousseeuw 1987) on the distances between their standardized ', sil_stat, '\n',
+				                  sprintf('mean %.2f (dashed line, segments weighted by area) | bars as thick as the area of the segment\n', cut_sil[[cn]]),
+				                  'negative: the segment is on average closer to the segments of another HFT (its neighbour)')
+				silp <- ggplot(sil_df) +
+					geom_rect(aes(xmin=0, xmax=silhouette, ymin=ymin, ymax=ymax, fill=colour)) +
+					geom_vline(xintercept=0, colour='grey30', linewidth=0.3) +
+					geom_vline(xintercept=cut_sil[[cn]], colour='grey15', linetype='dashed') +
+					annotate('text', x=cut_sil[[cn]], y=-0.5 * lab_in / ha_in, label=sprintf(' mean %.2f', cut_sil[[cn]]), hjust=0, size=3.8) +
+					do.call(geom_label, c(list(data=sil_lab, mapping=aes(x=-1.03, y=y, label=label, fill=fill, colour=txt), hjust=1, size=3.5), no_border)) +
+					scale_fill_identity() + scale_colour_identity() +
+					scale_x_continuous(limits=c(-1.6, 1), breaks=seq(-1, 1, 0.25), minor_breaks=seq(-1, 1, 0.125), expand=expansion(mult=c(0, 0.05))) +
+					scale_y_reverse(expand=expansion(add=0.15 / ha_in)) +
+					labs(title=area, subtitle=sil_sub, x='Silhouette width', y='Segments by HFT') +
+					theme_bw(base_size=13) +
+					theme(axis.text.y=element_blank(), axis.ticks.y=element_blank(), panel.grid.major.y=element_blank(),
+					      panel.grid.minor.y=element_blank())
+				spn <- file.path(outdir, paste('silhouette_', park, '_', res, tag, '_segms.png', sep=''))
+				# Height: that of the panel (the bands, the mean label and the margins) plus title, subtitle and x axis
+				ggsave(spn, silp, width=11, height=(sum(band) + 0.5 * lab_in / ha_in) * ha_in + 0.3 + 0.9 + 0.22 * length(strsplit(sil_sub, '\n')[[1]]), dpi=300)
+				# CSV of the plot: one row per segment from top to bottom, with its HFT and its colour, area, silhouette
+				# width, neighbour (the other HFT whose segments are closest on average), bar (ymin, ymax: from the top, in
+				# ha, the bands of the HFTs above it plus the segments above it in its band) and label_y, the y of the label
+				# of its HFT (middle of the band and of its bars); hft_silhouette: the mean of its HFT (label),
+				# mean_silhouette: that of all the segments (dashed line), both weighted by area
+				write_plot_csv(cbind(sil_df, hft_silhouette=as.vector(sil_h[as.character(sil_df$HFT)]), mean_silhouette=cut_sil[[cn]]), spn)
+			}
+
 			# Integración en Shapefile y Mapa final
 			shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
 			if (file.exists(file.path('shp', paste0(shp_layer, '.shp')))) {
@@ -815,6 +921,8 @@ for (pmx in 1:mx) {
 				names(segm_pa_class2)[names(segm_pa_class2) == 'hclust_mean'] <- 'hclst_m'
 				iv <- match(names(scaled2)[-1], names(segm_pa_class2))
 				names(segm_pa_class2)[iv] <- dbf_names(names(scaled2)[-1], taken = names(segm_pa_class2)[-iv])
+				# Silhouette width of each segment (NA with one HFT per segment), after wdpaid
+				segm_pa_class2$silhouette <- sil$s[match(segm_pa_class2$segm_id, hri$segm_id)]
 
 				st_write(segm_pa_class2,
 						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
@@ -910,7 +1018,7 @@ for (pmx in 1:mx) {
 					hft_rows[[cn]] <- list(
 						info=data.frame(cut=hft_cut, suggested=hft_sug, hfts=ncl, HFT=hfts, colour=kolsn[hfts],
 						                segments=as.integer(table(factor(hclust_mean, levels=hfts))), pixels=as.integer(table(hftcls)),
-						                area_ha=as.vector(ha), area_pct=as.vector(100 * ha / sum(ha))),
+						                silhouette=as.vector(sil_h[as.character(hfts)]), area_ha=as.vector(ha), area_pct=as.vector(100 * ha / sum(ha))),
 						stats=do.call(rbind, lapply(seq_along(var_names), function(i) {
 							s <- t(sapply(split(pixvals[inhft, i], hftcls), pixel_stats))
 							data.frame(cut=hft_cut, suggested=hft_sug, HFT=hfts, area_ha=as.vector(ha), variable=var_keys[i],
@@ -1065,8 +1173,9 @@ for (pmx in 1:mx) {
 	# original units of the variables (standardize them after joining the tables, not in each area) and 'label'
 	# identifies each HFT among all the areas (study area/scenario/ID/cut/HFT<n>). Compare only HFTs made with the
 	# same pixel size (column resolution).
-	# - hft_means_<id>_<k>.csv: one row per HFT and cut with its segments, pixels and area, and the mean of its
-	#   pixels in each variable (a column per variable after area_pct): the matrix of HFTs x variables
+	# - hft_means_<id>_<k>.csv: one row per HFT and cut with its segments, pixels, silhouette (mean silhouette width of
+	#   its segments weighted by area, see sil_width) and area, and the mean of its pixels in each variable (a column
+	#   per variable after area_pct): the matrix of HFTs x variables
 	# - hft_stats_<id>_<k>.csv: one row per HFT, cut and variable with the statistics of its pixels (n: pixels with
 	#   data, mean, sd, min, quartiles, max), e.g. for distances between HFTs that take their spread into account
 	if (length(hft_rows)) {
@@ -1097,17 +1206,21 @@ for (pmx in 1:mx) {
 		rows <- rev(names(cuts)) # del corte más general al más detallado
 		nk_tree <- sapply(tree_cls[rows], function(cl) length(unique(cl)))
 		r2_tree <- if (!is.null(cut_r2)) ifelse(nk_tree == 1, 0, cut_r2$r2[match(rows, cut_r2$cut)])
+		sil_tree <- ifelse(nk_tree == 1, NA, cut_sil[rows])
 		tree_labels <- paste0(rows, '\n', nk_tree, ifelse(nk_tree == 1, ' HFT', ' HFTs'), if (!is.null(r2_tree)) sprintf('\nR2 %.2f', r2_tree),
-		                      ifelse(rows %in% suggested, '\n(suggested)', ''))
+		                      ifelse(is.na(sil_tree), '', sprintf('\nsilhouette %.2f', sil_tree)), ifelse(rows %in% suggested, '\n(suggested)', ''))
 		ht <- hft_tree(hclust_mh, tree_cls[rows], tree_cols[rows], hri$sumpamask * cell_ha, tree_labels, suggested)
 		treep <- ht$plot + labs(title=area, subtitle=paste0('ID ', park, ' | threshold ', k,
 			' | HFTs of the cuts of the tree, from broad (top) to detailed (bottom)\n',
 			'circles: HFTs with their number and colour of the maps, sized by area | lines: area shared by the HFTs of consecutive cuts'))
 		tree_png <- file.path(outroot, paste0('hft_tree_', park, '_', res, '.png'))
 		ggsave(tree_png, treep, width=ht$width, height=ht$height, dpi=300)
-		# With the R2 of each cut and the suggested cut of the labels (the area of the circles and lines are sums of
-		# 'ha'); the colours in quotes
-		if (!is.null(r2_tree)) for (j in seq_along(rows)) ht$paths[[paste0('r2_', rows[j])]] <- signif(r2_tree[j], 6)
+		# With the R2 and the mean silhouette width of each cut and the suggested cut of the labels (the area of the
+		# circles and lines are sums of 'ha'); the colours in quotes
+		for (j in seq_along(rows)) {
+			if (!is.null(r2_tree)) ht$paths[[paste0('r2_', rows[j])]] <- signif(r2_tree[j], 6)
+			ht$paths[[paste0('silhouette_', rows[j])]] <- signif(sil_tree[[j]], 6)
+		}
 		ht$paths$suggested_cut <- if (is.na(suggested)) NA else suggested
 		write_plot_csv(ht$paths, tree_png, digits=NA)
 	}
@@ -1127,25 +1240,32 @@ for (pmx in 1:mx) {
 			ct_t <- if (tk == res) ct else class_tree(if (is.null(pixclip)) hri_t else clip_hri(hri_t, seg_t, pixclip, median_stat), class_method)
 			ss_t <- if (tk == res) ss_sel else segm_sums(seg_t, pixvals, nrow(hri_t))
 			nh <- 2:min(nrow(hri_t) - 1, kmax)
-			r2m <- do.call(rbind, lapply(nh, function(h) r2_groups(ss_t, classify_k(ct_t, h, class_method))))
+			cls_t <- lapply(nh, function(h) classify_k(ct_t, h, class_method))
+			r2m <- do.call(rbind, lapply(cls_t, function(cl) r2_groups(ss_t, cl)))
 			colnames(r2m) <- var_names
+			# Mean silhouette width of the segments of the same HFTs (distances computed once per threshold)
+			d_t <- if (tk == res) dsil else as.matrix(dist(ct_t$z))
+			sil_t <- sapply(cls_t, function(cl) sil_mean(sil_width(d_t, cl)$s, ct_t$n))
 			curves <- rbind(curves, data.frame(threshold=tk / 10, segments=nrow(hri_t),
 			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
-			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), r2m, check.names=FALSE))
+			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), silhouette=sil_t, r2m, check.names=FALSE))
 		}
 		# Corte sugerido (calculado antes de los cortes) y parte del R2 de los segmentos que conserva cada corte
 		cut_r2$r2_share <- cut_r2$r2 / curves$r2_segments[curves$threshold == res / 10][1]
 		cut_r2$suggested <- as.integer(cut_r2$cut %in% suggested)
-		cut_r2 <- cut_r2[, c('cut', 'hfts', 'r2', 'r2_share', 'suggested', var_names)]
+		# silhouette: mean silhouette width of the segments weighted by area (sil_width; NA with one HFT per segment)
+		cut_r2 <- cut_r2[, c('cut', 'hfts', 'r2', 'r2_share', 'silhouette', 'suggested', var_names)]
 		# Also what the plot marks on the curves (r2_<id>_hfts.png): selected, the selected threshold (thick orange
 		# line); bend, the bend of its curve (dashed line); cut, the cuts drawn as an orange point at that number of HFTs
-		# (several separated by commas if they have the same HFTs), with their R2 (cut_r2) and suggested = 1 if one
-		# of them is the suggested cut. A cut beyond the curve (one HFT per segment) gets a row of its own
+		# (several separated by commas if they have the same HFTs), with their R2 (cut_r2) and mean silhouette width
+		# (cut_silhouette) and suggested = 1 if one of them is the suggested cut. A cut beyond the curve (one HFT per
+		# segment) gets a row of its own. silhouette: that of the HFTs of each threshold and number of HFTs (not drawn)
 		r2_csv <- curves
 		r2_csv$selected <- as.integer(r2_csv$threshold == res / 10)
 		r2_csv$bend <- as.integer(r2_csv$selected == 1 & r2_csv$hfts %in% knee)
 		r2_csv$cut <- NA
 		r2_csv$cut_r2 <- NA
+		r2_csv$cut_silhouette <- NA
 		r2_csv$suggested <- 0L
 		for (h in unique(cut_r2$hfts)) {
 			w <- cut_r2$hfts == h
@@ -1159,6 +1279,7 @@ for (pmx in 1:mx) {
 			}
 			r2_csv$cut[i] <- paste(cut_r2$cut[w], collapse=',')
 			r2_csv$cut_r2[i] <- cut_r2$r2[w][1]
+			r2_csv$cut_silhouette[i] <- cut_r2$silhouette[w][1]
 			r2_csv$suggested[i] <- as.integer(any(cut_r2$suggested[w] == 1))
 		}
 		write.table(r2_csv, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
@@ -1166,8 +1287,9 @@ for (pmx in 1:mx) {
 		if (!is.na(knee)) {
 			s <- cut_r2[cut_r2$suggested == 1, ]
 			msg <- paste0('ID ', park, ': the R2 curve of the threshold 0.', res, ' bends at ', knee, ' HFTs',
-			              if (nrow(s) == 1) sprintf('; suggested cut %s: %d HFTs, R2 %.2f (%.0f %% of the R2 of the segments)',
-			                                        s$cut, s$hfts, s$r2, 100 * s$r2_share))
+			              if (nrow(s) == 1) paste0(sprintf('; suggested cut %s: %d HFTs, R2 %.2f (%.0f %% of the R2 of the segments)',
+			                                               s$cut, s$hfts, s$r2, 100 * s$r2_share),
+			                                       if (!is.na(s$silhouette)) sprintf(', silhouette %.2f', s$silhouette)))
 			print(msg)
 			write(paste('Suggested cut:', msg), file.path(outroot, 'processing_metadata.txt'), append=TRUE)
 		}
@@ -1180,8 +1302,10 @@ for (pmx in 1:mx) {
 		seg_info <- unique(curves[, c('thr', 'segments', 'r2_segments')])
 		thr_labels <- setNames(paste0(seg_info$thr, ': ', seg_info$segments, ' segments, R2 ', sprintf('%.2f', seg_info$r2_segments),
 		                              ifelse(seg_info$thr == sel, ' (selected)', '')), seg_info$thr)
+		# The mean silhouette width in a second line, so that the labels are not wider (they would cover the bend)
 		cut_pts <- data.frame(hfts=cut_r2$hfts, r2=cut_r2$r2,
 		                      label=paste0(if (simil == 3) paste0(cut_r2$cut, ': ') else '', cut_r2$hfts, ' HFTs, R2 ', sprintf('%.2f', cut_r2$r2),
+		                                   ifelse(is.na(cut_r2$silhouette), '', sprintf(',\nsilhouette %.2f', cut_r2$silhouette)),
 		                                   ifelse(cut_r2$suggested == 1, ' (suggested)', '')))
 		r2p <- ggplot(curves, aes(x=hfts, y=r2, colour=thr)) +
 			(if (!is.na(knee)) geom_vline(xintercept=knee, colour='grey45', linetype='dashed')) +

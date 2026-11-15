@@ -1106,8 +1106,12 @@ pages.gee = (() => {
 		const r = condRow(c);
 		// the unit of the catalog, for the metrics that keep it (not a sum, a count or a standard deviation)
 		const u = r && r.unit ? String(r.unit).replace(/^\[|\]$/g, '').trim() : '';
-		const keeps = !['sum', 'count', 'std', 'cv'].includes(String(c.metric || '').toLowerCase());
-		const unit = u && keeps && !/^(unitless|dimensionless|index|-|1)$/i.test(u) ? ` ${u}` : '';
+		const m = String(c.metric || '').toLowerCase();
+		const inter = c.temporal && c.temporal !== 'period' ? String(c.interannual || '').toLowerCase() : '';
+		// the coefficient of variation (of the images or between years) is in %
+		const cv = !isStatic(r) && (m === 'cv' || inter === 'cv');
+		const keeps = !['sum', 'count', 'std'].includes(m) && inter !== 'std';
+		const unit = cv ? ' %' : u && keeps && !/^(unitless|dimensionless|index|-|1)$/i.test(u) ? ` ${u}` : '';
 		const range = c.min !== undefined && c.min !== null && c.max !== undefined && c.max !== null ? `between ${c.min} and ${c.max}${unit}`
 			: c.min !== undefined && c.min !== null ? `≥ ${c.min}${unit}` : `≤ ${c.max}${unit}`;
 		const how = isStatic(r) ? '' : ` · ${c.metric || onlyMetric(r) || 'mean'}${c.temporal && c.temporal !== 'period' ? ` ${TEMPORAL[c.temporal] || c.temporal}, ${c.interannual || 'mean'} between years` : ''}`
@@ -1143,8 +1147,13 @@ pages.gee = (() => {
 		const min = el('input', {type: 'number', step: 'any', value: c0.min ?? '', style: {width: '120px'}});
 		const max = el('input', {type: 'number', step: 'any', value: c0.max ?? '', style: {width: '120px'}});
 		const unit = el('span', {class: 'small muted'});
-		const metric = el('select', {}, ...['mean', 'median', 'min', 'max', 'sum', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'].map(m => el('option', {value: m}, m)));
+		// cv (the coefficient of variation) when the installed monitoreo computes it; a metric of the recipe that is not in
+		// the list (e.g. p2.5) stays
+		const METRIC = ['mean', 'median', 'min', 'max', 'sum', 'std', ...((cat.metrics || []).includes('cv') ? ['cv'] : []), 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'];
+		if (c0.metric && !METRIC.includes(String(c0.metric))) METRIC.push(String(c0.metric));
+		const metric = el('select', {}, ...METRIC.map(m => el('option', {value: m, title: m === 'cv' ? CV_TITLE : null}, m === 'cv' ? 'cv (coefficient of variation, %)' : m)));
 		const tctl = temporalCtl(c0);
+		const cvWarn = cvWarning();
 		const ownOn = el('input', {type: 'checkbox'});
 		ownOn.checked = Array.isArray(c0.period);
 		const p0 = el('input', {type: 'date', value: Array.isArray(c0.period) ? c0.period[0] : ''});
@@ -1157,9 +1166,16 @@ pages.gee = (() => {
 			el('label', {}, 'Period'), el('div', {class: 'row'}, el('label', {class: 'check small'}, ownOn, 'its own:'), p0, '–', p1,
 				el('span', {class: 'small muted'}, '(else that of each variable)')));
 		const chosen = () => rows.find(r => key(r) === pick.value);
+		// the unit of the limits: that of the variable, % for a coefficient of variation (of the images or between years)
+		const syncUnit = () => {
+			const r = chosen();
+			const cv = !!r && !isStatic(r) && usesCv([metric.value], tctl);
+			unit.textContent = !r ? '' : cv ? '% (coefficient of variation)' : String(r.unit || '').replace(/^\[|\]$/g, '')
+				+ (['sum', 'count', 'std'].includes(metric.value) ? ` (of the ${metric.value}: another unit)` : '');
+			cvWarn.update(cv && cvMeaningless(r.variable, r.unit));
+		};
 		const sync = () => {
 			const r = chosen();
-			unit.textContent = r ? String(r.unit || '').replace(/^\[|\]$/g, '') + (['sum', 'count', 'std'].includes(metric.value) ? ` (of the ${metric.value}: another unit)` : '') : '';
 			const fixed = isStatic(r);
 			dated.classList.toggle('hidden', fixed);
 			const only = onlyMetric(r);
@@ -1169,11 +1185,11 @@ pages.gee = (() => {
 			about.textContent = !r ? '' : fixed ? `${r.variable} (${r.sensor}) is a fixed layer, without dates: the condition holds for every period.`
 				: `${r.variable} (${r.sensor}) aggregated over the period and season of each variable (or its own period) with the metric chosen; `
 					+ `${only ? `it only takes the metric ${only}.` : 'the mean of the period by default.'} A pixel without data of the condition is left out.`;
+			syncUnit();
 		};
 		pick.addEventListener('change', sync);
 		ownOn.addEventListener('change', sync);
-		metric.addEventListener('change', () => { const r = chosen(); unit.textContent = r ? String(r.unit || '').replace(/^\[|\]$/g, '')
-			+ (['sum', 'count', 'std'].includes(metric.value) ? ` (of the ${metric.value}: another unit)` : '') : ''; });
+		for (const s of [metric, tctl.t, tctl.inter]) s.addEventListener('change', syncUnit);
 		sync();
 		return modal({title: existing ? 'Edit the condition' : 'Condition on a variable', wide: true,
 			body: el('div', {class: 'stack', style: {gap: '10px'}},
@@ -1181,7 +1197,7 @@ pages.gee = (() => {
 					el('label', {}, 'Variable'), pick,
 					el('label', {}, 'Keep the pixels'), el('div', {class: 'row'}, 'from', min, 'to', max, unit,
 						el('span', {class: 'small muted'}, '(empty: no limit)'))),
-				about, dated),
+				about, dated, cvWarn),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
 				const r = chosen();
 				const lo = min.value.trim() === '' ? null : Number(min.value), hi = max.value.trim() === '' ? null : Number(max.value);
@@ -1342,16 +1358,34 @@ pages.gee = (() => {
 	$('#r-rgb').addEventListener('change', () => { rgbRead(); rgbOptions(); });
 	$('#r-rgb-metric').addEventListener('change', () => { rgbRead(); rgbOptions(); });
 
+	// The coefficient of variation ('cv', 100 × standard deviation / mean, in %; monitoreo 0.3.46 or later): of the images
+	// of each pixel (a metric) or between the years. It only has a meaning for a variable with a true zero and positive
+	// values: not for a temperature in °C nor for a normalized difference that crosses 0 (water, snow, burn and
+	// chlorophyll indices of the catalog; the NDVI and EVI of vegetation are positive)
+	const CV_TITLE = 'coefficient of variation (100 × standard deviation / mean, %)';
+	const CV_ZERO = ['NDWI', 'LSWI', 'NDSI', 'NBR', 'NDCI'];
+	const CV_WARN = 'The coefficient of variation needs a variable with a true zero and positive values (precipitation, NDVI of '
+		+ 'vegetation, albedo): with a mean near 0, as this one can have, it is huge and has no meaning.';
+	const cvMeaningless = (variable, unit) => CV_ZERO.includes(String(variable || '').toUpperCase())
+		|| /°\s*C\b|degC|celsius/i.test(String(unit || ''));
+	const usesCv = (ms, tctl) => ms.includes('cv') || (tctl.t.value !== 'period' && tctl.inter.value === 'cv');
+	function cvWarning() {  // the warning, shown with update(true); it spans the two columns of a form-grid
+		const box = el('div', {class: 'notice warn hidden', style: {gridColumn: '1 / -1'}}, el('div', {}, CV_WARN));
+		box.update = on => box.classList.toggle('hidden', !on);
+		return box;
+	}
+
 	function metricChips(selected, only) {
 		const box = el('div', {class: 'chips'});
 		if (only) {  // a variable with a single metric (the frequencies, SCF and CF, are the mean of their images)
 			box.append(el('span', {class: 'chip on locked', 'data-m': only, title: `The only metric of this variable`}, only));
 			return box;
 		}
-		const all = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'sum', 'count', 'mode'];
+		// those of the installed monitoreo (with cv since 0.3.46); without its catalog, those of before
+		const all = (S.catalog && S.catalog.metrics) || ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'sum', 'count', 'mode'];
 		const extra = selected.filter(m => !all.includes(m));
 		for (const m of all.concat(extra)) {
-			const c = el('span', {class: 'chip' + (selected.includes(m) ? ' on' : ''), 'data-m': m}, m);
+			const c = el('span', {class: 'chip' + (selected.includes(m) ? ' on' : ''), 'data-m': m, title: m === 'cv' ? CV_TITLE : null}, m);
 			c.addEventListener('click', () => c.classList.toggle('on'));
 			box.append(c);
 		}
@@ -1373,8 +1407,14 @@ pages.gee = (() => {
 		const t = el('select', {}, ...[['period', 'Period: the metric of all the images'], ['annual', 'Annual: the metric of each year, then between years'],
 			['monthly', 'Monthly: of each month, between years and mean of the months'], ['16-day', 'Every 16 days: between years and mean']].map(([k, l]) => el('option', {value: k}, l)));
 		t.value = v.temporal || 'period';
-		const inter = el('select', {}, ...['mean', 'median', 'min', 'max'].map(k => el('option', {value: k}, k)));
-		inter.value = v.interannual || 'mean';
+		// the metrics between years of the installed monitoreo (with cv since 0.3.46); without its catalog, those of before
+		const INTER = (S.catalog && S.catalog.interannual) || ['mean', 'median', 'min', 'max'];
+		const label = k => k === 'cv' ? 'cv (coefficient of variation, %)' : k;
+		const inter = el('select', {}, ...INTER.map(k => el('option', {value: k}, label(k))));
+		// one that is not in the list (a recipe written by hand, e.g. p2.5) stays, so that saving the recipe keeps it
+		const v0 = v.interannual === undefined || v.interannual === null ? '' : String(v.interannual);
+		if (v0 && !INTER.includes(v0)) inter.append(el('option', {value: v0}, label(v0)));
+		inter.value = v0 || 'mean';
 		const sync = () => { inter.disabled = t.value === 'period'; };
 		t.addEventListener('change', sync); sync();
 		return {t, inter};
@@ -1447,13 +1487,47 @@ pages.gee = (() => {
 			const only = onlyMetric(chosen);
 			mbox = metricChips(only ? [only] : existing && existing.index === chosen.variable ? metrics(existing) : ['median'], only);
 			tctl = temporalCtl(existing || {});
+			// the coefficient of variation of a variable whose mean can be near 0 (an index around 0, a temperature in °C)
+			const cvWarn = cvWarning();
+			const box = mbox, ctl = tctl, r = chosen;
+			const syncCv = () => cvWarn.update(cvMeaningless(r.variable, r.unit) && usesCv(chosenMetrics(box), ctl));
+			box.addEventListener('click', syncCv);  // after the click of the chip, that turns it on or off
+			ctl.t.addEventListener('change', syncCv);
+			ctl.inter.addEventListener('change', syncCv);
+			syncCv();
+			// the two attributes of the functioning of ecosystems that a coefficient of variation gives (with cv in monitoreo)
+			const preset = (metric, inter) => {
+				if (metric) for (const c of $$('.chip', box)) c.classList.toggle('on', c.dataset.m === metric);
+				ctl.t.value = 'annual';
+				ctl.t.dispatchEvent(new Event('change'));
+				ctl.inter.value = inter;
+				syncCv();
+			};
+			const caveats = ' With a season in the recipe, it is that of the season. Only for variables with a true zero and positive values. CV layers have '
+				+ 'long tails: a CLIP_PERCENTILE above 0 in the HFT model helps, and the "Correlation between the variables" of the results shows how it '
+				+ 'correlates with the mean (often negatively: unproductive ecosystems vary more, relative to their mean).';
+			const shortcuts = (cat.metrics || []).includes('cv') ? el('div', {class: 'row'},
+				el('button', {class: 'btn small', disabled: !!only, onclick: () => preset('cv', 'mean'),
+					title: only ? `${chosen.variable} only takes the metric ${only}: no coefficient of variation of its images (its interannual variability can be computed).`
+						: 'Seasonality: the coefficient of variation (CV) of the images of each year, then the mean of the years (Annual, cv, between years mean). '
+							+ 'It is the CV of all the valid images of each year, not of monthly composites as in the literature of ecosystem functional types: where '
+							+ 'clouds or snow leave more clear images in one season, that season weighs more. A monthly or 16-day aggregation would give the mean of the '
+							+ 'CVs within each month, not the seasonality.' + caveats},
+					'Seasonality (seasonal CV)'),
+				el('button', {class: 'btn small', onclick: () => preset(only ? null : 'mean', 'cv'),
+					title: `Interannual variability: the ${only || 'mean'} of each year, then the coefficient of variation (CV) between the years (Annual, ${only || 'mean'}, `
+						+ 'between years cv): how stable the variable is from one year to another. With few years it is unstable (relative error ≈ 1/√(2n): about 25 % '
+						+ 'with the 8 years of Sentinel-2); MODIS (since 2000) or Landsat suit it better.' + caveats},
+					'Interannual variability (CV)')) : null;
 			detail.append(head,
 				el('div', {class: 'form-grid'},
 					el('label', {}, 'Metrics (one file each)'), mbox,
+					shortcuts ? el('label', {}, 'Shortcuts') : null, shortcuts,
 					only ? el('label', {}) : null, only ? el('div', {class: 'small muted'}, `${chosen.variable} only takes the metric ${only} (a frequency: the % of the `
 						+ 'observations of each pixel); the metric between years can be any.') : null,
 					el('label', {}, 'Temporal aggregation'), tctl.t,
 					el('label', {}, 'Between years'), tctl.inter,
+					cvWarn,
 					el('label', {}, 'File name'), name));
 		};
 		search.addEventListener('input', draw);
@@ -1508,12 +1582,16 @@ pages.gee = (() => {
 		let info = null;  // what Earth Engine said of the ID (describe_asset), once read
 		let com = null;
 		try { com = await ensureCommunity(); } catch (e) { com = null; }
+		// the catalog of MonitorEO: the metrics of the installed monitoreo (cv) and the search in the Earth Engine data catalog
+		try { await ensureCatalog(); } catch (e) { /* without it: the metrics of before and no search */ }
+		const eeCat = (S.catalog && S.catalog.eecatalog) || null;
 		const asset0 = v0.image || v0.collection || '';
 		const UNIT_HINT = 'e.g. mm, degC, kg m-2 or 1 (dimensionless)';
 
 		const source = el('select', {},
 			el('option', {value: 'id'}, 'An ID of Earth Engine (its data catalog or any asset)'),
-			el('option', {value: 'community', disabled: !com}, com ? `GEE Community Catalog (${com.datasets.length} datasets)` : 'GEE Community Catalog (press "Update MonitorEO")'));
+			el('option', {value: 'community', disabled: !com}, com ? `GEE Community Catalog (${com.datasets.length} datasets)` : 'GEE Community Catalog (press "Update MonitorEO")'),
+			el('option', {value: 'eecatalog', disabled: !eeCat}, eeCat ? 'Earth Engine data catalog (search)' : 'Earth Engine data catalog (press "Update MonitorEO")'));
 		source.value = com && (fromCommunity || communityRecord(asset0)) ? 'community' : 'id';
 
 		// the datasets of the GEE Community Catalog, by theme and words
@@ -1542,6 +1620,66 @@ pages.gee = (() => {
 		const comBox = el('div', {class: 'stack', style: {gap: '6px'}}, el('div', {class: 'row'}, theme, search), list, found);
 		const comLabel = el('label', {}, 'Dataset');
 
+		// the Earth Engine data catalog, searched by words in English, and by dates and area, in the copy of its index in
+		// MonitorEO (services.find_datasets, without Earth Engine): with HERE, the datasets over the study area with data in
+		// the period of the recipe
+		const eeText = el('input', {type: 'search', class: 'grow', placeholder: 'Words in English, e.g. soil organic carbon'});
+		const eeHere = el('input', {type: 'checkbox'});
+		eeHere.checked = store('ee-search-here') !== '0';
+		const eeList = el('select', {size: 9, style: {width: '100%'}});
+		const eeFound = el('div', {class: 'small faint'});
+		const eeBox = el('div', {class: 'stack', style: {gap: '6px'}}, el('div', {class: 'row'}, eeText),
+			el('label', {class: 'check small', title: 'The datasets whose extent touches that of the study area and, the collections, with images in the period '
+				+ 'of the recipe (an image is a fixed layer: whatever its dates)'}, eeHere, ' Only data over the study area and in the period of the recipe'), eeList, eeFound,
+			el('div', {class: 'small faint'}, `Index of the Earth Engine data catalog in MonitorEO, a copy of ${eeCat ? eeCat.date || '?' : '?'} (the newest datasets may be missing); the search is by `
+				+ 'words in English (at least half of them, in the title, ID, keywords, provider or description). That a dataset is here does not make it right '
+				+ 'for the study area: check on its page its resolution, method and licence; many global maps (e.g. of soils) are predictions of models, with a '
+				+ 'high uncertainty at local scale.'));
+		const eeLabel = el('label', {}, 'Search');
+		let eeRows = [], eeSeq = 0, eeTimer = null;
+		const years = d => {
+			const a = d.start ? String(d.start).slice(0, 4) : '?', b = d.end ? String(d.end).slice(0, 4) : 'now';
+			return a === b ? a : `${a}–${b}`;
+		};
+		const eeSearch = async () => {
+			clearTimeout(eeTimer);
+			const seq = ++eeSeq;
+			const text = eeText.value.trim();
+			if (!text) {  // without words: the datasets in the order of their IDs, which says nothing
+				eeRows = []; eeList.textContent = '';
+				eeFound.textContent = 'Write words in English to search the images and collections of the Earth Engine data catalog.';
+				return;
+			}
+			eeFound.textContent = 'Searching…';
+			let r;
+			try {
+				r = await api('gee_find_datasets', text, $('#r-p0').value || null, $('#r-p1').value || null, eeHere.checked);
+			} catch (e) {
+				if (seq === eeSeq) { eeRows = []; eeList.textContent = ''; eeFound.textContent = `The search failed: ${e.message}`; }
+				return;
+			}
+			if (seq !== eeSeq) return;  // another search was started meanwhile: its answer is the one shown
+			if (!r) { eeFound.textContent = 'This version of MonitorEO cannot search the Earth Engine data catalog: press "Update MonitorEO".'; return; }
+			eeRows = r.datasets;
+			const keep = eeList.value;
+			eeList.textContent = '';
+			for (const d of eeRows) {
+				eeList.append(el('option', {value: d.id, title: [d.id, d.provider, d.start && `Dates: ${d.start} to ${d.end || 'its last image'}`,
+					d.gsd && `Pixel: ${fmt(d.gsd, 1)} m`, d.page].filter(Boolean).join('\n')},
+				`${d.title} (${d.type === 'image' ? 'image' : 'collection'}, ${years(d)}${d.gsd ? ', ' + fmt(d.gsd, 1) + ' m' : ''})`));
+			}
+			eeList.value = keep;
+			// the period selects the collections only: an image is a fixed layer, listed whatever its dates
+			const n = eeRows.length, nImg = eeRows.filter(d => d.type === 'image').length, nCol = n - nImg;
+			const cols = !nCol ? '' : `${nCol === 1 ? (nImg ? '1' : 'a') + ' collection' : (nImg ? nCol + ' ' : '') + 'collections'} with images between ${r.start} and ${r.end}`;
+			const imgs = !nImg ? '' : nImg === 1 ? `${nCol ? '1' : 'an'} image (a fixed layer, whatever its dates)` : `${nCol ? nImg + ' ' : ''}images (fixed layers, whatever their dates)`;
+			const when = r.start && r.end && n ? ': ' + [cols, imgs].filter(Boolean).join(' and ') : '';
+			eeFound.textContent = `${n >= r.limit ? `The first ${n}` : n} dataset${n === 1 ? '' : 's'}${r.bbox ? ' over the study area' : ''}${when}. ${r.note ? r.note + ' ' : ''}`
+				+ (n ? 'Choose one to read its bands in Earth Engine.' : 'Try other words, or untick the area and period.');
+		};
+		eeText.addEventListener('input', () => { clearTimeout(eeTimer); eeTimer = setTimeout(eeSearch, 300); });
+		eeHere.addEventListener('change', () => { store('ee-search-here', eeHere.checked ? '1' : '0'); eeSearch(); });
+
 		const id = el('input', {type: 'text', class: 'grow', value: asset0, placeholder: 'e.g. COPERNICUS/DEM/GLO30 or projects/sat-io/open-datasets/…'});
 		const readBtn = el('button', {class: 'btn small', title: 'Read in Earth Engine its type, bands, scale, offset and unit (only metadata: nothing is computed)'}, 'Read');
 		const about = el('div', {class: 'small muted stack', style: {gap: '3px'}});
@@ -1558,6 +1696,8 @@ pages.gee = (() => {
 		terrain.value = v0.terrain || '';
 		const mbox = metricChips(existing ? metrics(existing) : ['mean']);
 		const tctl = temporalCtl(v0);
+		const cvWarn = cvWarning();  // the coefficient of variation of a temperature in °C (its unit)
+		const syncCv = () => cvWarn.update(kindSel.value === 'collection' && cvMeaningless(null, unit.value) && usesCv(chosenMetrics(mbox), tctl));
 		// a collection is aggregated over the period of the recipe, or over its own (e.g. a dataset of other years)
 		const ownP = el('input', {type: 'checkbox', checked: !!v0.period});
 		const p0 = el('input', {type: 'date', value: (v0.period || [])[0] || $('#r-p0').value});
@@ -1592,7 +1732,7 @@ pages.gee = (() => {
 				else if (replace) input.value = '';
 			}
 		};
-		band.addEventListener('change', () => applyBand(true));
+		band.addEventListener('change', () => { applyBand(true); syncCv(); });  // its unit can be another
 
 		const showAbout = d => {
 			about.textContent = '';
@@ -1609,11 +1749,15 @@ pages.gee = (() => {
 					.replace(/\bunit, Scale and offset/g, 'Unit, Scale and offset')));
 			}
 		};
+		let record = null;  // that of the dataset chosen in a catalog: it stays while Read reads it and if Read fails
 		const readAsset = async () => {
 			const asset = id.value.trim();
 			if (!asset) { toast('Write the ID of the image or collection.', 'warn'); return; }
+			const status = text => {
+				if (record && record.asset === asset) { showAbout(record); about.append(el('div', {}, text)); } else about.textContent = text;
+			};
 			readBtn.disabled = true;
-			about.textContent = `Reading ${asset} in Earth Engine… (the first time, it connects: a few seconds)`;
+			status(`Reading ${asset} in Earth Engine… (the first time, it connects: a few seconds)`);
 			try {
 				const d = await api('gee_describe_asset', asset, account(), $('#ee-project').value.trim());
 				if (id.value.trim() !== asset) return;  // another ID was written or chosen meanwhile
@@ -1631,60 +1775,77 @@ pages.gee = (() => {
 				sync();
 				showAbout(d);
 			} catch (e) {
-				if (id.value.trim() === asset) about.textContent = `${asset} could not be read in Earth Engine: ${e.message}`;
+				if (id.value.trim() === asset) status(`${asset} could not be read in Earth Engine: ${e.message}`);
 			} finally { readBtn.disabled = false; }
 		};
 		readBtn.addEventListener('click', readAsset);
 		id.addEventListener('input', () => {
 			info = null;
+			record = null;
 			kindSel.options[1].disabled = false;
 			bands.textContent = '';
 			bandNote.textContent = '';
 			about.textContent = 'Read shows its bands, how it is used and what its record says.';
 		});
-		// a dataset of the GEE Community Catalog chosen: its ID and its record, then its bands, read in Earth Engine
-		list.addEventListener('change', () => {
-			const d = communityRecord(list.value);
-			if (!d) return;
-			id.value = d.id;
+		// a dataset of a catalog chosen: its ID and its RECORD (see showAbout), then its bands, read in Earth Engine
+		const useDataset = (asset, type, rec) => {
+			id.value = asset;
 			info = null;
+			record = rec;
 			for (const input of [band, scale, offset, unit]) input.value = '';
 			kindSel.options[1].disabled = false;
-			kindSel.value = d.type === 'image' ? 'image' : 'collection';
+			kindSel.value = type === 'image' ? 'image' : 'collection';
 			sync();
-			showAbout({asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
+			showAbout(rec);
 			readAsset();
+		};
+		list.addEventListener('change', () => {  // of the GEE Community Catalog
+			const d = communityRecord(list.value);
+			if (d) useDataset(d.id, d.type, {asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
+		});
+		eeList.addEventListener('change', () => {  // of the Earth Engine data catalog
+			const d = eeRows.find(x => x.id === eeList.value);
+			if (d) useDataset(d.id, d.type, {asset: d.id, title: d.title, source: 'Earth Engine data catalog', provider: d.provider, page: d.page});
 		});
 
 		const grid = el('div', {class: 'form-grid'},
-			el('label', {}, 'Source'), source, comLabel, comBox,
+			el('label', {}, 'Source'), source, comLabel, comBox, eeLabel, eeBox,
 			el('label', {}, 'Earth Engine ID'), el('div', {class: 'row', style: {flexWrap: 'nowrap'}}, id, readBtn),
 			el('label', {}, ''), about,
 			el('label', {}, 'Use'), kindSel,
 			el('label', {}, 'Band'), el('div', {}, band, bands, bandNote),
 			el('label', {}, 'Scale and offset'), el('div', {class: 'row'}, scale, offset),
 			el('label', {}, 'Unit'), unit,
-			...rowsImg, ...rowsCol, el('label', {}, 'File name'), name);
+			...rowsImg, ...rowsCol, cvWarn, el('label', {}, 'File name'), name);
 		const sync = () => {
 			rowsImg.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'image'));
 			rowsCol.forEach(e => e.classList.toggle('hidden', kindSel.value !== 'collection'));
 			[comLabel, comBox].forEach(e => e.classList.toggle('hidden', source.value !== 'community'));
+			[eeLabel, eeBox].forEach(e => e.classList.toggle('hidden', source.value !== 'eecatalog'));
 			periodHint();
+			syncCv();
 		};
 		kindSel.addEventListener('change', sync);
-		source.addEventListener('change', sync);
+		source.addEventListener('change', () => {
+			sync();
+			if (source.value === 'eecatalog') { if (!eeList.options.length) eeSearch(); eeText.focus(); }
+		});
+		mbox.addEventListener('click', syncCv);
+		for (const e of [tctl.t, tctl.inter]) e.addEventListener('change', syncCv);
+		unit.addEventListener('input', syncCv);
 		drawList();
 		if (communityRecord(asset0)) {
 			list.value = communityRecord(asset0).id;
 			const d = communityRecord(asset0);
-			showAbout({asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs});
+			record = {asset: d.id, title: d.title, source: 'GEE Community Catalog', provider: d.provider, licence: licenceOf(d), docs: d.docs};
+			showAbout(record);
 		} else about.textContent = asset0 ? 'Read shows its bands, how it is used and what its record says.' : '';
 		sync();
 
 		const title = existing ? 'Edit the variable' : fromCommunity ? 'Dataset of the GEE Community Catalog' : 'Other collection or image of Earth Engine';
 		return modal({title, wide: true, body: el('div', {class: 'stack'},
 			el('div', {class: 'small muted'}, 'Any image or collection of images of Earth Engine: of its data catalog '
-				+ '(developers.google.com/earth-engine/datasets), e.g. WORLDCLIM/V1/BIO band bio01 with scale 0.1 (mean annual '
+				+ '(developers.google.com/earth-engine/datasets; search it in Source), e.g. WORLDCLIM/V1/BIO band bio01 with scale 0.1 (mean annual '
 				+ 'temperature), or of the GEE Community Catalog (gee-community-catalog.org), shared by the community of Earth '
 				+ 'Engine. Read shows its bands and what its record says; the land cover mask of the recipe applies to them too.'), grid),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {

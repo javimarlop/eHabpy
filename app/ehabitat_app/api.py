@@ -342,6 +342,40 @@ class Api:
 		return gee.community()
 
 	@exposed
+	def gee_find_datasets(self, text, start=None, end=None, here=False):
+		"""Images and collections of the Earth Engine data catalog with the words of TEXT (gee.find_datasets, without
+		Earth Engine): {'datasets': [...], 'limit': the most that a search gives, 'bbox': [w, s, e, n] of the study area
+		or None, 'start', 'end' (those of the search, or None), 'note': why the search is not over the study area, or
+		None}, or None with a version of monitoreo without it. HERE: only those over the study area (its extent in
+		degrees) with data between START and END (the period of the recipe); without a study area, of anywhere."""
+		bbox, note = None, None
+		if here:
+			sa = model.study_area()
+			try:
+				bbox = inputs.vector_info(sa['file'], sa.get('layer'))['bbox'] if sa else None
+			except (ValueError, RuntimeError, OSError) as e:
+				note = f'The study area cannot be read ({e}): datasets of anywhere.'
+			if not sa:
+				note = 'No study area yet (choose it in "Input variables"): datasets of anywhere.'
+			elif not bbox and not note:
+				note = 'The extent of the study area is unknown (its file has no coordinate system): datasets of anywhere.'
+			# the search takes -180 <= west < east <= 180 and -90 <= south < north <= 90
+			if bbox and not (-180 <= bbox[0] < bbox[2] <= 180 and -90 <= bbox[1] < bbox[3] <= 90):
+				w, s, e, n = bbox
+				note = ('The study area crosses the antimeridian (180°): datasets of anywhere.'
+				        if -180 <= e < w <= 180 and -90 <= s < n <= 90 else
+				        f"The extent of the study area ({', '.join('%.10g' % round(x, 4) for x in bbox)}) is not in "
+				        'degrees (is the coordinate system of its file right?): datasets of anywhere.')
+				bbox = None
+		else:
+			start = end = None
+		found = gee.find_datasets(text, bbox, start, end)
+		if found is None:
+			return None
+		return {'datasets': found, 'limit': gee.FIND_LIMIT, 'bbox': bbox, 'start': start or None, 'end': end or None,
+		        'note': note}
+
+	@exposed
 	def gee_describe_asset(self, asset, account=None, project=None):
 		return gee.describe_asset(asset, account, project)
 
