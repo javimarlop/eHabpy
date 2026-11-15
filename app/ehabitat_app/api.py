@@ -11,7 +11,7 @@ import time
 import traceback
 import webbrowser
 
-from . import __version__, ecosim, envsetup, gee, inputs, jobs, model, paths, results, updater
+from . import __version__, areas, ecosim, envsetup, gee, inputs, jobs, model, paths, results, updater
 
 import hft_state
 
@@ -207,6 +207,8 @@ class Api:
 	def raster_preview(self, path):
 		if not paths.inside(path, paths.INVARS):
 			raise ValueError('only the variables of inVars')
+		if os.path.basename(os.path.dirname(os.path.abspath(path))) == paths.RGB_FOLDER:
+			return inputs.rgb_preview(path)  # the true colour of a set: its red, green and blue
 		return inputs.preview(path)
 
 	@exposed
@@ -376,6 +378,28 @@ class Api:
 	@exposed
 	def gee_area_check(self, folder, comparison=None, layer=None, only=None):
 		return gee.area_check(folder, comparison, layer, only)
+
+	@exposed
+	def gee_check(self, recipe):
+		"""What monitoreo says of the recipe of the form (without Earth Engine): its files, warnings and first error."""
+		return gee.check_recipe(recipe)
+
+	# Areas from MonitorEO (burned area, protected areas, administrative units) -------------------------------------
+	@exposed
+	def area_options(self):
+		return areas.options()
+
+	@exposed
+	def area_find_protected(self, text, ramsar=False):
+		return areas.find_protected(text, ramsar)
+
+	@exposed
+	def area_find_admin(self, text, level=2, country=None):
+		return areas.find_admin(text, level, country)
+
+	@exposed
+	def area_make(self, kind, params):
+		return areas.make(kind, params or {})
 
 	@exposed
 	def gee_recipe(self):

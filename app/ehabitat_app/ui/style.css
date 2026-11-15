@@ -335,10 +335,10 @@ table.t .vname { font-weight: 550; word-break: break-all; }
 
 /* Modal, toasts ------------------------------------------------------------------------------------------------- */
 .modal-back { position: fixed; inset: 0; background: rgba(10, 20, 15, .45); z-index: 1500; display: grid; place-items: center; padding: 24px; }
-.modal { background: var(--panel); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.3); width: min(760px, 100%); max-height: 100%; display: flex; flex-direction: column; }
+.modal { background: var(--panel); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.3); width: min(760px, 100%); max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
 .modal.wide { width: min(1100px, 100%); }
 .modal header { padding: 14px 18px; border-bottom: 1px solid var(--line-2); display: flex; align-items: center; gap: 10px; }
-.modal .body { padding: 16px 18px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
+.modal .body { padding: 16px 18px; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .modal footer { padding: 12px 18px; border-top: 1px solid var(--line-2); display: flex; gap: 8px; justify-content: flex-end; }
 .toasts { position: fixed; right: 18px; bottom: 18px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; max-width: 460px; }
 .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--info); border-radius: 8px; padding: 10px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.15); font-size: 13px; animation: toastin .2s ease-out; }
@@ -406,3 +406,16 @@ table.t td .hft { display: inline-flex; align-items: center; gap: 6px; font-weig
 .area .id { font-weight: 700; font-variant-numeric: tabular-nums; }
 .area .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .area .ha { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+
+/* Areas from MonitorEO, catalog flags, recipe check ------------------------------------------------------------- */
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+.tabs button { border: 1px solid transparent; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 5px 12px; border-radius: 16px; cursor: pointer; }
+.tabs button:hover { background: var(--panel-2); }
+.tabs button.on { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); font-weight: 600; }
+.chip.locked { cursor: default; }
+table.t tr.dim td { color: var(--faint); }
+table.t tr.bad td { background: var(--err-soft); }
+.area-file { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-top: 1px solid var(--line-2); }
+.area-file:first-child { border-top: none; }
+.cond-list { display: flex; flex-direction: column; gap: 4px; }
+.cond-list .row { gap: 6px; }

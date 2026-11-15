@@ -25,7 +25,8 @@ RECIPE = os.path.join(paths.SEGM, 'gee_vars.yaml')  # the recipe of the reposito
 CREDENTIALS = os.path.join('~', '.config', 'earthengine', 'credentials')
 SLUG_RE = re.compile(r'[^A-Za-z0-9_-]+')
 
-SENSORS = ['Sentinel-2', 'Landsat', 'Modis']
+SENSORS = ['Sentinel-2', 'Landsat', 'Modis']  # first in the list of sensors of the catalog; then the others it has
+RGB_METRICS = ['median', 'mean', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95']  # those of a true colour
 METRICS = ['mean', 'median', 'min', 'max', 'std', 'sum', 'count', 'mode', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95']
 TEMPORAL = [['period', 'Whole period'], ['annual', 'Each year, then between years'],
             ['monthly', 'Each month, between years and mean of the months'], ['16-day', 'Each 16 days, between years and mean']]
@@ -164,8 +165,10 @@ def catalog():
 	except TypeError:
 		rows = services.list_variables()
 	src = cat.load().get('source', {})
-	return {'variables': rows, 'source': src, 'sensors': SENSORS, 'metrics': METRICS, 'temporal': TEMPORAL,
-	        'landcover': _landcover_maps(services), 'monitoreo': _label(installed())}
+	# the sensors of the catalog (also those of the climate and the fixed layers: Copernicus, ERA5-Land, WorldClim...)
+	sensors = SENSORS + [x for x in dict.fromkeys(r['sensor'] for r in rows) if x not in SENSORS]
+	return {'variables': rows, 'source': src, 'sensors': sensors, 'metrics': METRICS, 'temporal': TEMPORAL,
+	        'rgb_metrics': RGB_METRICS, 'landcover': _landcover_maps(services), 'monitoreo': _label(installed())}
 
 
 def _landcover_maps(services):
@@ -399,6 +402,7 @@ def _normal(rec):
 	q.setdefault('scene_clouds', None)
 	rec.setdefault('exclude_landcover', [])  # the old mask of ESA WorldCover 2021 classes (the app now uses where)
 	rec.setdefault('where', None)  # e.g. the land cover mask {landcover: CORINE, year: 2018, exclude: [water, built]}
+	rec.setdefault('rgb', None)  # the true colour of a variable on the study grid, e.g. {index: NDVI, sensor: Sentinel-2}
 	rec.setdefault('drive_folder', 'eHabitat_GEE')
 	rec.setdefault('drive_dir', None)
 	rec.setdefault('variables', [])
@@ -410,9 +414,11 @@ def _normal(rec):
 def clean_recipe(rec):
 	"""The recipe as get_vars_gee.py reads it: without empty optional keys."""
 	rec = copy.deepcopy(rec)
-	for k in ('season', 'drive_dir', 'exclude_landcover', 'where'):
+	for k in ('season', 'drive_dir', 'exclude_landcover', 'where', 'rgb'):
 		if rec.get(k) in (None, '', [], {}):
 			rec.pop(k, None)
+	if isinstance(rec.get('rgb'), dict):
+		rec['rgb'] = {k: v for k, v in rec['rgb'].items() if v not in (None, '')}
 	if rec.get('ecoregion') and not rec['ecoregion'].get('resolution'):
 		rec['ecoregion'] = {'resolution': None}
 	elif rec.get('ecoregion') and not rec['ecoregion'].get('crs'):
@@ -442,6 +448,39 @@ def clean_recipe(rec):
 	if not rec.get('folder') or not str(rec['folder']).strip():
 		raise ValueError('the destination folder is missing')
 	return rec
+
+
+def check_recipe(rec):
+	"""What monitoreo says of the recipe REC (that of the form) as get_vars_gee.py reads it, without Earth Engine:
+	{'files': [the GeoTIFFs of each grid, in order], 'warnings': [those of the pixel filters], 'error': the first
+	error or None, 'variable': the number of the variable of the error (1, 2, ...) or None, 'rgb': the file of the
+	true colour or None}. A recipe without variables has no error here (the form says it), and neither has one that
+	cannot be checked (no monitoreo yet, or a version too old: get_vars_gee.py installs the last one before
+	downloading, and says what fails)."""
+	out = {'files': [], 'warnings': [], 'error': None, 'variable': None, 'rgb': None}
+	if not (rec or {}).get('variables') or not installed():
+		return out
+	try:
+		rec = clean_recipe(rec)
+		_monitoreo()
+		import get_vars_gee
+		from monitoreo import recipe
+		r = recipe.read(rec, extra=get_vars_gee.EXTRA_KEYS)
+		out['files'] = [s['file'] for s in recipe.expand(r, warn=out['warnings'].append)]
+		rgb = get_vars_gee.rgb_spec(r)
+		out['rgb'] = f"{rgb['name']}_RGB.tif" if rgb else None
+	except ValueError as e:
+		msg = str(e).strip('"')
+		if 'this version of monitoreo' in msg:  # get_vars_gee.py installs the last one before downloading
+			out['unchecked'] = msg
+			return out
+		m = re.match(r'variable (\d+) of the recipe: ', msg)
+		out['error'] = msg
+		# the conditions of where of the recipe are checked with each variable: not an error of the first one
+		out['variable'] = int(m.group(1)) if m and ' of where' not in msg else None
+	except Exception as e:  # noqa: BLE001 (an older monitoreo that cannot check it: not an error of the recipe)
+		out['unchecked'] = f'{type(e).__name__}: {e}'
+	return out
 
 
 def save_recipe(rec, path):
@@ -549,6 +588,9 @@ def run(rec, opts):
 	account = s.get('ee_account') or 'shared'
 	project = (s.get('ee_project') or '').strip() if account == 'own' else ''
 	rec = clean_recipe(rec)
+	problem = check_recipe(rec)['error']  # what would make get_vars_gee.py fail, before starting it
+	if problem:
+		raise ValueError(f'the recipe cannot be downloaded: {problem}')
 	rec['project'] = project
 	if account == 'shared':
 		for g in ('study', 'ecoregion'):

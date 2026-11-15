@@ -261,7 +261,7 @@ def list_sets():
 	out = []
 	if not os.path.isdir(paths.INVARS):
 		return out
-	skip = {paths.ECO_FOLDER, paths.EXCLUDED}
+	skip = {paths.ECO_FOLDER, paths.EXCLUDED, paths.RGB_FOLDER}
 	for d, dirs, _ in os.walk(paths.INVARS):
 		rel = os.path.relpath(d, paths.INVARS).replace(os.sep, '/')
 		depth = 0 if rel == '.' else rel.count('/') + 1
@@ -299,6 +299,7 @@ def get_set(folder):
 	eco_study = [dict(raster_info(f), included=True) for f in _tifs(sa_dir)] if eco else []
 	only = area_only(d)
 	area = ecoregion_area(eco_dir) if eco else None
+	rgb = [dict(raster_info(f), included=False) for f in _tifs(os.path.join(d, paths.RGB_FOLDER))]
 	both = check_scales(study, eco)
 	if only:
 		both = [{'level': 'info', 'text': 'Only the variables of ' + ('a comparison area' if area and area['kind'] ==
@@ -317,6 +318,7 @@ def get_set(folder):
 		'ecoregions_file': eco_poly if os.path.isfile(eco_poly) else None,
 		'area': area, 'area_only': only,
 		'eco_study': eco_study, 'eco_study_rel': paths.rel(sa_dir) if eco_study else None,
+		'rgb': rgb,  # the true colour of the images of a variable on the study grid (not a variable of the model)
 	}
 
 
@@ -485,6 +487,49 @@ def preview(path, max_size=900):
 		rgba[i] = lut[idx, i]
 	rgba[3] = np.where(valid, 230, 0)
 	return {'image': png_uri(rgba), 'bbox': bbox, 'min': float(lo), 'max': float(hi), 'ramp': ['#' + c for c in VIRIDIS]}
+
+
+def rgb_preview(path, max_size=900):
+	"""Quick look of a true colour (three bands: red, green and blue reflectance) in Web Mercator for the map: PNG (data
+	URI), its corners and the range of reflectance drawn (the lowest percentile 2 and the highest percentile 98 of the
+	three bands, stretched together, as MonitorEO)."""
+	import numpy as np
+	ds = gdal.Open(path)
+	if ds.RasterCount < 3:
+		ds = None
+		return preview(path, max_size)
+	nodata = ds.GetRasterBand(1).GetNoDataValue()
+	tmp = f'/vsimem/rgb_{uuid.uuid4().hex}.tif'
+	w, h = ds.RasterXSize, ds.RasterYSize
+	width = max(1, int(round(w / max(max(w, h) / max_size, 1))))
+	opts = gdal.WarpOptions(dstSRS='EPSG:3857', format='GTiff', outputType=gdal.GDT_Float32, width=width, height=0,
+	                        resampleAlg='average', srcNodata=nodata, dstNodata=-3.4e38, srcBands=[1, 2, 3],
+	                        dstBands=[1, 2, 3])
+	try:
+		out = gdal.Warp(tmp, ds, options=opts)
+		a = out.ReadAsArray().astype('float64')
+		gt, ow, oh = out.GetGeoTransform(), out.RasterXSize, out.RasterYSize
+		out = None
+	finally:
+		gdal.Unlink(tmp)
+		ds = None
+	valid = np.all(np.isfinite(a) & (a > -3e38), axis=0)
+	if nodata is not None:
+		valid &= np.all(a != nodata, axis=0)
+	if not valid.any():
+		raise ValueError('the raster has no data')
+	lo = float(min(np.percentile(a[i][valid], 2) for i in range(3)))
+	hi = float(max(np.percentile(a[i][valid], 98) for i in range(3)))
+	if hi <= lo:
+		hi = lo + 1e-6
+	rgba = np.zeros((4, oh, ow), dtype='uint8')
+	for i in range(3):
+		rgba[i] = np.clip((a[i] - lo) / (hi - lo) * 255, 0, 255).astype('uint8')
+	rgba[3] = np.where(valid, 255, 0)
+	merc = osr.SpatialReference()
+	merc.ImportFromEPSG(3857)
+	bbox = _bbox_wgs84(merc, gt[0], gt[3] + gt[5] * oh, gt[0] + gt[1] * ow, gt[3])
+	return {'image': png_uri(rgba), 'bbox': bbox, 'min': lo, 'max': hi, 'rgb': True}
 
 
 def _ramp(hexes):

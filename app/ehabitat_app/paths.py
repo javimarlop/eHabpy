@@ -19,6 +19,7 @@ APP_RECIPE = os.path.join(SEGM, 'app_recipe.yaml')  # last recipe of MonitorEO r
 
 ECO_FOLDER = 'ecoregion'  # subfolder of a set of variables with those of the ecoregion scale (as get_vars_gee.py)
 EXCLUDED = '_excluded'  # subfolder of the variables left out of a set (setup.py only reads the files of the folder)
+RGB_FOLDER = 'rgb'  # subfolder of a set with the true colour of the images of a variable (get_vars_gee.py, rgb:)
 
 # the scripts of eHabpy (hft_state, setup, get_vars_gee) are imported from segm_optim
 if SEGM not in sys.path:

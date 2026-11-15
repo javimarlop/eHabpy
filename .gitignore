@@ -45,3 +45,5 @@ segm_optim/app_recipe.yaml
 similarity_metadata.txt
 similarity_run.json
 similarity_run.json.tmp
+# areas from MonitorEO made by the app (burned areas, protected areas, administrative units)
+segm_optim/areas/

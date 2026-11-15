@@ -453,6 +453,7 @@ pages.inputs = (() => {
 		S.map.fitBounds(S.saLayer.getBounds(), {padding: [20, 20]});
 	}
 
+	$('#sa-mo').addEventListener('click', () => areaDialog('study'));
 	$('#sa-pick').addEventListener('click', async () => {
 		try {
 			const f = await pickFiles('vector', false, 'File of the study areas');
@@ -577,7 +578,22 @@ pages.inputs = (() => {
 		badge($('#badge-eco'), st.ecoregion, st.checks.ecoregion);
 		$('#eco-show').classList.toggle('hidden', !st.ecoregions_file);
 		renderArea(st);
+		renderRgb(st);
 		renderActive();
+	}
+
+	// the true colour of the images of a variable on the study grid (folder rgb, downloaded with the variables): only to
+	// look at the study area as the variables saw it, not a variable of the model
+	function renderRgb(st) {
+		const box = $('#set-rgb');
+		box.textContent = '';
+		const list = (st.rgb || []).filter(r => !r.error);
+		box.classList.toggle('hidden', !list.length);
+		for (const r of list) {
+			box.append(el('div', {class: 'row'}, el('span', {class: 'badge info'}, 'True colour'), el('span', {class: 'mono'}, `rgb/${r.name}`),
+				el('span', {class: 'muted'}, r.res ? `${fmt(r.res[0])} m` : ''),
+				el('button', {class: 'btn small ghost', title: 'Show on the map', onclick: () => preview(r)}, 'Show')));
+		}
 	}
 
 	// the area of the ecoregion grid (RESOLVE ecoregions or a comparison area) and its study_area grid
@@ -618,10 +634,12 @@ pages.inputs = (() => {
 			if (S.saLayer) S.saLayer.bringToFront();
 			S.map.fitBounds(b, {padding: [10, 10]});
 			leg.textContent = '';
-			leg.append(el('b', {}, r.name), el('span', {class: 'muted'}, fmt(p.min, 3)),
+			const remove = el('button', {class: 'btn small ghost', onclick: () => { S.map.removeLayer(S.preview); S.preview = null; leg.textContent = ''; }}, 'Remove');
+			if (p.rgb) leg.append(el('b', {}, r.name), el('span', {class: 'muted'}, `true colour, reflectance ${fmt(p.min, 3)} to ${fmt(p.max, 3)}`),
+				el('span', {class: 'faint'}, '(percentiles 2–98 of the three bands)'), remove);
+			else leg.append(el('b', {}, r.name), el('span', {class: 'muted'}, fmt(p.min, 3)),
 				el('div', {class: 'ramp', style: {width: '160px', background: `linear-gradient(90deg, ${p.ramp.join(',')})`}}),
-				el('span', {class: 'muted'}, fmt(p.max, 3)), el('span', {class: 'faint'}, '(percentiles 2–98)'),
-				el('button', {class: 'btn small ghost', onclick: () => { S.map.removeLayer(S.preview); S.preview = null; leg.textContent = ''; }}, 'Remove'));
+				el('span', {class: 'muted'}, fmt(p.max, 3)), el('span', {class: 'faint'}, '(percentiles 2–98)'), remove);
 		} catch (e) { leg.textContent = ''; fail(e); }
 	}
 
@@ -667,6 +685,8 @@ pages.inputs = (() => {
 		onShow() { if (S.map) setTimeout(() => S.map.invalidateSize(), 50); },
 		async refresh() { await loadSet(await refreshSets(S.folder)); },
 		studyArea: () => S.sa,
+		// a file of study areas made elsewhere (an area from MonitorEO): shown to be applied with "Use these study areas"
+		async useFile(file) { await inspect(file, null, 'cat', ''); },
 	};
 })();
 
@@ -727,6 +747,7 @@ pages.gee = (() => {
 				try {
 					S.catalog = await api('gee_catalog');
 					lcTable(S.catalog.landcover);
+					if (S.recipe) { renderVars(); renderConds(); }
 					ensureCommunity().then(() => { if (S.recipe) renderVars(); }, () => {});
 					toast(`MonitorEO updated to ${s.version}${s.commit ? ' (' + s.commit.slice(0, 7) + ')' : ''}: the catalog has its variables.`, 'ok');
 				} catch (e) { fail(e); }
@@ -777,6 +798,8 @@ pages.gee = (() => {
 		$('#r-cs').value = q.cloud_score ?? 0.6;
 		$('#r-scene').value = q.scene_clouds ?? '';
 		lcShow(rec);
+		C.list = conditions(rec.where).filter(c => !isLc(c));
+		renderConds();
 		syncEco();
 		syncAccount();
 		renderVars();
@@ -806,6 +829,10 @@ pages.gee = (() => {
 		const sc = num('#r-scene');
 		if (sc !== null) rec.quality.scene_clouds = sc;
 		lcRead(rec);
+		// the land cover mask (that of the form, or that of the recipe without the land cover maps) and the conditions
+		const lc = conditions(rec.where).filter(isLc);
+		const all = [...lc, ...C.list];
+		rec.where = !all.length ? null : all.length === 1 && lc.length ? lc[0] : all;
 		rec.variables = S.recipe.variables;
 		if (!rec.folder) throw new Error('Write the destination folder in inVars.');
 		if (!/^[A-Za-z0-9_-]+$/.test(rec.folder)) throw new Error('The folder can only have letters (without accents), digits, - and _.');
@@ -913,6 +940,7 @@ pages.gee = (() => {
 			await inspectArea();
 		} catch (e) { fail(e); }
 	});
+	$('#r-area-mo').addEventListener('click', () => areaDialog('comparison'));
 	$('#r-folder').addEventListener('input', scheduleCheck);
 	$('#g-only').addEventListener('change', syncOnly);
 	$('#r-crs-mode').addEventListener('change', () => $('#r-crs').classList.toggle('hidden', $('#r-crs-mode').value === 'auto'));
@@ -1052,7 +1080,7 @@ pages.gee = (() => {
 	function lcRead(rec) {
 		if (!LC.maps) return;
 		const m = lcFind($('#r-lc-map').value);
-		const others = conditions(rec.where).filter(c => !isLc(c));  // conditions on variables: kept as they are
+		const others = C.list.slice();  // the conditions on variables of the form
 		let c = null;
 		if (m) {
 			const ex = lcChips();
@@ -1063,6 +1091,122 @@ pages.gee = (() => {
 		rec.where = !all.length ? null : all.length === 1 && c ? c : all;
 		delete rec.exclude_landcover;  // the mask of before (classes of ESA WorldCover 2021), now in where
 	}
+	// Conditions on variables (a list in where of MonitorEO, with the land cover mask): the pixels to keep, those where
+	// a variable of the catalog is between min and max, e.g. {variable: 'ELEVATION', sensor: 'Copernicus', min: 1500}.
+	// A variable with dates is aggregated over the period and season of each variable (or a period of its own) with
+	// its metric (the mean by default) and temporal aggregation; the fixed layers (elevation, slope, WorldClim) have none
+	const C = {list: []};
+	function condRow(c) {
+		if (!S.catalog) return null;
+		const low = x => String(x ?? '').toLowerCase();
+		return S.catalog.variables.find(r => low(r.variable) === low(c.variable) && (!c.sensor || low(r.sensor) === low(c.sensor))
+			&& (!c.collection || r.collection === c.collection)) || null;
+	}
+	function condText(c) {
+		const r = condRow(c);
+		// the unit of the catalog, for the metrics that keep it (not a sum, a count or a standard deviation)
+		const u = r && r.unit ? String(r.unit).replace(/^\[|\]$/g, '').trim() : '';
+		const keeps = !['sum', 'count', 'std', 'cv'].includes(String(c.metric || '').toLowerCase());
+		const unit = u && keeps && !/^(unitless|dimensionless|index|-|1)$/i.test(u) ? ` ${u}` : '';
+		const range = c.min !== undefined && c.min !== null && c.max !== undefined && c.max !== null ? `between ${c.min} and ${c.max}${unit}`
+			: c.min !== undefined && c.min !== null ? `≥ ${c.min}${unit}` : `≤ ${c.max}${unit}`;
+		const how = isStatic(r) ? '' : ` · ${c.metric || onlyMetric(r) || 'mean'}${c.temporal && c.temporal !== 'period' ? ` ${TEMPORAL[c.temporal] || c.temporal}, ${c.interannual || 'mean'} between years` : ''}`
+			+ (Array.isArray(c.period) ? ` of ${c.period[0]} to ${c.period[1]}` : ' of the period of each variable');
+		return `${c.variable}${c.sensor ? ' (' + c.sensor + ')' : ''} ${range}${how}`;
+	}
+	function renderConds() {
+		const box = $('#r-conds');
+		box.textContent = '';
+		if (!C.list.length) { box.append(el('div', {class: 'small faint'}, 'None: every pixel.')); return; }
+		C.list.forEach((c, i) => box.append(el('div', {class: 'row small'},
+			el('span', {class: 'badge brand'}, String(i + 1)), el('span', {class: 'grow'}, condText(c)),
+			el('button', {class: 'btn small ghost', onclick: async () => { const n = await condDialog(c); if (n) { C.list[i] = n; renderConds(); scheduleRecipeCheck(); } }}, 'Edit'),
+			el('button', {class: 'btn small ghost', title: 'Remove', onclick: () => { C.list.splice(i, 1); renderConds(); scheduleRecipeCheck(); }}, '✕'))));
+	}
+	async function condDialog(existing) {
+		let cat;
+		try { cat = await ensureCatalog(); } catch (e) { return fail(e); }
+		const c0 = existing || {};
+		const rows = cat.variables.filter(r => !twoPeriods(r));
+		const key = r => `${r.ref}`;
+		const pick = el('select', {style: {width: '100%'}});
+		const groups = {};
+		for (const r of rows) (groups[r.theme || r.group || 'Other'] ||= []).push(r);
+		for (const [g, list] of Object.entries(groups)) {
+			const og = el('optgroup', {label: g});
+			for (const r of list) og.append(el('option', {value: key(r)}, `${r.variable} · ${r.sensor} — ${r.name}`
+				+ (rows.filter(x => x.variable === r.variable && x.sensor === r.sensor).length > 1 ? ` (${r.collection})` : '')));
+			pick.append(og);
+		}
+		const first = condRow(c0) || rows.find(r => r.variable === 'ELEVATION') || rows[0];
+		pick.value = key(first);
+		const min = el('input', {type: 'number', step: 'any', value: c0.min ?? '', style: {width: '120px'}});
+		const max = el('input', {type: 'number', step: 'any', value: c0.max ?? '', style: {width: '120px'}});
+		const unit = el('span', {class: 'small muted'});
+		const metric = el('select', {}, ...['mean', 'median', 'min', 'max', 'sum', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'].map(m => el('option', {value: m}, m)));
+		const tctl = temporalCtl(c0);
+		const ownOn = el('input', {type: 'checkbox'});
+		ownOn.checked = Array.isArray(c0.period);
+		const p0 = el('input', {type: 'date', value: Array.isArray(c0.period) ? c0.period[0] : ''});
+		const p1 = el('input', {type: 'date', value: Array.isArray(c0.period) ? c0.period[1] : ''});
+		const about = el('div', {class: 'small muted'});
+		const dated = el('div', {class: 'form-grid'},
+			el('label', {}, 'Metric'), metric,
+			el('label', {}, 'Temporal aggregation'), tctl.t,
+			el('label', {}, 'Between years'), tctl.inter,
+			el('label', {}, 'Period'), el('div', {class: 'row'}, el('label', {class: 'check small'}, ownOn, 'its own:'), p0, '–', p1,
+				el('span', {class: 'small muted'}, '(else that of each variable)')));
+		const chosen = () => rows.find(r => key(r) === pick.value);
+		const sync = () => {
+			const r = chosen();
+			unit.textContent = r ? String(r.unit || '').replace(/^\[|\]$/g, '') + (['sum', 'count', 'std'].includes(metric.value) ? ` (of the ${metric.value}: another unit)` : '') : '';
+			const fixed = isStatic(r);
+			dated.classList.toggle('hidden', fixed);
+			const only = onlyMetric(r);
+			metric.disabled = !!only;
+			metric.value = only || (existing && condRow(c0) === r && c0.metric) || 'mean';
+			p0.disabled = p1.disabled = !ownOn.checked;
+			about.textContent = !r ? '' : fixed ? `${r.variable} (${r.sensor}) is a fixed layer, without dates: the condition holds for every period.`
+				: `${r.variable} (${r.sensor}) aggregated over the period and season of each variable (or its own period) with the metric chosen; `
+					+ `${only ? `it only takes the metric ${only}.` : 'the mean of the period by default.'} A pixel without data of the condition is left out.`;
+		};
+		pick.addEventListener('change', sync);
+		ownOn.addEventListener('change', sync);
+		metric.addEventListener('change', () => { const r = chosen(); unit.textContent = r ? String(r.unit || '').replace(/^\[|\]$/g, '')
+			+ (['sum', 'count', 'std'].includes(metric.value) ? ` (of the ${metric.value}: another unit)` : '') : ''; });
+		sync();
+		return modal({title: existing ? 'Edit the condition' : 'Condition on a variable', wide: true,
+			body: el('div', {class: 'stack', style: {gap: '10px'}},
+				el('div', {class: 'form-grid'},
+					el('label', {}, 'Variable'), pick,
+					el('label', {}, 'Keep the pixels'), el('div', {class: 'row'}, 'from', min, 'to', max, unit,
+						el('span', {class: 'small muted'}, '(empty: no limit)'))),
+				about, dated),
+			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
+				const r = chosen();
+				const lo = min.value.trim() === '' ? null : Number(min.value), hi = max.value.trim() === '' ? null : Number(max.value);
+				if (lo === null && hi === null) { toast('Write the lowest value, the highest value or both.', 'warn'); return undefined; }
+				if (lo !== null && hi !== null && lo > hi) { toast('The lowest value is above the highest one.', 'warn'); return undefined; }
+				const c = {variable: r.variable, sensor: r.sensor};
+				if (rows.filter(x => x.variable === r.variable && x.sensor === r.sensor).length > 1) c.collection = r.collection;
+				if (lo !== null) c.min = lo;
+				if (hi !== null) c.max = hi;
+				if (!isStatic(r)) {
+					if (!onlyMetric(r) && metric.value !== 'mean') c.metric = metric.value;
+					if (tctl.t.value !== 'period') { c.temporal = tctl.t.value; c.interannual = tctl.inter.value; }
+					if (ownOn.checked) {
+						if (!p0.value || !p1.value || p0.value > p1.value) { toast('Write the first and the last day of its period.', 'warn'); return undefined; }
+						c.period = [p0.value, p1.value];
+					}
+				}
+				return c;
+			}}]});
+	}
+	$('#r-cond-add').addEventListener('click', async () => {
+		const c = await condDialog(null);
+		if (c) { C.list.push(c); renderConds(); scheduleRecipeCheck(); }
+	});
+
 	$('#r-lc-map').addEventListener('change', () => { lcWarn(''); lcYearOptions(lcFind($('#r-lc-map').value), null); lcSync(); });
 	$('#r-lc-year').addEventListener('change', () => { lcWarn(''); lcSync(); });
 	lcSync();
@@ -1071,6 +1215,25 @@ pages.gee = (() => {
 	function kind(v) { return v.index ? 'catalog' : v.image ? 'image' : 'collection'; }
 	function metrics(v) { const m = v.metric ?? v.metrics; return m === undefined || m === null ? [] : Array.isArray(m) ? m : [m]; }
 	const TEMPORAL = {period: 'period', annual: 'annual', monthly: 'monthly', '16-day': '16 days'};
+
+	// the row of the catalog of a variable of the recipe (null without the catalog, or for other data of Earth Engine)
+	function catRow(v) {
+		if (!S.catalog || !v || !v.index) return null;
+		const low = x => String(x ?? '').toLowerCase();
+		return S.catalog.variables.find(r => low(r.variable) === low(v.index) && low(r.sensor) === low(v.sensor)
+			&& (!v.collection || r.collection === v.collection)) || null;
+	}
+	// what a variable of the catalog is in a recipe: a fixed layer (no metric, period or aggregation), one of two periods
+	// (RBR, RdNBR: only the burn severity computes them) or one with a single metric (the frequencies: SCF, CF)
+	const isStatic = r => !!(r && r.static);
+	const twoPeriods = r => !!(r && r.two_periods);
+	const onlyMetric = r => (r && r.metric) ? String(r.metric) : null;
+	function catFlag(r) {
+		if (twoPeriods(r)) return el('span', {class: 'badge warn', title: 'It compares a period before and a period after a fire: make the burned area with "From MonitorEO…"'}, 'burn severity only');
+		if (isStatic(r)) return el('span', {class: 'badge', title: 'A fixed layer, without dates: no metric, period or temporal aggregation'}, 'fixed layer');
+		if (onlyMetric(r)) return el('span', {class: 'badge', title: `Only the metric ${r.metric}`}, `${r.metric} only`);
+		return null;
+	}
 
 	function renderVars() {
 		const tbl = $('#r-vars');
@@ -1082,19 +1245,21 @@ pages.gee = (() => {
 		let n = 0;
 		vars.forEach((v, i) => {
 			const k = kind(v);
-			const ms = metrics(v);
+			const row = catRow(v);
+			const fixed = k === 'image' || isStatic(row);
+			const ms = fixed ? [] : metrics(v);
 			const files = Math.max(1, ms.length);
 			const first = n + 1; n += files;
 			const src = k === 'catalog' ? `${v.sensor || ''}${v.collection ? ' · ' + v.collection : ''}`
 				: `${v.image || v.collection} · band ${v.band || '?'}${v.terrain ? ' · ' + v.terrain : ''}`;
-			body.append(el('tr', {},
+			body.append(el('tr', {'data-var': i + 1},
 				el('td', {class: 'num faint'}, files > 1 ? `${first}–${n}` : String(first)),
-				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || v.band || '?')),
+				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || v.band || '?')), ' ', twoPeriods(row) ? catFlag(row) : null,
 					el('div', {class: 'var-src'}, k === 'catalog' ? 'catalog of MonitorEO'
 						: `${communityRecord(v.image || v.collection) ? 'GEE Community Catalog' : 'Earth Engine'} ${k === 'image' ? 'image' : 'collection'}`)),
 				el('td', {class: 'small'}, src),
-				el('td', {}, k === 'image' ? el('span', {class: 'faint'}, 'fixed image') : ms.map(m => el('span', {class: 'badge brand', style: {marginRight: '3px'}}, m))),
-				el('td', {class: 'small'}, k === 'image' ? '—' : (TEMPORAL[v.temporal || 'period'] + (v.temporal && v.temporal !== 'period' ? ' · ' + (v.interannual || 'mean') : '')
+				el('td', {}, fixed ? el('span', {class: 'faint'}, k === 'image' ? 'fixed image' : 'fixed layer') : ms.map(m => el('span', {class: 'badge brand', style: {marginRight: '3px'}}, m))),
+				el('td', {class: 'small'}, fixed ? '—' : (TEMPORAL[v.temporal || 'period'] + (v.temporal && v.temporal !== 'period' ? ' · ' + (v.interannual || 'mean') : '')
 					+ (Array.isArray(v.period) ? ` · ${v.period[0]} to ${v.period[1]}` : ''))),
 				el('td', {class: 'small mono'}, v.name || el('span', {class: 'faint'}, 'automatic')),
 				el('td', {class: 'nowrap'},
@@ -1104,11 +1269,85 @@ pages.gee = (() => {
 					el('button', {class: 'btn small ghost', title: 'Remove', onclick: () => { vars.splice(i, 1); renderVars(); }}, '✕'))));
 		});
 		tbl.append(body);
+		rgbOptions();
+		scheduleRecipeCheck();
 	}
 	function move(i, d) { const v = S.recipe.variables; [v[i], v[i + d]] = [v[i + d], v[i]]; renderVars(); }
 
-	function metricChips(selected) {
+	// What monitoreo says of the recipe (gee_check, without Earth Engine): the variables that would make the download
+	// fail (e.g. an RBR, or the SCF with a metric other than the mean, in a recipe loaded from a file) and the warnings
+	// of the pixel filters, before downloading
+	let checkRecipeTimer = null;
+	function scheduleRecipeCheck() { clearTimeout(checkRecipeTimer); checkRecipeTimer = setTimeout(() => recipeCheck().catch(() => {}), 400); }
+	function formRecipe() {
+		try { return read(); } catch (e) { return JSON.parse(JSON.stringify(S.recipe || {})); }  // an unfinished form: its variables
+	}
+	async function recipeCheck() {
+		if (!S.recipe) return null;
+		const c = await api('gee_check', formRecipe());
+		const box = $('#r-check'), warn = $('#r-check-warn');
+		$$('#r-vars tr.bad').forEach(tr => tr.classList.remove('bad'));
+		box.textContent = '';
+		box.classList.toggle('hidden', !c.error);
+		if (c.error) {
+			box.append(el('div', {}, el('b', {}, 'The download would fail: '), c.error));
+			if (c.variable) { const tr = $(`#r-vars tr[data-var="${c.variable}"]`); if (tr) tr.classList.add('bad'); }
+		}
+		warn.textContent = '';
+		const ws = [...new Set(c.warnings || [])];
+		warn.classList.toggle('hidden', !ws.length);
+		if (ws.length) warn.append(el('div', {}, ...ws.map(w => el('div', {}, w.replace(/^WARNING: /, '')))));
+		return c;
+	}
+	$('#page-gee').addEventListener('change', e => { if (!e.target.closest('.modal')) scheduleRecipeCheck(); });
+
+	// True colour of the study area (rgb of the recipe, see get_vars_gee.py): the red, green and blue reflectance of
+	// the images of a variable of the catalog of the recipe (its period, season and pixel filters), on the study grid
+	const rgbKey = r => [r.index, r.sensor, r.collection || ''].join('|');
+	function rgbOptions() {
+		const sel = $('#r-rgb'), met = $('#r-rgb-metric');
+		const cur = S.recipe.rgb || null;
+		const opts = [];
+		for (const v of S.recipe.variables || []) {
+			if (kind(v) !== 'catalog') continue;
+			const r = catRow(v);
+			if (S.catalog && !(r && r.rgb)) continue;  // without the catalog: every one, until it is read
+			const o = {index: v.index, sensor: v.sensor, collection: v.collection || null};
+			if (!opts.some(x => rgbKey(x) === rgbKey(o))) opts.push(o);
+		}
+		if (cur && !opts.some(x => rgbKey(x) === rgbKey({collection: null, ...cur}))) opts.push({collection: null, ...cur});
+		sel.textContent = '';
+		sel.append(el('option', {value: ''}, 'None'));
+		for (const o of opts) sel.append(el('option', {value: rgbKey(o)}, `${o.index} · ${o.sensor}${o.collection ? ' · ' + o.collection : ''}`));
+		sel.value = cur ? rgbKey({collection: null, ...cur}) : '';
+		if (!met.options.length) for (const m of (S.catalog && S.catalog.rgb_metrics) || ['median', 'mean', 'min', 'max', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95'])
+			met.append(el('option', {value: m}, m));
+		met.value = (cur && cur.metric) || 'median';
+		met.disabled = !cur;
+		const folder = $('#r-folder').value.trim() || 'gee';
+		$('#r-rgb-note').textContent = cur
+			? `The ${met.value} of the red, green and blue reflectance of the images of ${cur.index} (${cur.sensor}), with the same period, `
+				+ `season and pixel filters, on the study grid, to inVars/${folder}/rgb: to look at the study area as the variables saw it, `
+				+ 'not a variable of the model (max and min: the colour of the image where the variable is highest or lowest).'
+			: opts.length ? 'Optional: the true colour of the images of a variable of the recipe (Sentinel-2, Landsat or the cloud frequency of MODIS), on the study grid.'
+				: 'Only the variables of Sentinel-2 and Landsat of the catalog (and the cloud frequency of MODIS) have a true colour: add one to the recipe.';
+	}
+	function rgbRead() {
+		const v = $('#r-rgb').value;
+		if (!v) { S.recipe.rgb = null; return; }
+		const [index, sensor, collection] = v.split('|');
+		S.recipe.rgb = {index, sensor, metric: $('#r-rgb-metric').value || 'median'};
+		if (collection) S.recipe.rgb.collection = collection;
+	}
+	$('#r-rgb').addEventListener('change', () => { rgbRead(); rgbOptions(); });
+	$('#r-rgb-metric').addEventListener('change', () => { rgbRead(); rgbOptions(); });
+
+	function metricChips(selected, only) {
 		const box = el('div', {class: 'chips'});
+		if (only) {  // a variable with a single metric (the frequencies, SCF and CF, are the mean of their images)
+			box.append(el('span', {class: 'chip on locked', 'data-m': only, title: `The only metric of this variable`}, only));
+			return box;
+		}
 		const all = ['mean', 'median', 'min', 'max', 'std', 'p5', 'p10', 'p25', 'p75', 'p90', 'p95', 'sum', 'count', 'mode'];
 		const extra = selected.filter(m => !all.includes(m));
 		for (const m of all.concat(extra)) {
@@ -1153,7 +1392,9 @@ pages.gee = (() => {
 		let chosen = existing ? cat.variables.find(r => r.variable === v0.index && r.sensor.toLowerCase() === String(v0.sensor || '').toLowerCase()
 			&& (!v0.collection || r.collection === v0.collection)) : null;
 		const search = el('input', {type: 'text', placeholder: 'Search: NDVI, temperature, water…', class: 'grow'});
-		const sensor = el('select', {}, el('option', {value: ''}, 'All sensors'), ...cat.sensors.map(s => el('option', {value: s}, s)));
+		// every sensor of the catalog (also those of the climate and of the fixed layers)
+		const sensors = [...new Set([...(cat.sensors || []), ...cat.variables.map(r => r.sensor)])].filter(x => cat.variables.some(r => r.sensor === x));
+		const sensor = el('select', {}, el('option', {value: ''}, 'All sensors'), ...sensors.map(s => el('option', {value: s}, s)));
 		const tbl = el('table', {class: 't'});
 		const wrap = el('div', {class: 'table-wrap cat-table'}, tbl);
 		const detail = el('div', {class: 'stack', style: {gap: '10px'}});
@@ -1165,8 +1406,8 @@ pages.gee = (() => {
 			for (const r of cat.variables) {
 				if (sensor.value && r.sensor !== sensor.value) continue;
 				if (q && !`${r.variable} ${r.name} ${r.group} ${r.collection}`.toLowerCase().includes(q)) continue;
-				const tr = el('tr', {class: 'click' + (chosen === r ? ' sel' : '')},
-					el('td', {}, el('b', {}, r.variable)), el('td', {}, r.name, el('div', {class: 'var-src'}, r.group || '')),
+				const tr = el('tr', {class: 'click' + (chosen === r ? ' sel' : '') + (twoPeriods(r) ? ' dim' : '')},
+					el('td', {}, el('b', {}, r.variable)), el('td', {}, r.name, ' ', catFlag(r), el('div', {class: 'var-src'}, r.group || '')),
 					el('td', {}, r.sensor), el('td', {class: 'small mono'}, r.collection), el('td', {class: 'num'}, fmt(r.resolution_m, 0) + ' m'),
 					el('td', {class: 'small nowrap'}, r.dates), el('td', {class: 'small'}, r.unit));
 				tr.addEventListener('click', () => { chosen = r; draw(); drawDetail(); });
@@ -1175,16 +1416,42 @@ pages.gee = (() => {
 			tbl.append(body);
 		};
 		let mbox, tctl, name;
+		const filtersText = r => !r.fixed_filters ? null : r.fixed_filters.length
+			? `Pixel filters always on: ${r.fixed_filters.join(', ')} (whatever the pixel filters of the recipe).`
+			: 'No pixel filters (those of the recipe do not apply to it).';
 		const drawDetail = () => {
 			detail.textContent = '';
 			if (!chosen) { detail.append(el('div', {class: 'small muted'}, 'Choose a variable of the table.')); return; }
-			mbox = metricChips(existing && existing.index === chosen.variable ? metrics(existing) : ['median']);
-			tctl = temporalCtl(existing || {});
+			const head = el('div', {class: 'notice info'}, el('div', {}, el('b', {}, `${chosen.variable} · ${chosen.sensor}`), ` — ${chosen.name}. `,
+				el('span', {class: 'muted'}, `${chosen.collection}, ${fmt(chosen.resolution_m, 0)} m, ${chosen.dates}, ${chosen.unit}`),
+				filtersText(chosen) ? el('div', {class: 'small muted'}, filtersText(chosen)) : null));
+			if (twoPeriods(chosen)) {
+				// RBR, RdNBR: an index of a fire (a period before minus a period after it), not a variable of a period
+				detail.append(head, el('div', {class: 'notice warn'}, el('div', {class: 'stack', style: {gap: '6px'}},
+					el('div', {}, el('b', {}, `${chosen.variable} is not a variable of a period: `), 'it compares a period before and a period after a fire, '
+						+ 'so only the burn severity of MonitorEO computes it, and a recipe cannot download it. Use it to delimit the burned area of the fire '
+						+ '(its perimeter), as the study areas or a comparison area (the burned area, or the unburned ring around it).'),
+					el('div', {}, el('button', {class: 'btn small primary', onclick: () => areaDialog('study', {tab: 'burned', index: chosen.variable, sensor: chosen.sensor})},
+						`Burned area from the ${chosen.variable}…`)))));
+				return;
+			}
 			name = el('input', {type: 'text', value: (existing && existing.name) || '', placeholder: `${chosen.variable}_… (automatic)`});
-			detail.append(el('div', {class: 'notice info'}, el('div', {}, el('b', {}, `${chosen.variable} · ${chosen.sensor}`), ` — ${chosen.name}. `,
-				el('span', {class: 'muted'}, `${chosen.collection}, ${fmt(chosen.resolution_m, 0)} m, ${chosen.dates}, ${chosen.unit}`))),
+			if (isStatic(chosen)) {
+				// elevation, slope, WorldClim: a fixed layer, without dates
+				mbox = null; tctl = null;
+				detail.append(head, el('div', {class: 'small muted'}, 'A fixed layer, without dates: no metric, period or temporal aggregation (the period, '
+					+ 'season and pixel filters of the recipe do not apply to it). One file.'),
+					el('div', {class: 'form-grid'}, el('label', {}, 'File name'), name));
+				return;
+			}
+			const only = onlyMetric(chosen);
+			mbox = metricChips(only ? [only] : existing && existing.index === chosen.variable ? metrics(existing) : ['median'], only);
+			tctl = temporalCtl(existing || {});
+			detail.append(head,
 				el('div', {class: 'form-grid'},
 					el('label', {}, 'Metrics (one file each)'), mbox,
+					only ? el('label', {}) : null, only ? el('div', {class: 'small muted'}, `${chosen.variable} only takes the metric ${only} (a frequency: the % of the `
+						+ 'observations of each pixel); the metric between years can be any.') : null,
 					el('label', {}, 'Temporal aggregation'), tctl.t,
 					el('label', {}, 'Between years'), tctl.inter,
 					el('label', {}, 'File name'), name));
@@ -1197,15 +1464,20 @@ pages.gee = (() => {
 				el('div', {class: 'small faint'}, `Catalog of MonitorEO (${(cat.source || {}).imported || ''}), package monitoreo ${cat.monitoreo || ''}.`)),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
 				if (!chosen) { toast('Choose a variable.', 'warn'); return undefined; }
-				const ms = chosenMetrics(mbox);
-				if (!ms.length) { toast('Choose at least one metric.', 'warn'); return undefined; }
+				if (twoPeriods(chosen)) { toast(`${chosen.variable} only comes with the burn severity: make the burned area with "From MonitorEO…".`, 'warn'); return undefined; }
+				const fixed = isStatic(chosen);
+				const ms = fixed ? [] : chosenMetrics(mbox);
+				if (!fixed && !ms.length) { toast('Choose at least one metric.', 'warn'); return undefined; }
 				const several = cat.variables.filter(r => r.variable === chosen.variable && r.sensor === chosen.sensor).length > 1;
 				const v = {index: chosen.variable, sensor: chosen.sensor};
 				if (several) v.collection = chosen.collection;
-				v.metric = ms.length === 1 ? ms[0] : ms;
-				if (tctl.t.value !== 'period') { v.temporal = tctl.t.value; v.interannual = tctl.inter.value; }
+				if (!fixed) {
+					v.metric = ms.length === 1 ? ms[0] : ms;
+					if (tctl.t.value !== 'period') { v.temporal = tctl.t.value; v.interannual = tctl.inter.value; }
+				}
 				if (name.value.trim()) v.name = name.value.trim();
-				for (const k of ['period', 'season', 'quality', 'exclude_landcover', 'where', 'resample', 'aggregate']) if (existing && existing[k] !== undefined) v[k] = existing[k];
+				const keep = fixed ? ['where', 'resample', 'aggregate'] : ['period', 'season', 'quality', 'exclude_landcover', 'where', 'resample', 'aggregate'];
+				for (const k of keep) if (existing && existing[k] !== undefined) v[k] = existing[k];
 				return v;
 			}}]});
 	}
@@ -1547,7 +1819,7 @@ pages.gee = (() => {
 			try { const r = await api('gee_recipe'); fill(r.recipe, r.source); } catch (e) { fail(e); }
 			syncOnly();
 			// the land cover maps of the mask come with the catalog of MonitorEO
-			ensureCatalog().then(c => lcTable(c.landcover), () => lcTable(null, true));
+			ensureCatalog().then(c => { lcTable(c.landcover); if (S.recipe) { renderVars(); renderConds(); } }, () => lcTable(null, true));
 			ensureCommunity().then(() => { if (S.recipe) renderVars(); }, () => {});
 		},
 		attach(job) {
@@ -1556,8 +1828,284 @@ pages.gee = (() => {
 			view.start(job.id, job.title);
 		},
 		onShow() { sizeNote(); scheduleCheck(); },
+		// a vector file as the comparison area of the ecoregion grid (an area from MonitorEO): FILE relative to segm_optim
+		async useComparison(file) {
+			$('#r-eco-on').checked = true;
+			$('input[name=r-area][value=file]').checked = true;
+			$('#r-area').value = file;
+			S.areaLayer = null;
+			syncEco();
+			await inspectArea();
+			scheduleRecipeCheck();
+		},
+		// the account of Earth Engine of the form, for the areas from MonitorEO (they use that of the downloads)
+		async saveAccount() {
+			if (account() === 'own' && !$('#ee-project').value.trim()) throw new Error('Write your Earth Engine project in "Download from MonitorEO", or use the shared account.');
+			await api('gee_settings', account(), $('#ee-project').value.trim());
+		},
 	};
 })();
+
+// Areas from MonitorEO ===============================================================================================
+// Vector files of study areas or of a comparison area made with MonitorEO in Earth Engine (areas.py), each one a folder
+// of segm_optim/areas: the burned area of a fire (the perimeter of its burned pixels, from the dNBR, the RBR or the
+// RdNBR) and the unburned ring around it; protected areas of WDPA (or only its Ramsar sites); administrative units of
+// FAO GAUL 2025. Their files are used as the study areas ("Input variables") or as the comparison area of the ecoregion
+// grid ("Download from MonitorEO"). PURPOSE: where the dialog was opened ('study' or 'comparison'); PRESET: {tab, index,
+// sensor} (the catalog sends here the RBR and the RdNBR, which only the burn severity computes).
+const AREAS = {view: null, open: false, onDone: null};
+async function areaDialog(purpose = 'study', preset = {}) {
+	let o;
+	try { o = await api('area_options'); } catch (e) { return fail(e); }
+	const saved = (() => { try { return JSON.parse(store('area.burned') || '{}'); } catch (e) { return {}; } })();
+	const field = (label, ...ctl) => [el('label', {}, label), ctl.length > 1 ? el('div', {class: 'row'}, ...ctl) : ctl[0]];
+	const num = (value, attrs = {}) => el('input', {type: 'number', step: 'any', value: value ?? '', style: {width: '96px'}, ...attrs});
+	const date = value => el('input', {type: 'date', value: value || ''});
+	const closeDialog = () => { const b = body.closest('.modal'); if (b) b.querySelector('header .btn').click(); };
+
+	// what to do with a file of an area: the study areas or the comparison area
+	async function useArea(f, as) {
+		try {
+			if (as === 'study') {
+				await pages.inputs.useFile(f.path);
+				closeDialog();
+				show('inputs');
+				toast(`${f.file}: check it on the map and press "Use these study areas".`, 'ok', 7000);
+			} else {
+				await pages.gee.useComparison(f.comparison);
+				closeDialog();
+				show('gee');
+				toast(`${f.file} is the comparison area of the ecoregion grid (with its pixel size): download it with the variables.`, 'ok', 7000);
+			}
+		} catch (e) { fail(e); }
+	}
+	const fileRow = f => el('div', {class: 'area-file'},
+		el('div', {class: 'stack grow', style: {gap: '2px', minWidth: '260px'}},
+			el('div', {class: 'row', style: {gap: '8px'}}, el('span', {class: 'badge ' + (f.role === 'ring' ? 'info' : 'brand')}, f.role === 'ring' ? 'Unburned ring'
+				: f.role === 'burned' ? 'Burned area' : f.role === 'protected' ? 'Protected areas' : 'Administrative units'),
+				el('span', {class: 'mono small', style: {wordBreak: 'break-all'}}, f.file)),
+			el('div', {class: 'small muted'}, `${f.label} · ${fmt(f.features, 0)} ${f.features === 1 ? 'area' : 'areas'} · ${fmt(f.ha, 1)} ha`)),
+		el('div', {class: 'btns'},
+			el('button', {class: 'btn small' + (purpose === 'study' && f.role !== 'ring' ? ' primary' : ''), onclick: () => useArea(f, 'study')}, 'Use as study areas'),
+			el('button', {class: 'btn small' + (purpose === 'comparison' || f.role === 'ring' ? ' primary' : ''), onclick: () => useArea(f, 'comparison')}, 'Use as comparison area')));
+	const areaCard = a => el('div', {class: 'card flat stack', style: {gap: '4px'}},
+		el('div', {class: 'row'}, el('b', {}, a.name), el('span', {class: 'small muted'}, `${{burned: 'burned area', protected: 'protected areas', admin: 'administrative units'}[a.kind] || a.kind} · segm_optim/areas/${a.folder} · ${String(a.made || '').replace('T', ' ')}`),
+			el('button', {class: 'btn small ghost right', onclick: () => api('open_folder', a.files[0].path.replace(/[\\/][^\\/]+$/, '')).catch(fail)}, 'Open folder')),
+		a.title ? el('div', {class: 'small faint'}, a.title) : null,
+		...a.files.map(fileRow));
+
+	// the log of the job that makes an area, and its result
+	const pre = el('pre', {class: 'console hidden', style: {height: '170px'}});
+	const bar = el('div', {class: 'job-bar'});
+	const result = el('div', {class: 'stack', style: {gap: '6px'}});
+	const stop = el('button', {class: 'btn small danger hidden', onclick: () => AREAS.view && stopJob(AREAS.view)}, 'Stop');
+	if (!AREAS.view) AREAS.view = new JobView(null, null, {});
+	const view = AREAS.view;
+	view.pre = pre; view.bar = bar;
+	view.opts = {
+		onStart: () => { pre.classList.remove('hidden'); stop.classList.remove('hidden'); result.textContent = ''; },
+		onEnd: s => {
+			stop.classList.add('hidden');
+			if (s.state === 'done' && s.result) {
+				o.made = [s.result, ...o.made.filter(a => a.folder !== s.result.folder)];
+				drawMade();
+				result.textContent = '';
+				result.append(el('div', {class: 'notice ok'}, el('div', {}, el('b', {}, `${s.result.name}: `), 'made in ',
+					el('span', {class: 'mono'}, `segm_optim/areas/${s.result.folder}`), '. Use its files:')), areaCard(s.result));
+				if (!AREAS.open) toast(`The area ${s.result.name} is ready: open "From MonitorEO…" to use it.`, 'ok', 8000);
+			} else if (s.state === 'failed' && !AREAS.open) toast(`The area could not be made: ${s.error}`, 'err');
+		}};
+	const busy = () => view.running() && (toast('An area is being made: wait until it finishes.', 'warn'), true);
+	async function start(kind, params) {
+		if (busy()) return;
+		try {
+			await pages.gee.saveAccount();
+			view.start(await api('area_make', kind, params), 'Area');
+		} catch (e) { fail(e); }
+	}
+
+	// Burned area of a fire ---------------------------------------------------------------------------------------
+	const burnBox = el('div', {class: 'stack', style: {gap: '10px'}});
+	if (!o.burn) {
+		burnBox.append(el('div', {class: 'notice warn'}, `This version of monitoreo (${o.monitoreo}) cannot delimit the burned area: press "Update MonitorEO" in "Download from MonitorEO".`));
+	} else {
+		const b = o.burn;
+		const searchStudy = el('input', {type: 'radio', name: 'ab-search', value: 'study'});
+		const searchFile = el('input', {type: 'radio', name: 'ab-search', value: 'file'});
+		(saved.search === 'file' || !o.study ? searchFile : searchStudy).checked = true;
+		searchStudy.disabled = !o.study;
+		const buffer = num(saved.buffer ?? b.buffer, {min: 0, step: 100});
+		const file = el('input', {type: 'text', class: 'grow', value: saved.file || '', placeholder: 'the polygons where the fire is (.gpkg, .shp, .geojson)'});
+		const browse = el('button', {class: 'btn small', onclick: async () => {
+			try { const f = await pickFiles('vector', false, 'Area where the fire is'); if (f && f.length) { file.value = f[0]; searchFile.checked = true; } } catch (e) { fail(e); }
+		}}, 'Browse…');
+		const index = el('select', {}, ...b.indices.map(i => el('option', {value: i}, {
+			dNBR: 'dNBR: NBR before − after, classes of the USGS (Key & Benson 2006)',
+			RBR: 'RBR: relativized burn ratio (Parks et al. 2014), without classes',
+			RdNBR: 'RdNBR: relative dNBR (Miller & Thode 2007), with its classes'}[i] || i)));
+		index.value = preset.index || saved.index || 'dNBR';
+		const sensor = el('select');
+		const before0 = date(saved.before && saved.before[0]), before1 = date(saved.before && saved.before[1]);
+		const after0 = date(saved.after && saved.after[0]), after1 = date(saved.after && saved.after[1]);
+		const burnedMin = num(saved.burned_min_by && saved.burned_min_by[index.value]);
+		const burnedNote = el('span', {class: 'small muted'});
+		const minHa = num(saved.min_ha ?? b.min_ha, {min: 0, step: 0.5});
+		const res = num(saved.resolution, {min: 1, placeholder: 'of the data'});
+		const ringW = num(saved.ring ?? b.ring, {min: 0, step: 100});
+		const gap = num(saved.gap ?? 0, {min: 0, step: 10});
+		const tif = el('input', {type: 'checkbox'});
+		tif.checked = !!saved.geotiff;
+		const name = el('input', {type: 'text', class: 'grow', value: '', placeholder: 'e.g. Fire of Los Guájares 2022'});
+		const syncBurn = () => {
+			const ix = index.value;
+			const keep = preset.sensor && !sensor.dataset.done ? preset.sensor : sensor.value || saved.sensor;
+			sensor.textContent = '';
+			for (const x of b.sensors[ix] || ['Sentinel-2', 'Landsat']) sensor.append(el('option', {value: x}, x === 'Modis' ? 'MODIS (Terra; 500 m)' : x));
+			sensor.value = (b.sensors[ix] || []).includes(keep) ? keep : (b.sensors[ix] || ['Sentinel-2'])[0];
+			sensor.dataset.done = '1';
+			const def = b.burned_min[ix];
+			burnedMin.placeholder = def !== undefined ? String(def) : 'required';
+			burnedNote.textContent = def !== undefined ? `empty: ${def}, the lowest ${ix} of its burned classes` : 'the RBR has no classes: write the RBR from which a pixel is burned (e.g. 0.1)';
+		};
+		index.addEventListener('change', () => { burnedMin.value = (saved.burned_min_by || {})[index.value] ?? ''; syncBurn(); });
+		syncBurn();
+		const compute = el('button', {class: 'btn primary', onclick: () => {
+			const p = {search: searchFile.checked ? 'file' : 'study', buffer: buffer.value, file: file.value.trim(), index: index.value,
+				sensor: sensor.value, before: [before0.value, before1.value], after: [after0.value, after1.value],
+				burned_min: burnedMin.value.trim(), min_ha: minHa.value.trim(), resolution: res.value.trim(), ring: ringW.value.trim(),
+				gap: gap.value.trim(), geotiff: tif.checked, name: name.value.trim()};
+			if (!p.before[0] || !p.before[1] || !p.after[0] || !p.after[1]) return toast('Write both periods: before and after the fire.', 'warn');
+			if (!p.name) return toast('Write a name for the burned area.', 'warn');
+			store('area.burned', JSON.stringify({...p, name: undefined, burned_min_by: {...(saved.burned_min_by || {}), [p.index]: p.burned_min}}));
+			start('burned', p);
+		}}, 'Delimit the burned area');
+		burnBox.append(
+			el('p', {class: 'small muted', style: {margin: 0}}, 'The perimeter of the pixels burned between a period before and a period after the fire, '
+				+ 'from the median NBR of the images of each period (with the pixel filters of MonitorEO): the pixels whose burn index reaches the value '
+				+ 'from which a pixel is burned, joined when they touch, without the patches smaller than the smallest patch and with the smaller unburned '
+				+ 'islands filled. It gives the burned area and, optionally, the unburned ring around it: e.g. the burned area as the study area, and the ring '
+				+ 'as the area to compare its HFTs with.'),
+			el('div', {class: 'form-grid'},
+				el('label', {}, 'Search the fire in'),
+				el('div', {class: 'stack', style: {gap: '4px'}},
+					el('label', {class: 'check small'}, searchStudy, `the study area${o.study ? ' (' + o.study.split('/').pop() + ')' : ' (none chosen)'}, its rectangle grown by`, buffer, 'm'),
+					el('div', {class: 'row', style: {flexWrap: 'nowrap'}}, el('label', {class: 'check small'}, searchFile, 'a vector file'), file, browse)),
+				...field('Burn index', index),
+				...field('Sensor', sensor),
+				...field('Before the fire', before0, '–', before1),
+				...field('After the fire', after0, '–', after1),
+				el('label', {}), el('div', {class: 'small muted'}, 'The fire between both periods: e.g. the same season of the year before and of the year after '
+					+ 'it (a few weeks after it for the dNBR and the RBR; one year after it is the extended assessment of the RdNBR of Miller & Thode 2007).'),
+				...field('Burned from', burnedMin, burnedNote),
+				...field('Smallest patch', minHa, el('span', {class: 'small muted'}, 'ha: smaller burned patches are left out, and smaller unburned islands inside the burned area are filled')),
+				...field('Pixel size', res, el('span', {class: 'small muted'}, 'm (empty: that of the data, 10 m in Sentinel-2, 30 m in Landsat)')),
+				...field('Unburned ring', ringW, el('span', {class: 'small muted'}, 'm wide, starting'), gap, el('span', {class: 'small muted'}, 'm from the burned area (0 m wide: no ring)')),
+				el('label', {}), el('label', {class: 'check small'}, tif, 'Also save the GeoTIFF of the burn index (with the NBR before and after) in the folder of the area'),
+				...field('Name', name)),
+			el('div', {class: 'btns'}, compute));
+	}
+
+	// Protected areas and administrative units: found by their name in Earth Engine, then made into a file ----------
+	function finder(kind) {
+		const box = el('div', {class: 'stack', style: {gap: '10px'}});
+		const text = el('input', {type: 'text', class: 'grow', placeholder: kind === 'protected' ? 'Part of its name: Sierra Nevada, Doñana…' : 'Part of its name: Granada, Andalucía…'});
+		const ramsar = el('input', {type: 'checkbox'});
+		const level = el('select', {}, el('option', {value: '2'}, 'Level 2: provinces, districts, municipalities…'), el('option', {value: '1'}, 'Level 1: regions, states, provinces…'));
+		const country = el('input', {type: 'text', placeholder: 'ISO3: ESP', style: {width: '80px'}, maxlength: 3});
+		const tbl = el('table', {class: 't'});
+		const found = el('div', {class: 'small faint'});
+		const join = el('input', {type: 'checkbox'});
+		const name = el('input', {type: 'text', class: 'grow', placeholder: 'the name of the first one chosen'});
+		let rows = [];
+		const chosen = new Map();
+		const draw = () => {
+			tbl.textContent = '';
+			const head = kind === 'protected' ? ['', 'WDPA ID', 'Name', 'Designation', 'IUCN', 'Country', 'km²', 'Year'] : ['', 'Code', 'Name', 'Full name', 'Country'];
+			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', {}, h)))));
+			const body = el('tbody');
+			if (!rows.length) body.append(el('tr', {}, el('td', {colspan: head.length, class: 'empty'}, 'Search by name.')));
+			for (const r of rows) {
+				const cb = el('input', {type: 'checkbox'});
+				cb.checked = chosen.has(r.id);
+				cb.addEventListener('change', () => { if (cb.checked) chosen.set(r.id, r); else chosen.delete(r.id); name.placeholder = chosen.size ? [...chosen.values()][0].name : 'the name of the first one chosen'; });
+				body.append(el('tr', {}, el('td', {}, cb), ...(kind === 'protected'
+					? [el('td', {class: 'num'}, String(r.id)), el('td', {}, el('b', {}, r.name)), el('td', {class: 'small'}, r.desig || ''), el('td', {}, r.iucn || ''),
+						el('td', {}, r.iso3 || ''), el('td', {class: 'num'}, fmt(r.km2, 1)), el('td', {class: 'num'}, r.year ? String(r.year) : '')]
+					: [el('td', {class: 'num'}, String(r.id)), el('td', {}, el('b', {}, r.name)), el('td', {class: 'small'}, r.full || ''), el('td', {}, r.iso3 || '')])));
+			}
+			tbl.append(body);
+		};
+		const search = el('button', {class: 'btn', onclick: async () => {
+			found.textContent = 'Searching in Earth Engine…';
+			try {
+				await pages.gee.saveAccount();
+				rows = kind === 'protected' ? await api('area_find_protected', text.value, ramsar.checked)
+					: await api('area_find_admin', text.value, Number(level.value), country.value.trim() || null);
+				found.textContent = `${rows.length}${rows.length === 50 ? ' (the first 50)' : ''} found.` + (chosen.size ? ` ${chosen.size} chosen (they stay chosen in other searches).` : '');
+				draw();
+			} catch (e) { found.textContent = ''; fail(e); }
+		}}, 'Search');
+		text.addEventListener('keydown', e => { if (e.key === 'Enter') search.click(); });
+		const make = el('button', {class: 'btn primary', onclick: () => {
+			if (!chosen.size) return toast('Tick at least one.', 'warn');
+			const items = [...chosen.values()];
+			start(kind, {items, join: join.checked, ramsar: ramsar.checked, level: Number(level.value), name: name.value.trim() || items[0].name});
+		}}, 'Make the file');
+		draw();
+		box.append(
+			el('p', {class: 'small muted', style: {margin: 0}}, kind === 'protected'
+				? 'The protected areas of the World Database on Protected Areas (WDPA, UNEP-WCMC & IUCN) in Earth Engine, by their name: each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'
+				: 'The administrative units of FAO GAUL 2025 in Earth Engine, by their name: each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'),
+			el('div', {class: 'row'}, text, kind === 'protected' ? el('label', {class: 'check small'}, ramsar, 'only Ramsar sites') : level,
+				kind === 'admin' ? country : null, search),
+			el('div', {class: 'table-wrap cat-table'}, tbl), found,
+			el('div', {class: 'form-grid'},
+				el('label', {}), el('label', {class: 'check small'}, join, 'Join them into one area'),
+				...field('Name', name)),
+			el('div', {class: 'btns'}, make));
+		return box;
+	}
+
+	// Areas made before ---------------------------------------------------------------------------------------------
+	const madeBox = el('div', {class: 'stack', style: {gap: '8px'}});
+	function drawMade() {
+		madeBox.textContent = '';
+		if (!o.made.length) madeBox.append(el('div', {class: 'small muted'}, 'No areas yet: they are kept in segm_optim/areas.'));
+		for (const a of o.made) madeBox.append(areaCard(a));
+		tabBtn.made.textContent = `Made before (${o.made.length})`;
+	}
+
+	const panels = {burned: burnBox, protected: o.protected ? finder('protected') : el('div', {class: 'notice warn'}, 'Press "Update MonitorEO".'),
+		admin: o.admin ? finder('admin') : el('div', {class: 'notice warn'}, 'Press "Update MonitorEO".'), made: madeBox};
+	const tabBtn = {};
+	const tabs = el('div', {class: 'tabs'});
+	const labels = {burned: 'Burned area of a fire', protected: 'Protected areas (WDPA)', admin: 'Administrative units (GAUL)', made: 'Made before'};
+	const showTab = t => {
+		for (const [k, p] of Object.entries(panels)) { p.classList.toggle('hidden', k !== t); tabBtn[k].classList.toggle('on', k === t); }
+		store('area.tab', t);
+	};
+	for (const k of Object.keys(panels)) { tabBtn[k] = el('button', {onclick: () => showTab(k)}, labels[k]); tabs.append(tabBtn[k]); }
+	drawMade();
+	const body = el('div', {class: 'stack', style: {gap: '12px'}},
+		el('div', {class: 'small muted'}, purpose === 'study'
+			? 'Study areas from MonitorEO: a vector file in segm_optim/areas, with an ID (cat) and a name for each area. Its files can also be the comparison area.'
+			: 'A comparison area from MonitorEO: a vector file in segm_optim/areas (each polygon an area of the ecoregion grid). Its files can also be the study areas.'),
+		tabs, ...Object.values(panels),
+		el('div', {class: 'row'}, bar, stop), pre, result,
+		el('div', {class: 'small faint'}, `With the Earth Engine account of "Download from MonitorEO" · package monitoreo ${o.monitoreo}.`));
+	const tab = preset.tab || store('area.tab') || 'burned';
+	showTab(panels[tab] ? tab : 'burned');
+	// an area being made (the dialog was closed meanwhile): its log here
+	try {
+		const run = (await api('running')).find(j => j.kind === 'gee-area');
+		if (run && !view.running()) view.start(run.id, run.title);
+		else if (view.running()) { pre.classList.remove('hidden'); stop.classList.remove('hidden'); view.since = 0; view.base = 0; view.nodes = []; }
+	} catch (e) { /* nothing */ }
+	AREAS.open = true;
+	await modal({title: 'Areas from MonitorEO', wide: true, body, buttons: [{label: 'Close', result: null}]});
+	AREAS.open = false;
+	view.pre = null; view.bar = null;
+}
 
 // 3. HFT mapping =====================================================================================================
 pages.model = (() => {
@@ -3205,6 +3753,7 @@ const updates = (() => {
 	try {
 		for (const j of await api('running')) {
 			if (j.kind === 'model') pages.model.attach(j);
+			else if (j.kind === 'gee-area') continue;  // an area from MonitorEO: its dialog shows it when opened
 			else if (j.kind.startsWith('gee')) pages.gee.attach(j);
 			else if (j.kind === 'ecosim') pages.similarity.attach(j);
 		}

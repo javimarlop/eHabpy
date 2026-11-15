@@ -78,6 +78,7 @@
 			<div class="row">
 				<input type="text" id="sa-file" class="grow" readonly placeholder="No file chosen">
 				<button class="btn" id="sa-pick">Choose file…</button>
+				<button class="btn" id="sa-mo" title="A burned area, protected areas of WDPA or administrative units of FAO GAUL, made with MonitorEO">From MonitorEO…</button>
 			</div>
 			<div class="form-grid">
 				<label for="sa-layer" id="sa-layer-lab">Layer</label><select id="sa-layer"></select>
@@ -121,6 +122,7 @@
 				<div class="table-wrap"><table class="t" id="tbl-study"></table></div>
 				<div class="btns"><button class="btn" data-add="study">Add GeoTIFFs…</button></div>
 				<ul class="checks" id="chk-study"></ul>
+				<div class="small hidden" id="set-rgb"></div>
 			</div>
 			<div class="stack" style="gap:10px">
 				<div class="scale-head"><h3>Ecoregion scale</h3><span class="badge" id="badge-eco"></span></div>
@@ -202,7 +204,8 @@
 				</div>
 				<label class="r-area-f">Vector file</label>
 				<div class="row r-area-f" style="flex-wrap:nowrap"><input type="text" id="r-area" class="grow" placeholder=".gpkg, .shp or .geojson">
-					<button class="btn small" id="r-area-pick">Browse…</button></div>
+					<button class="btn small" id="r-area-pick">Browse…</button>
+					<button class="btn small" id="r-area-mo" title="The unburned ring around a burned area, protected areas or administrative units, made with MonitorEO">From MonitorEO…</button></div>
 				<label class="r-area-f r-area-l">Layer</label><select id="r-area-layer" class="r-area-f r-area-l"></select>
 				<label class="r-area-f"></label><div class="small muted r-area-f" id="r-area-info"></div>
 				<label>Pixel size</label><div class="row"><input type="number" id="r-eco-res" min="10" step="10"> <span class="unit muted">m</span></div>
@@ -242,6 +245,12 @@
 			<div class="chips r-lc-f" id="r-lc"></div>
 			<p class="small muted r-lc-f" id="r-lc-note" style="margin:6px 0 0"></p>
 			<div class="notice warn hidden" id="r-lc-warn"></div>
+			<div class="section-title">Conditions on variables</div>
+			<p class="small muted" style="margin:0 0 6px">Keep only the pixels where variables of the catalog are within some
+				values (all of them), e.g. above 1500 m or with less than 600 mm of annual precipitation. The others are NoData
+				in every variable of both grids.</p>
+			<div class="cond-list" id="r-conds"></div>
+			<div class="btns"><button class="btn small" id="r-cond-add">Add condition…</button></div>
 		</div>
 	</div>
 
@@ -259,6 +268,15 @@
 		<div class="table-wrap"><table class="t" id="r-vars"></table></div>
 		<p class="small muted" style="margin:0">Each metric gives a file (1_, 2_, …, in this order). The first variable defines
 			the pixels analysed by the model.</p>
+		<div class="notice err hidden" id="r-check"></div>
+		<div class="notice warn hidden" id="r-check-warn"></div>
+		<div class="section-title">True colour of the study area</div>
+		<div class="form-grid">
+			<label>Images of</label>
+			<div class="row"><select id="r-rgb"><option value="">None</option></select>
+				<select id="r-rgb-metric" title="Metric of the red, green and blue reflectance of the images"></select></div>
+			<label></label><p class="small muted" id="r-rgb-note" style="margin:0"></p>
+		</div>
 	</div>
 
 	<div class="card">

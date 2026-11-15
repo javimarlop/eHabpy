@@ -32,6 +32,13 @@ the ecoregion pixel, not clipped, the same variables, downloaded directly (it is
 (similarity.py) takes the statistics of each HFT from it, so that they come from the same product and pixel as the
 area they are compared with.
 
+With rgb: in the recipe (e.g. rgb: {index: NDVI, sensor: Sentinel-2, metric: median}), the true colour of the images
+of that variable of the catalog is also downloaded on the study grid, to ../inVars/<folder>/rgb (setup.py ignores
+this subfolder): the red, green and blue surface reflectance of the same images and pixels as the variable (the
+period, season, pixel filters and conditions of the first variable of the recipe with that index and sensor), with
+the metric of rgb (median by default; also mean, min, max or a percentile pN), to look at the study area as the
+variables saw it. Only the variables of Sentinel-2 and Landsat and the cloud frequency of MODIS have one.
+
 --only study or --only ecoregion downloads one of the grids (the ecoregion grid with its study_area when needed). A
 download with --only ecoregion into a new folder is only a comparison area for the similarity (ECOSIM_AREA =
 '<folder>/ecoregion' in config.py), not a set of variables for the HFT model.
@@ -85,7 +92,9 @@ MONITOREO_BRANCH = 'main'
 RECIPE = os.path.join(hft_state.HERE, 'gee_vars.yaml')
 RECORD = 'gee_vars.json'
 DRIVE_FOLDER = 'eHabitat_GEE'
-EXTRA_KEYS = {'folder', 'comparison_area', 'comparison_area_layer'}  # keys of the recipe that monitoreo does not use
+EXTRA_KEYS = {'folder', 'comparison_area', 'comparison_area_layer', 'rgb'}  # keys of the recipe that monitoreo does not use
+RGB_FOLDER = 'rgb'  # subfolder of the study grid with the true colour of the images of a variable (rgb: in the recipe)
+RGB_KEYS = ('index', 'sensor', 'collection', 'metric')  # of rgb: in the recipe
 STUDY_ECO = 'study_area'  # subfolder of ecoregion/: the study grid at the pixel of the ecoregion grid
 COMPARISON = 'Comparison area'  # BIOME_NAME of the polygons of a comparison area in ecoregions.gpkg
 NAME_FIELDS = ('name', 'NAME', 'nombre', 'Name')  # fields with the name of each polygon of a comparison area
@@ -239,6 +248,74 @@ def upgrade_record(folder, specs):
 	if n:
 		recipe.save_record(folder, rec, RECORD)
 	return n
+
+
+# True colour --------------------------------------------------------------------------------------------------------
+
+def rgb_spec(rec):
+	"""The spec (monitoreo.variable) of the true colour of the recipe REC (its key rgb), or None without it: the red,
+	green and blue surface reflectance of the images of a variable of the catalog, with the metric of rgb (median by
+	default), the period, season, pixel filters and conditions of the first variable of the recipe with the same index
+	and sensor (else those of the recipe). Checked without Earth Engine (ValueError if it has no true colour)."""
+	opts = rec.get('rgb')
+	if not opts:
+		return None
+	if not isinstance(opts, dict) or not opts.get('index') or not opts.get('sensor'):
+		raise ValueError('rgb: give the variable of the catalog whose images give the true colour, e.g. '
+		                 '{index: NDVI, sensor: Sentinel-2, metric: median}')
+	unknown = set(opts) - set(RGB_KEYS)
+	if unknown:
+		raise ValueError(f"rgb: unknown keys {', '.join(sorted(unknown))}: use {', '.join(RGB_KEYS)}")
+	from monitoreo import variable as variables
+	if not hasattr(variables, 'check_rgb'):
+		raise ValueError('rgb: this version of monitoreo has no true colour: run without --no-update to install its '
+		                 'last version')
+	low = lambda x: str(x or '').strip().lower()  # noqa: E731
+	same = [v for v in rec.get('variables') or [] if isinstance(v, dict) and low(v.get('index')) == low(opts['index'])
+	        and low(v.get('sensor')) == low(opts['sensor'])
+	        and (not opts.get('collection') or v.get('collection') == opts['collection'])]
+	base = same[0] if same else {}
+	var = {k: base[k] for k in ('collection', 'period', 'season', 'quality', 'where', 'exclude_landcover')
+	       if base.get(k) is not None}
+	var.update({k: opts[k] for k in RGB_KEYS if opts.get(k) is not None})
+	var.setdefault('metric', 'median')
+	defaults = {k: v for k, v in rec.items() if k in variables.KEYS}
+	try:
+		spec = variables.specs(var, defaults)[0]
+		variables.check_rgb(spec)
+	except (ValueError, KeyError) as e:
+		raise ValueError('rgb (the true colour): ' + str(e).strip('"')) from e
+	return spec
+
+
+def download_rgb(spec, grid, folder, overwrite=False, progress=None):
+	"""Download the true colour SPEC (see rgb_spec) on the study GRID to FOLDER/rgb/<name>_RGB.tif (three bands: red,
+	green and blue reflectance, float32, NoData -9999), unless it is there with the same spec and grid (its record,
+	rgb/gee_vars.json); the true colour of another variable or metric there is removed. Returns its path."""
+	from monitoreo import recipe, sensors
+	from monitoreo import variable as variables
+	from monitoreo.grid import download
+	out = os.path.join(folder, RGB_FOLDER)
+	os.makedirs(out, exist_ok=True)
+	name = f"{spec['name']}_RGB.tif"
+	path = os.path.join(out, name)
+	key = {'spec': recipe.spec_key(spec), 'grid': grid.describe()}
+	record = recipe.load_record(out, RECORD)
+	if not overwrite and os.path.isfile(path) and (record.get('files') or {}).get(name) == json.loads(
+			json.dumps(key, default=str)):
+		print(f'  {name}: up to date')
+		return path
+	region = grid.region()
+	img = variables.image(spec, region, grid.res, rgb=True)
+	desc = variables.describe(spec, rgb=True)
+	download(img, grid, path, bands=list(sensors.RGB_BANDS),
+	         progress=(lambda done, total: progress(name, done, total)) if progress else None,
+	         metadata={'source': 'Google Earth Engine', 'monitoreo': json.dumps(desc, default=str)})
+	for f in os.listdir(out):  # one true colour: that of the recipe
+		if f.lower().endswith(('.tif', '.tiff')) and f != name:
+			os.remove(os.path.join(out, f))
+	recipe.save_record(out, {'files': {name: json.loads(json.dumps(key, default=str))}}, RECORD)
+	return path
 
 
 # Comparison area ----------------------------------------------------------------------------------------------------
@@ -775,6 +852,7 @@ def main():
 
 	try:
 		rec = recipe.read(args.recipe, extra=EXTRA_KEYS)
+		rgb = rgb_spec(rec)
 	except ValueError as e:
 		fail(str(e))
 	rec['drive_folder'] = rec.get('drive_folder') or DRIVE_FOLDER
@@ -866,6 +944,9 @@ def main():
 	for f in summary['files']:
 		filters = f.get('pixel_filters')
 		print(f"  {f['file']}" + (f"  (pixel filters: {', '.join(filters) or 'none'})" if filters is not None else ''))
+	if rgb and 'study' in plan.grids:
+		print(f"True colour of {rgb['index']} ({rgb['sensor']}, {rgb['metric']}) on the study grid -> "
+		      f"{rel(os.path.join(outdir, RGB_FOLDER))}/{rgb['name']}_RGB.tif")
 
 	if args.dry_run:
 		print(f"\nImages of each variable over the {'study area' if 'study' in plan.grids else 'ecoregion grid'}:")
@@ -925,6 +1006,17 @@ def main():
 			done = not (res['in_drive'] or res['failed'])
 		else:
 			done = res['done']
+		if rgb:
+			print(f"\nTrue colour of {rgb['index']} ({rgb['sensor']}, {rgb['metric']}) on the study grid -> "
+			      f"{rel(os.path.join(outdir, RGB_FOLDER))}")
+			try:
+				download_rgb(rgb, plan.grids['study'], outdir, args.overwrite, progress)
+			except (ValueError, RuntimeError) as e:
+				for bar in list(bars.values()):
+					bar.close()
+				fail(f'true colour: {e}')
+			except ee.EEException as e:
+				fail(f'true colour, Earth Engine: {e}')
 	if 'ecoregion' in plan.grids:
 		# the folder keeps the area of its files until all those of the new area are there (start_area)
 		eco_dir = dirs['ecoregion']
