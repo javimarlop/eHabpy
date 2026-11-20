@@ -419,6 +419,8 @@ run_state <- function(action) {
 st <- run_state('check')
 if (st == 3) stop('a step before moranvar_plots.R is out of date (see the message above)', call. = FALSE)
 if (st != 0) warning('could not check the steps run before with hft_state.py (is python3 in the PATH?)')
+progress <- function(kind, value) if (nzchar(Sys.getenv('EHAB_PROGRESS'))) cat('##', kind, ' ', value, '\n', sep='')  # for the desktop app (hft_state.progress)
+
 run_state('start')
 
 df0 <- read.table('csv/segm_done.csv', sep=' ', header=F)
@@ -531,6 +533,7 @@ writeLines(c(
 	paste('upper =', upper, '# max. HFTs (SIMIL 1 and 2): 1: log10(n. pixels), 2: log6(n. pixels)')
 ), file.path(outroot, 'processing_metadata.txt'))
 
+progress('UNITS', mx * (length(cuts) + 3)) # per ID: thresholds, each cut, tree of the cuts and R2 curves
 for (pmx in 1:mx) {
 	park = ecox_list[pmx]
 	print(paste("Procesando park ID:", park))
@@ -596,6 +599,7 @@ for (pmx in 1:mx) {
 	write_plot_csv(thr_csv, thr_png)
 	}
 
+	progress('DONE', 1)
 	k <- paste('0.', res, sep='')
 	write.table(thr_tab, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', row.names=F, quote=F)
 
@@ -735,6 +739,7 @@ for (pmx in 1:mx) {
 
 	hft_rows <- list() # HFTs of each cut and statistics of their pixels, for the tables of the HFTs
 	for (cn in names(cuts)) {
+		progress('DONE', 1)
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
 		# el corte también va en el nombre de cada fichero, con _optim si es el sugerido
 		tag <- if (simil == 3) paste0('_', cn, if (identical(cn, suggested)) '_optim') else ''
@@ -1209,6 +1214,7 @@ for (pmx in 1:mx) {
 		write_plot_csv(hft_id(hst), file.path(outroot, paste0('hft_stats_', park, '_', res, '.csv')))
 	}
 
+	progress('DONE', 1)
 	# --- ÁRBOL DE LOS HFTs DE LOS CORTES (SIMIL = 3) ---
 	# En qué HFT de los cortes más generales está cada HFT y en qué HFTs de los más detallados se divide (ver
 	# hft_tree). La tabla tiene una fila por HFT del corte más detallado (o por combinación de HFTs, si los cortes
@@ -1236,6 +1242,7 @@ for (pmx in 1:mx) {
 		write_plot_csv(ht$paths, tree_png, digits=NA)
 	}
 
+	progress('DONE', 1)
 	# --- VARIANZA DE LOS PÍXELES EXPLICADA POR LOS HFTs (R2) SEGÚN EL NÚMERO DE HFTs, EN CADA UMBRAL ---
 	# Los segmentos de cada umbral clasificados (CLASS_METHOD) en 2, 3, ... HFTs; los puntos son los HFTs de
 	# los cortes del umbral elegido. Muestra si, con el mismo número de HFTs, otro umbral recogería más varianza

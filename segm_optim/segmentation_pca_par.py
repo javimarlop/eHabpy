@@ -194,6 +194,8 @@ def merge_small_segments(grass, pa3, minarea):
 
 def fsegm(pa):
 	pa_list_done = np.genfromtxt(csvname1, dtype=str) if os.path.exists(csvname1) else np.array([])
+	if pa in pa_list_done:
+		hft_state.progress('DONE', 1000)  # an area done before (every area is 1000 units: see below)
 	if pa not in pa_list_done:
 		current = multiprocessing.current_process()
 		mn = current._identity[0]
@@ -296,6 +298,8 @@ def fsegm(pa):
 			else:
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='10000', iterations='20', seeds=pa2s, overwrite=True)
 
+			hft_state.progress('DONE', f'{100 / len(reps):.4f}')  # i.segment of this threshold: 10 % of the area
+
 			if only and j < only:
 				continue
 
@@ -334,7 +338,10 @@ def fsegm(pa):
 			if not os.path.exists(econ):
 				open(econ, 'a').close()
 
+			# the export of the segments is 90 % of the area, shared by the thresholds that are exported
+			unit = (900 if only else 900 / len(reps)) / max(sn, 1)
 			for spx in range(0, sn):
+				hft_state.progress('DONE', f'{unit:.4f}')
 				spa = spa_list[spx]
 				if spa == 'segm_id':
 					continue
@@ -423,6 +430,7 @@ if __name__ == '__main__':
 
 	# Without the grass package here, a GRASS error in a worker cannot be passed back and the pool hangs
 	add_grass_to_path()
+	hft_state.progress('UNITS', len(pa_list) * 1000)  # 1000 units for every area
 	pool = Pool(NPROC)
 	pool.map(fsegm, pa_list)
 	pool.close()

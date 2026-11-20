@@ -126,13 +126,15 @@ async function pickSave(kind, name) {
 }
 
 // Jobs: the log of a background job, read while it runs ============================================================
+const STEP_NAMES = {segm: 'Segmentation', stats: 'Statistics of the segments', moranvar: "Moran's I and threshold", plots: 'HFTs and plots'};
+
 class JobView {
 	constructor(pre, bar, opts = {}) {
 		this.pre = pre; this.bar = bar; this.opts = opts;
 		this.id = null; this.since = 0; this.base = 0; this.nodes = [];
 	}
 	start(id, title) {
-		this.id = id; this.since = 0; this.base = 0; this.nodes = []; this.step = '';
+		this.id = id; this.since = 0; this.base = 0; this.nodes = []; this.step = ''; this.frac = {};
 		if (this.pre) this.pre.textContent = '';
 		this.title = title || '';
 		if (this.opts.onStart) this.opts.onStart(id);
@@ -179,11 +181,30 @@ class JobView {
 				this.step = prog && !prog.startsWith('-') ? prog.split(/[\\/]/).pop() : ''; // python -c: no script
 			}
 			this.bar.append(el('span', {class: 'spinner'}), el('span', {}, `${s.title}${this.step ? ' · ' + this.step : ''} · ${t}`));
+			const pr = this.progress(s.progress);
+			if (pr) this.bar.append(pr);
 		} else {
 			const b = {done: ['ok', 'Finished'], failed: ['err', 'Error'], cancelled: ['warn', 'Stopped']}[s.state];
 			this.bar.append(el('span', {class: 'badge ' + b[0]}, b[1]), el('span', {class: 'muted'}, `${s.title} · ${t}`));
 			if (s.error && s.state === 'failed') this.bar.append(el('span', {class: 'small', style: {color: 'var(--err)'}}, s.error));
 		}
+	}
+	// The progress bars of the steps of the model: the whole run (steps done and the part of the current one) and the
+	// current step, which never goes back when a step finds more work (e.g. the segments to export)
+	progress(p) {
+		if (!p || !p.steps || !p.steps.length) return null;
+		const n = p.steps.length, i = Math.max(0, p.index - 1);
+		let f = p.fraction;
+		if (f !== null && f !== undefined) f = this.frac[p.step] = Math.max(this.frac[p.step] || 0, f);
+		else f = this.frac[p.step] || 0;
+		const bar = (label, v, known) => el('div', {class: 'prog-row'},
+			el('span', {class: 'prog-label'}, label),
+			el('div', {class: 'progress' + (known ? '' : ' indeterminate')}, el('i', {style: {width: (known ? Math.round(v * 100) : 100) + '%'}})),
+			el('span', {class: 'prog-pct'}, known ? Math.round(v * 100) + ' %' : '…'));
+		const known = p.fraction !== null && p.fraction !== undefined || this.frac[p.step] > 0;
+		return el('div', {class: 'job-prog'},
+			bar(`Step ${p.index} of ${n}: ${STEP_NAMES[p.step] || p.step || ''}`, f, known),
+			bar('Whole model', Math.min(1, (i + f) / n), true));
 	}
 	async poll() {
 		const id = this.id;

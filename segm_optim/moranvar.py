@@ -113,6 +113,7 @@ def choose_threshold(ks, mi, var, vartot):
     return int(ks[best]), score
 
 
+hft_state.progress('UNITS', mx * (1 if FIXED else 9))
 for pmx in range(0, mx):
     park = ecox_list[pmx]
     print('park id is:', park)
@@ -137,6 +138,7 @@ for pmx in range(0, mx):
     thr, nsegs, nisol, mors, varis, vartots = [], [], [], [], [], []
 
     for k in ([hft_state.fixed_level()] if FIXED else range(1, 10)):
+        hft_state.progress('DONE', 1)
         shpname = 'shp/park_segm_' + str(park) + '_' + str(k) + '.shp'
         shpname2 = 'shp/park_segm_' + str(park) + '_' + str(k) + '_diss.shp'
         hriname = 'csv/park_' + str(park) + '_hri_results' + str(k) + '.csv'
@@ -242,6 +244,7 @@ for pmx in range(0, mx):
 
 hft_state.done('moranvar')
 
+hft_state.progress('STEP', 'plots')
 # moranvar_plots.R calls hft_state.py with the same Python (EHAB_PYTHON)
 r = subprocess.run(['Rscript', 'moranvar_plots.R'], env=dict(os.environ, EHAB_PYTHON=sys.executable))
 if r.returncode != 0:

@@ -284,6 +284,12 @@ table.t .vname { font-weight: 550; word-break: break-all; }
 .console .warnl { color: #f3cf75; }
 .console .okl { color: #8ee3b0; }
 .job-bar { display: flex; align-items: center; gap: 10px; font-size: 12.5px; min-height: 26px; }
+.job-prog { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 4px; }
+.prog-row { display: flex; align-items: center; gap: 8px; }
+.prog-label { flex: none; width: 250px; font-size: 12px; color: var(--muted, #667); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prog-pct { flex: none; width: 40px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.progress.indeterminate i { animation: indet 1.2s ease-in-out infinite; opacity: .5; }
+@keyframes indet { 0%, 100% { opacity: .15; } 50% { opacity: .6; } }
 .spinner { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 

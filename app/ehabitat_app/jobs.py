@@ -3,6 +3,7 @@ interface while they run), their progress and their cancellation (the whole tree
 
 import itertools
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -15,6 +16,10 @@ from . import paths
 MAX_LINES = 20000
 NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+
+
+# lines of the scripts (hft_state.progress) that tell how far a step is; the log does not show them
+PROGRESS_RE = re.compile(r'##(STEPS|STEP|UNITS|DONE) ([A-Za-z0-9_,.]*)$')
 
 
 class Cancelled(Exception):
@@ -49,6 +54,12 @@ class Job:
 					self.backspaces = 0
 					if not self.lines:
 						self.lines.append('')
+					m = PROGRESS_RE.search(self.lines[-1])
+					if m:
+						self.lines[-1] = self.lines[-1][:m.start()]  # the line stays as the current one (empty, usually)
+						self._progress(m.group(1), m.group(2))
+						if self.lines[-1] == '':
+							continue
 					self.lines.append('')
 				elif part == '\r':
 					self.overwrite = True
@@ -71,6 +82,21 @@ class Job:
 				del self.lines[:n]
 				self.dropped += n
 
+	def _progress(self, kind, value):
+		"""Steps to run, current step and the units of work of it (the scripts in parallel add up)."""
+		p = self.progress
+		if kind == 'STEPS':
+			p.clear()
+			p.update(steps=[s for s in value.split(',') if s], step=None, units=0, done=0)
+		elif 'steps' in p:
+			if kind == 'STEP':
+				p.update(step=value, units=0, done=0)
+			else:
+				try:
+					p['units' if kind == 'UNITS' else 'done'] += float(value)
+				except ValueError:
+					pass
+
 	def say(self, text):
 		"""Add TEXT as whole lines."""
 		self.log(str(text).rstrip('\n') + '\n')
@@ -87,8 +113,17 @@ class Job:
 			start = max(self.dropped, min(int(since or 0), total) - 1)
 			return {'id': self.id, 'kind': self.kind, 'title': self.title, 'state': self.state,
 			        'start': start, 'lines': self.lines[start - self.dropped:], 'total': total,
-			        'progress': self.progress, 'result': self.result if self.state != 'running' else None,
+			        'progress': self._progress_view(), 'result': self.result if self.state != 'running' else None,
 			        'error': self.error, 'elapsed': round((self.ended or time.time()) - self.started, 1)}
+
+	def _progress_view(self):
+		p = self.progress
+		if not p.get('steps'):
+			return {}
+		step = p.get('step')
+		idx = p['steps'].index(step) + 1 if step in p['steps'] else 0
+		frac = min(1.0, p['done'] / p['units']) if p.get('units') else None
+		return {'steps': p['steps'], 'step': step, 'index': idx, 'fraction': frac}
 
 	def finish(self, state, error=None):
 		with self._lock:

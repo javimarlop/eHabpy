@@ -157,11 +157,13 @@ def main():
 	if args.status:
 		return
 
+	hft_state.progress('STEPS', ','.join(todo))
 	if 'segm' in todo and args.first == 'segm':
 		env['EHAB_FORCE_RESTART'] = '1'  # same inputs: it would otherwise find nothing to do
 	for name in todo:
 		if name == 'plots' and 'moranvar' in todo:
 			continue
+		hft_state.progress('STEP', name)
 		cmd = hft_state.COMMAND[name].split()
 		run([sys.executable] + cmd[1:] if cmd[0] == 'python3' else cmd, env)
 

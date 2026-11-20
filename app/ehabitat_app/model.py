@@ -365,7 +365,7 @@ def run(values=None, nproc=None, first=None, scenario=None):
 			raise ValueError(f'unknown step {first}')
 		cmd += ['--from', first]
 	commands.append(cmd)
-	env = dict(os.environ, EHAB_NPROC=str(int(nproc or paths.load_settings().get('nproc') or default_nproc())))
+	env = dict(os.environ, EHAB_PROGRESS='1', EHAB_NPROC=str(int(nproc or paths.load_settings().get('nproc') or default_nproc())))
 	title = 'HFT mapping' + (f' (from {first})' if first else '')
 
 	def after(job):

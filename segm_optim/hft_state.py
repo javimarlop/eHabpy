@@ -213,6 +213,14 @@ def setup_changes(cfg=None, state=None):
 	return out
 
 
+def progress(kind, value=''):
+	"""Tell the desktop app how far a step is (it sets EHAB_PROGRESS; elsewhere nothing is printed). One line each:
+	STEPS a,b,c (the steps to run), STEP name (the one that starts), UNITS n (adds n units of work to the step) and
+	DONE n (n units are done). Scripts of the same step in parallel add up."""
+	if os.environ.get('EHAB_PROGRESS'):
+		os.write(1, f'##{kind} {value}\n'.encode())
+
+
 def fixed_level(cfg=None):
 	"""Level (1-9, threshold 0.1-0.9) when THRESHOLD_METHOD in config.py is a fixed threshold, else None.
 	The segmentation then goes up the chain of thresholds only as far as that one, and the later steps

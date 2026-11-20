@@ -125,6 +125,7 @@ def ehabitat(ecor, nw, nwpathout, k, aggfun=np.mean):
     
     for px in range(len(pa_list)):
         pa = pa_list[px]
+        hft_state.progress('DONE', 1)
         print(f"Procesando PA: {pa}")
 
         outfile = os.path.join(outdir, f'csv/park_{pa}_hri_results{ecor}.csv')
@@ -245,6 +246,9 @@ def run_batch_all(aggfun=np.mean):
         park = ecox_list[pmx]
         print(park)
         remove_park_results(park)
+        for k in levels():
+            f = f'csv/park_{park}_{k}.csv'
+            hft_state.progress('UNITS', len(np.unique(np.atleast_1d(np.genfromtxt(f, dtype=str)))) if os.path.isfile(f) else 0)
         for k in levels():
             run_batch(k, aggfun)
     print(str(datetime.now()))
