@@ -11,7 +11,7 @@ import time
 import traceback
 import webbrowser
 
-from . import __version__, areas, ecosim, envsetup, gee, inputs, jobs, model, paths, results, updater
+from . import __version__, areas, ecosim, envsetup, gee, hftcomp, inputs, jobs, model, paths, results, updater
 
 import hft_state
 
@@ -483,6 +483,31 @@ class Api:
 	@exposed
 	def study_outline(self, study_area):
 		return results.study_outline(study_area)
+
+	# HFT comparator -------------------------------------------------------------------------------------------------
+	@exposed
+	def hftcomp_files(self):
+		return hftcomp.files()
+
+	@exposed
+	def hftcomp_sources(self, study_area, scenario):
+		return hftcomp.sources(study_area, scenario)
+
+	@exposed
+	def hftcomp_add(self, study_area, scenario, which='suggested'):
+		return hftcomp.add(study_area, scenario, which)
+
+	@exposed
+	def hftcomp_remove(self, name):
+		return hftcomp.remove(name)
+
+	@exposed
+	def hftcomp_run(self):
+		return hftcomp.run()
+
+	@exposed
+	def hftcomp_results(self):
+		return hftcomp.run_results()
 
 	# Similarity ---------------------------------------------------------------------------------------------------
 	@exposed

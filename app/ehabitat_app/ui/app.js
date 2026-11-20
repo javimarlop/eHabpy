@@ -126,7 +126,7 @@ async function pickSave(kind, name) {
 }
 
 // Jobs: the log of a background job, read while it runs ============================================================
-const STEP_NAMES = {segm: 'Segmentation', stats: 'Statistics of the segments', moranvar: "Moran's I and threshold", plots: 'HFTs and plots'};
+const STEP_NAMES = {compare: 'Comparison of the HFTs', segm: 'Segmentation', stats: 'Statistics of the segments', moranvar: "Moran's I and threshold", plots: 'HFTs and plots'};
 
 class JobView {
 	constructor(pre, bar, opts = {}) {
@@ -203,8 +203,8 @@ class JobView {
 			el('span', {class: 'prog-pct'}, known ? Math.round(v * 100) + ' %' : '…'));
 		const known = p.fraction !== null && p.fraction !== undefined || this.frac[p.step] > 0;
 		return el('div', {class: 'job-prog'},
-			bar(`Step ${p.index} of ${n}: ${STEP_NAMES[p.step] || p.step || ''}`, f, known),
-			bar('Whole model', Math.min(1, (i + f) / n), true));
+			bar(n > 1 ? `Step ${p.index} of ${n}: ${STEP_NAMES[p.step] || p.step || ''}` : (STEP_NAMES[p.step] || p.step || ''), f, known),
+			...(n > 1 ? [bar('Whole model', Math.min(1, (i + f) / n), true)] : []));
 	}
 	async poll() {
 		const id = this.id;
@@ -2417,6 +2417,7 @@ pages.model = (() => {
 				$('#m-after').classList.remove('hidden');
 				pages.results.reload(s.result);
 				pages.similarity.reload();
+				pages.hftcomp.reload();
 			} else if (s.state === 'failed') toast('The model failed: see the messages.', 'err');
 		}});
 
@@ -4028,6 +4029,127 @@ const updates = (() => {
 })();
 
 // Start ==============================================================================================================
+// HFT comparator ======================================================================================================
+pages.hftcomp = (() => {
+	const S = {loaded: false, stale: false, list: []};
+	const view = new JobView($('#c-log'), $('#c-bar'), {
+		onStart: () => { $('#c-stop').classList.remove('hidden'); $('#c-run').disabled = true; $('#dot-hftcomp').classList.remove('hidden'); },
+		onEnd: async s => {
+			$('#c-stop').classList.add('hidden'); $('#c-run').disabled = false; $('#dot-hftcomp').classList.add('hidden');
+			if (s.state === 'done') toast('Comparison finished.', 'ok');
+			else if (s.state === 'failed') toast('The comparison failed: see the messages.', 'err');
+			await loadResults();
+		}});
+
+	function table(t) {
+		const tbl = el('table', {class: 't'});
+		tbl.append(el('thead', {}, el('tr', {}, ...t.header.map(h => el('th', {title: h}, h)))));
+		const body = el('tbody');
+		for (const r of t.rows) body.append(el('tr', {}, ...t.header.map((h, j) => {
+			const v = r[j] ?? '';
+			return el('td', {class: /^-?[\d.]+(e-?\d+)?$/.test(v) ? 'num' : '', title: v}, /^-?\d+\.\d{4,}/.test(v) ? fmt(v, 3) : v);
+		})));
+		tbl.append(body);
+		return tbl;
+	}
+
+	async function loadFiles() {
+		let F;
+		try { F = await api('hftcomp_files'); } catch (e) { return fail(e); }
+		S.files = F;
+		$('#c-folder').textContent = F.folder;
+		const tbl = $('#c-files');
+		tbl.textContent = '';
+		$('#c-empty').classList.toggle('hidden', F.files.length > 0);
+		$('#c-files-wrap').classList.toggle('hidden', F.files.length === 0);
+		tbl.append(el('thead', {}, el('tr', {}, ...['File', 'HFTs', 'Sources', 'Variables', 'Pixel (m)', ''].map(h => el('th', {}, h)))));
+		const body = el('tbody');
+		for (const f of F.files) {
+			const src = f.sources.map(s => `${s.source} (${s.hfts})`).join('\n');
+			body.append(el('tr', {class: f.usable ? '' : 'faint', title: f.reason || ''},
+				el('td', {title: f.file}, f.file, f.usable ? '' : el('div', {class: 'small'}, f.reason)),
+				el('td', {class: 'num'}, f.usable ? String(f.hfts) : ''),
+				el('td', {class: 'small', style: {whiteSpace: 'pre-line'}}, f.usable ? src : ''),
+				el('td', {class: 'num'}, f.usable ? String(f.variables) : ''),
+				el('td', {class: 'num'}, f.usable ? (f.resolution ?? '') : ''),
+				el('td', {}, el('button', {class: 'btn small ghost', onclick: async () => {
+					try { await api('hftcomp_remove', f.file); await loadFiles(); } catch (e) { fail(e); }
+				}}, 'Remove'))));
+		}
+		tbl.append(body);
+		const w = $('#c-warn');
+		const msgs = [];
+		if (F.resolutions.length > 1) msgs.push(`The tables have different pixel sizes (${F.resolutions.join(', ')} m): the variables and the HFTs change with it, so the comparison may tell the pixel from the landscape.`);
+		const usable = F.files.filter(f => f.usable);
+		if (usable.length && usable.reduce((a, f) => a + f.hfts, 0) < 4) msgs.push('At least 4 HFTs are needed.');
+		w.textContent = msgs.join(' ');
+		w.classList.toggle('hidden', !msgs.length);
+		$('#c-run').disabled = view.running() || !usable.length;
+	}
+
+	async function loadList() {
+		try { S.list = await api('results_list'); } catch (e) { fail(e); S.list = []; }
+		const sa = $('#c-sa'), prev = sa.value;
+		sa.textContent = '';
+		for (const r of S.list) sa.append(el('option', {value: r.study_area}, r.study_area));
+		if (prev && S.list.some(r => r.study_area === prev)) sa.value = prev;
+		onSa();
+	}
+	function onSa() {
+		const r = S.list.find(x => x.study_area === $('#c-sa').value);
+		const sc = $('#c-sc');
+		sc.textContent = '';
+		for (const s of (r ? r.scenarios : [])) sc.append(el('option', {value: s}, s));
+		$('#c-add').disabled = !r;
+	}
+
+	async function loadResults() {
+		let R;
+		try { R = await api('hftcomp_results'); } catch (e) { return fail(e); }
+		S.res = R;
+		const has = R.plots.length > 0;
+		$('#c-res-empty').classList.toggle('hidden', has);
+		$('#c-res-sub').textContent = has ? R.folder : '';
+		gallery($('#c-plots'), R.plots);
+		if (!has) $('#c-plots').textContent = '';
+		const box = $('#c-tables');
+		box.textContent = '';
+		for (const t of R.tables) {
+			box.append(el('div', {class: 'stack', style: {gap: '6px'}}, el('div', {class: 'row'}, el('h3', {}, t.label), el('span', {class: 'small faint'}, t.file)),
+				el('div', {class: 'table-wrap'}, table(t))));
+		}
+		$('#c-meta').textContent = R.metadata || '';
+	}
+
+	$('#c-sa').addEventListener('change', onSa);
+	$('#c-refresh').addEventListener('click', () => { loadList(); loadFiles(); loadResults(); });
+	$('#c-open').addEventListener('click', () => S.files && api('open_folder', S.files.path).catch(fail));
+	$('#c-open-res').addEventListener('click', () => S.res && api('open_folder', S.res.path).catch(fail));
+	$('#c-add').addEventListener('click', async () => {
+		try {
+			const r = await api('hftcomp_add', $('#c-sa').value, $('#c-sc').value, $('#c-which').value);
+			toast(`${r.copied.length} table${r.copied.length === 1 ? '' : 's'} added.`, 'ok');
+			await loadFiles();
+		} catch (e) { fail(e); }
+	});
+	$('#c-run').addEventListener('click', async () => {
+		if (view.running()) return;
+		try { view.start(await api('hftcomp_run'), 'HFT comparator'); } catch (e) { fail(e); }
+	});
+	$('#c-stop').addEventListener('click', () => stopJob(view));
+
+	return {
+		async onShow() {
+			if (!S.loaded || S.stale) {
+				S.loaded = true; S.stale = false;
+				await Promise.all([loadList(), loadFiles(), loadResults()]);
+			}
+		},
+		attach(job) { view.start(job.id, job.title); },
+		reload() { S.stale = true; if ($('#page-hftcomp').classList.contains('active')) this.onShow(); },
+	};
+})();
+
 (async function boot() {
 	try {
 		const info = await api('info');
@@ -4052,6 +4174,7 @@ const updates = (() => {
 			else if (j.kind === 'gee-area') continue;  // an area from MonitorEO: its dialog shows it when opened
 			else if (j.kind.startsWith('gee')) pages.gee.attach(j);
 			else if (j.kind === 'ecosim') pages.similarity.attach(j);
+			else if (j.kind === 'hftcomp') pages.hftcomp.attach(j);
 		}
 	} catch (e) { /* nothing */ }
 	// MonitorEO at its last version of GitHub, in the background, when the app opens (if the app updates itself)

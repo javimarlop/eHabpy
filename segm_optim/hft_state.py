@@ -48,7 +48,7 @@ STEPS = [
 	('stats', 'statistics of the segments', 'python3 get_mean_median_var.py',
 	 ['get_mean_median_var.py', 'ehab_segm_core.py']),
 	('moranvar', "Moran's I, variance and threshold", 'python3 moranvar.py', ['moranvar.py']),
-	('plots', 'HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'CreateRadialPlot.R']),
+	('plots', 'HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'plot_utils.R', 'CreateRadialPlot.R']),
 ]
 NAMES = [s[0] for s in STEPS]
 LABEL = {s[0]: s[1] for s in STEPS}

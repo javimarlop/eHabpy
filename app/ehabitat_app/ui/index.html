@@ -47,6 +47,10 @@
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="16" r="3"/><circle cx="17" cy="6" r="2"/><path d="m9.5 9.8 5 4.4M9.8 7l5.4-.8"/></svg>
 			<span>Similarity &amp; landscape</span><span class="dot hidden" id="dot-ecosim"></span>
 		</button>
+		<button data-page="hftcomp">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 7.5 15.6 11M8.5 16.5l7.1-3.5" opacity=".6"/><path d="M3 21h18" opacity=".4"/></svg>
+			<span>HFT comparator</span><span class="dot hidden" id="dot-hftcomp"></span>
+		</button>
 	</nav>
 	<div class="side-foot">
 		<div class="tools" id="tools"><span class="k">Environment</span><span class="v">checking…</span></div>
@@ -549,6 +553,53 @@
 	<div class="card" id="s-plots-card">
 		<div class="card-head"><h2>Plots of the run</h2><span class="sub">similarity maps and metrics of each HFT (<code>similarity_plots.R</code>)</span></div>
 		<div class="gallery" id="s-plots"></div>
+	</div>
+</section>
+<section class="page" id="page-hftcomp">
+	<div class="page-head">
+		<div>
+			<h1>HFT comparator</h1>
+			<p>How similar are the HFTs made with the same variables in other study areas or with other parameters of the
+			model. It uses every table of HFTs (<code>hft_means_&lt;study area&gt;_&lt;scenario&gt;_&lt;ID&gt;_&lt;k&gt;[_&lt;cut&gt;].csv</code>) of the
+			folder <code>segm_optim/comparison</code>: the HFTs of all of them go into one table with a unique label (study
+			area / scenario / ID / cut / HFT) and a short code (A1 = HFT 1 of the source A), and are shown with an NMDS, a tree,
+			the profiles of their variables, a PCA, their similarity and the radar plots of each source.</p>
+		</div>
+	</div>
+	<div class="card">
+		<div class="card-head"><h2>Tables to compare</h2><span class="sub" id="c-folder"></span>
+			<div class="btns right"><button class="btn small ghost" id="c-open">Open folder</button><button class="btn small ghost" id="c-refresh">Refresh</button></div>
+		</div>
+		<div class="row">
+			<label class="muted">Add from the results</label>
+			<select id="c-sa"></select><select id="c-sc"></select>
+			<select id="c-which">
+				<option value="suggested">The suggested cut</option>
+				<option value="all">All the cuts, in one table</option>
+				<option value="each">Each cut, in its own table</option>
+			</select>
+			<button class="btn small primary" id="c-add">Add</button>
+		</div>
+		<div class="help small">The files are copied with a name that has the study area, the scenario, the ID, the threshold
+			and the cut, so that they do not replace each other. Tables from the folders of other computers or older runs can
+			also be copied by hand into the folder (any name, ending in <code>.csv</code>).</div>
+		<div class="empty hidden" id="c-empty">The folder is empty: add the tables of the HFTs of at least two runs.</div>
+		<div class="table-wrap hidden" id="c-files-wrap"><table class="t" id="c-files"></table></div>
+		<div class="help small hidden" id="c-warn" style="color: var(--err)"></div>
+	</div>
+	<div class="card">
+		<div class="card-head"><h2>Compare</h2></div>
+		<div class="btns"><button class="btn primary" id="c-run">Compare the HFTs</button><button class="btn danger hidden" id="c-stop">Stop</button></div>
+		<div class="job-bar" id="c-bar"></div>
+		<pre class="console" id="c-log"></pre>
+	</div>
+	<div class="card" id="c-res-card">
+		<div class="card-head"><h2>Results</h2><span class="sub" id="c-res-sub"></span>
+			<div class="btns right"><button class="btn small ghost" id="c-open-res">Open folder</button></div></div>
+		<div class="empty" id="c-res-empty">No comparison yet.</div>
+		<div class="gallery" id="c-plots"></div>
+		<div id="c-tables" class="stack"></div>
+		<details class="more"><summary>Notes of the comparison (comparison_metadata.txt)</summary><pre id="c-meta"></pre></details>
 	</div>
 </section>
 </main>

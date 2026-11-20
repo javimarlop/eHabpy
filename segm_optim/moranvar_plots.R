@@ -6,25 +6,7 @@ library(reshape2)
 library(sf)
 library(RColorBrewer)
 
-rescale01 <- function(x) {
-	rng <- range(x, na.rm = TRUE)
-	if (diff(rng) == 0) return(rep(0, length(x)))
-	(x - rng[1]) / (rng[2] - rng[1])
-}
-
-# Etiquetas del radar: sin las partes (separadas por '_') que comparten al principio y al
-# final todos los nombres de variable, y en líneas de 'width' caracteres como máximo
-short_labels <- function(x, width = 18) {
-	parts <- strsplit(x, '_', fixed = TRUE)
-	n <- min(lengths(parts))
-	pre <- 0
-	suf <- 0
-	if (length(x) > 1) {
-		while (pre < n - 1 && length(unique(sapply(parts, function(p) p[pre + 1]))) == 1) pre <- pre + 1
-		while (suf < n - 1 - pre && length(unique(sapply(parts, function(p) p[length(p) - suf]))) == 1) suf <- suf + 1
-	}
-	sapply(parts, function(p) paste(strwrap(paste(p[(pre + 1):(length(p) - suf)], collapse = ' '), width = width), collapse = '\n'))
-}
+source('plot_utils.R') # rescale01, short_labels, write_plot_csv, csv_label (shared with hft_compare.R)
 
 # Campos de las variables en el shapefile de los HFTs, de 10 caracteres como máximo, únicos y distintos de
 # 'taken': los de abbreviate, como los acortaba sf (p. ej. G_1_NDV), y si alguno no cabe (nombres que solo se
@@ -186,31 +168,6 @@ pixel_stats <- function(x) {
 	  q3 = q[3], max = max(x))
 }
 
-# Data of a plot, next to it with the same name (X.png -> X.csv), so that it can be reused or the plot redrawn
-# elsewhere (or a table given as X.csv). Same format as the other tables of the results: separated by spaces, a header, NA for missing values,
-# no quotes except around the texts that need them (the colours #RRGGBB, which read.table would take as a comment).
-# Numbers with decimals rounded to 'digits' significant digits (NA: as they are), those of the columns 'precise'
-# (coordinates) to 10; whole numbers (IDs, counts) are written as they are
-write_plot_csv <- function(df, png, digits = 6, precise = character(0)) {
-	df <- as.data.frame(df, stringsAsFactors = FALSE)
-	rownames(df) <- NULL
-	for (i in seq_along(df)) {
-		x <- df[[i]]
-		if (is.factor(x)) x <- as.character(x)
-		if (!is.na(digits) && is.numeric(x) && any(x != round(x), na.rm = TRUE)) {
-			x <- signif(x, if (names(df)[i] %in% precise) 10 else digits)
-		}
-		df[[i]] <- x
-	}
-	q <- which(vapply(df, function(x) is.character(x) && any(grepl('[[:space:]#"\']', x)), logical(1)))
-	f <- sub('\\.png$', '.csv', png)
-	writeLines(paste(names(df), collapse = ' '), f)
-	write.table(df, f, sep = ' ', row.names = FALSE, col.names = FALSE, quote = if (length(q)) q else FALSE, append = TRUE)
-	invisible(f)
-}
-
-# Short label of the variables in the plots (short_labels) without spaces, for the CSVs of the plots
-csv_label <- function(x) gsub('[[:space:]]+', '_', x)
 
 # Distancias entre los segmentos del método original ('ward'): estadístico (media o mediana) y varianza
 # de cada variable, reescalados a 0-1 entre los segmentos
@@ -1189,10 +1146,11 @@ for (pmx in 1:mx) {
 	# original units of the variables (standardize them after joining the tables, not in each area) and 'label'
 	# identifies each HFT among all the areas (study area/scenario/ID/cut/HFT<n>). Compare only HFTs made with the
 	# same pixel size (column resolution).
-	# - hft_means_<id>_<k>.csv: one row per HFT and cut with its segments, pixels, silhouette (mean silhouette width of
+	# - hft_means_<area>_<scenario>_<id>_<k>.csv (and, with SIMIL = 3, one per cut in its folder, with _<cut>[_optim]
+	#   added to the name): one row per HFT and cut with its segments, pixels, silhouette (mean silhouette width of
 	#   its segments weighted by area, see sil_width) and area, and the mean of its pixels in each variable (a column
 	#   per variable after area_pct): the matrix of HFTs x variables
-	# - hft_stats_<id>_<k>.csv: one row per HFT, cut and variable with the statistics of its pixels (n: pixels with
+	# - hft_stats_<area>_<scenario>_<id>_<k>.csv (and one per cut): one row per HFT, cut and variable with the statistics of its pixels (n: pixels with
 	#   data, mean, sd, min, quartiles, max), e.g. for distances between HFTs that take their spread into account
 	if (length(hft_rows)) {
 		# resolution: pixel size of the variables whose pixels give the statistics (units of their CRS, projected: m);
@@ -1210,8 +1168,18 @@ for (pmx in 1:mx) {
 			s <- hst[hst$map == var_names[j], ]
 			means[[var_keys[j]]] <- s$mean[match(paste(info$cut, info$HFT), paste(s$cut, s$HFT))]
 		}
-		write_plot_csv(means, file.path(outroot, paste0('hft_means_', park, '_', res, '.csv')))
-		write_plot_csv(hft_id(hst), file.path(outroot, paste0('hft_stats_', park, '_', res, '.csv')))
+		# The names carry the study area, the scenario, the ID, the threshold and the cut, so that the tables of different
+		# runs never have the same name and can be put together in a folder (the comparison folder of the app) as they are
+		tname <- function(kind, tag='') paste0(kind, '_', gsub('[^A-Za-z0-9_-]', '_', area), '_', scenario, '_', park, '_', res, tag, '.csv')
+		hst_all <- hft_id(hst)
+		write_plot_csv(means, file.path(outroot, tname('hft_means')))
+		write_plot_csv(hst_all, file.path(outroot, tname('hft_stats')))
+		# With SIMIL = 3 also one table per cut, in the folder of the cut, with the cut in its name
+		if (simil == 3) for (cn in unique(means$cut)) {
+			ctag <- paste0('_', cn, if (identical(cn, suggested)) '_optim')
+			write_plot_csv(means[means$cut %in% cn, ], file.path(outroot, cn, tname('hft_means', ctag)))
+			write_plot_csv(hst_all[hst_all$cut %in% cn, ], file.path(outroot, cn, tname('hft_stats', ctag)))
+		}
 	}
 
 	progress('DONE', 1)
