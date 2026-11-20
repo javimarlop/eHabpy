@@ -47,9 +47,14 @@ PARAMS = [
 	         'almost no weight. The plots and statistics of the HFTs always use the original values.'},
 	{'name': 'SMALL_SEGM_RADIUS', 'group': 'segm', 'type': 'int', 'default': 10, 'min': 1, 'step': 1, 'unit': 'pixels',
 	 'label': 'Radius to merge small segments',
-	 'help': 'Segments with fewer pixels than minarea (square root of the number of pixels with data) are merged with the '
+	 'help': 'Segments with fewer pixels than the minimum size (by default the square root of the number of pixels with data) are merged with the '
 	         'most frequent larger segment within this distance, in repeated passes; those without any so close, with '
 	         'the nearest one. In pixels: 10 = 100 m with 10 m pixels.'},
+	{'name': 'MIN_SEGM_SIZE', 'group': 'segm', 'type': 'int', 'default': 0, 'min': 0, 'step': 1, 'unit': 'pixels',
+	 'label': 'Minimum size of a segment',
+	 'help': 'Segments with fewer pixels are merged with others (see the radius above), and it is the minimum size of '
+	         'the segmentation. 0 = automatic: the square root of the number of pixels with data of each area, so it grows '
+	         'with its size. A number sets the same minimum in every area (100 = 1 ha with 10 m pixels).'},
 	# Threshold
 	{'name': 'THRESHOLD_METHOD', 'group': 'thr', 'type': 'threshold', 'default': 'f', 'label': 'Choice of the segmentation threshold',
 	 'choices': [['f', 'F-function (Johnson et al. 2015, as i.segment.uspo)'],

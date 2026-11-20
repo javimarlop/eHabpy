@@ -248,7 +248,7 @@ def step_inputs(step, cfg=None, state=None):
 		inputs = opts(('GRASSDB', None), ('GRASSLOC', None), ('STUDY_AREA', None), ('COL_ID', None),
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
-		inputs.update(later(('CLIP_PERCENTILE', 0)))
+		inputs.update(later(('CLIP_PERCENTILE', 0), ('MIN_SEGM_SIZE', 0)))
 		if fixed_level(cfg):
 			inputs['thresholds segmented'] = f'1-{fixed_level(cfg)}'  # a fixed threshold stops the chain there
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []

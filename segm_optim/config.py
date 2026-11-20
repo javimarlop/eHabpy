@@ -82,6 +82,12 @@ CLIP_PERCENTILE = 0
 # la distancia que esté. 5 = 5 x RESOLUTION (50 m con píxeles de 10 m).
 SMALL_SEGM_RADIUS = 10
 
+# TAMAÑO MÍNIMO DE UN SEGMENTO (en píxeles, así depende del tamaño de píxel): los segmentos con menos píxeles se
+# unen a otros (ver SMALL_SEGM_RADIUS), y es el minsize de i.segment. 0 = automático: la raíz cuadrada del nº de
+# píxeles con datos de la región (cada área, así que crece con su tamaño). Un número fija el mismo mínimo en todas
+# las áreas, p. ej. 100 = 1 ha con píxeles de 10 m.
+MIN_SEGM_SIZE = 0
+
 # ELECCIÓN DEL UMBRAL DE SEGMENTACIÓN (moranvar.py), entre los nueve de 0.1 a 0.9, con el I de
 # Moran de las medias de los segmentos (MI, bajo = segmentos distintos de sus vecinos) y la
 # varianza dentro de ellos (V, baja = segmentos homogéneos) de cada variable. Ver la wiki, How the HFT model works, A5:

@@ -26,6 +26,7 @@ CLIP_TO_PA = getattr(sys.modules['config'], 'CLIP_TO_PA', False)
 FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.environ.get('EHAB_FORCE_RESTART', '') not in ('', '0')
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
+MIN_SEGM_SIZE = int(getattr(sys.modules['config'], 'MIN_SEGM_SIZE', 0) or 0)  # 0 = sqrt of the pixels with data
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
 CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
 if not 0 <= CLIP_PERCENTILE < 50:
@@ -258,7 +259,7 @@ def fsegm(pa):
 
 		a = grass.read_command('r.stats', input='const', flags='nc', separator='\n').splitlines()
 		if len(a) == 0: a = [1, 625]
-		minarea = int(np.sqrt(int(a[1])))
+		minarea = MIN_SEGM_SIZE if MIN_SEGM_SIZE > 0 else int(np.sqrt(int(a[1])))
 
 		# Input of i.segment, which scales each map to its range: PC1-PC3, or copies of the variables
 		# on the working region, so that their range is also that of the region and not of the whole map

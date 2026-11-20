@@ -32,6 +32,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Desktop app, HFT model**: The minimum size of a segment can be set by hand (Minimum size of a segment, in pixels, `MIN_SEGM_SIZE`), the same in every area, instead of depending on the size of each study area (0 keeps the automatic value, the square root of its pixels).
 - **Desktop app, HFT model**: While the model runs, two progress bars show the step it is in (segmentation, statistics of the segments, Moran's I and threshold, HFTs and plots) and how far the whole model has gone.
 - **Desktop app, HFT model**: The cuts of the classification tree can be chosen (`SIMIL_CUTS`, % of the height of the tree, e.g. 15, 40, 60; by default 10, 25, 50, 75 and 90), before or after a run: changing them and running again from "plots" repeats only the classification (seconds, without segmenting again) and writes a folder p15, p40, p60 for each cut.
 - **Desktop app, HFT model**: With a fixed segmentation threshold (e.g. 0.1) the segmentation stops at that threshold and only it is converted, summarised and shown, instead of calculating the nine thresholds, which saves time (the segments are the same as before). The plots and tables that compare thresholds are not made then.
