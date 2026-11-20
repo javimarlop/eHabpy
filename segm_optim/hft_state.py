@@ -213,6 +213,17 @@ def setup_changes(cfg=None, state=None):
 	return out
 
 
+def fixed_level(cfg=None):
+	"""Level (1-9, threshold 0.1-0.9) when THRESHOLD_METHOD in config.py is a fixed threshold, else None.
+	The segmentation then goes up the chain of thresholds only as far as that one, and the later steps
+	calculate and show only that one."""
+	cfg = read_config() if cfg is None else cfg
+	t = cfg.get('THRESHOLD_METHOD')
+	if isinstance(t, (int, float)) and not isinstance(t, bool):
+		return min(9, max(1, int(round(t * 10))))
+	return None
+
+
 def step_inputs(step, cfg=None, state=None):
 	"""What a step depends on, besides the steps before it."""
 	cfg = read_config() if cfg is None else cfg
@@ -230,6 +241,8 @@ def step_inputs(step, cfg=None, state=None):
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
 		inputs.update(later(('CLIP_PERCENTILE', 0)))
+		if fixed_level(cfg):
+			inputs['thresholds segmented'] = f'1-{fixed_level(cfg)}'  # a fixed threshold stops the chain there
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []
 		inputs['palist.csv'] = ' '.join(sorted(set(ids)))
 		inputs['imported data'] = setup_digest(cfg, state)

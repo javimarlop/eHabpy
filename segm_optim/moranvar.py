@@ -136,7 +136,7 @@ for pmx in range(0, mx):
     # Una fila por umbral evaluado y una columna por variable
     thr, nsegs, nisol, mors, varis, vartots = [], [], [], [], [], []
 
-    for k in range(1, 10):
+    for k in ([hft_state.fixed_level()] if FIXED else range(1, 10)):
         shpname = 'shp/park_segm_' + str(park) + '_' + str(k) + '.shp'
         shpname2 = 'shp/park_segm_' + str(park) + '_' + str(k) + '_diss.shp'
         hriname = 'csv/park_' + str(park) + '_hri_results' + str(k) + '.csv'

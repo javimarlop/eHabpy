@@ -454,6 +454,8 @@ method_label <- switch(thr_method,
 	crossing_first = 'first crossing of the curves',
 	paste('fixed threshold', thr_method))
 
+thr_fixed <- !is.na(suppressWarnings(as.numeric(thr_method)))
+
 # Método de clasificación de los segmentos en HFTs (CLASS_METHOD en config.py)
 class_method <- read_config('CLASS_METHOD')
 if (is.na(class_method) || class_method == '') class_method <- 'ward_area'
@@ -540,6 +542,8 @@ for (pmx in 1:mx) {
 	if (upper == 2) { upplim <- ceiling(log(df02[1,3], 6)) }
 	print(paste('Upper limit is ', upplim, sep=''))
 
+	# Con un umbral fijo solo se calculó ese umbral: no hay curvas entre umbrales que dibujar
+	if (!thr_fixed) {
 	# Curvas reescaladas (media de las variables) y puntuación del método, con el umbral elegido
 	x1 <- thr_tab$moran_norm
 	x2 <- thr_tab$var_norm
@@ -584,6 +588,7 @@ for (pmx in 1:mx) {
 		thr_csv$crossing_value[ip] <- x1[ip] + (x1[ip + 1] - x1[ip]) * tp
 	}
 	write_plot_csv(thr_csv, thr_png)
+	}
 
 	k <- paste('0.', res, sep='')
 	write.table(thr_tab, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', row.names=F, quote=F)

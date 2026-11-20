@@ -12,6 +12,7 @@ from scipy.spatial import distance
 from multiprocessing import cpu_count
 import csv
 import os
+import hft_state
 import sys
 from osgeo import ogr, gdal
 
@@ -218,6 +219,12 @@ def run_batch(k, aggfun=np.mean):
     print("BATCH END")
 
 
+def levels():
+	"""Threshold levels to summarise: all nine, or only the fixed threshold of config.py."""
+	only = hft_state.fixed_level()
+	return [only] if only else list(range(1, 10))
+
+
 def remove_park_results(paid):
     """Borra las estadísticas de un área: ehabitat() añade filas a sus archivos, así que sin esto
     ejecutarlo otra vez duplicaría las filas."""
@@ -238,7 +245,7 @@ def run_batch_all(aggfun=np.mean):
         park = ecox_list[pmx]
         print(park)
         remove_park_results(park)
-        for k in range(1, 10):
+        for k in levels():
             run_batch(k, aggfun)
     print(str(datetime.now()))
     print("BATCH END")
@@ -249,7 +256,7 @@ def run_park(paid, aggfun=np.mean):
     park = paid
     print(park)
     remove_park_results(park)
-    for k in range(1, 10):
+    for k in levels():
         run_batch(k, aggfun)
     print(str(datetime.now()))
     print("BATCH END")

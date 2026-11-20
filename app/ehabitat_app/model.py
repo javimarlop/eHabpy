@@ -59,7 +59,8 @@ PARAMS = [
 	             ['fixed', 'Fixed threshold']],
 	 'help': "Among the nine thresholds from 0.1 to 0.9, with the Moran's I of the means of the segments (MI, low = "
 	         'segments different from their neighbours) and the variance within them (V, low = homogeneous segments). In '
-	         'the test with Guajares, "f" with alpha 0.5 was the most stable.'},
+	         'the test with Guajares, "f" with alpha 0.5 was the most stable. With a fixed threshold the segmentation stops at '
+	         'it and only that threshold is summarised and shown, which saves time (the higher the threshold, the less).'},
 	{'name': 'THRESHOLD_ALPHA', 'group': 'thr', 'type': 'number', 'default': 0.5, 'min': 0.05, 'step': 0.05,
 	 'label': 'Weight of V against MI (alpha of F)', 'only_if': {'THRESHOLD_METHOD': 'f'},
 	 'help': '1 = the same weight; 0.5 = V weighs half (higher thresholds, fewer segments); 2 = V weighs double (lower '

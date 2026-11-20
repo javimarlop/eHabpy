@@ -215,9 +215,14 @@ def fsegm(pa):
 
 		source = STUDY_AREA
 		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+		# Fixed threshold: each threshold starts from the segments of the previous one, so the chain is run up to
+		# it (same segments as with the nine), but only the chosen one is converted, exported and summarised
+		only = hft_state.fixed_level()
+		if only:
+			reps = reps[:only]
 
 		# Remove leftovers of a previous interrupted run of this area (csv files are appended to)
-		for k in range(1, len(reps) + 1):
+		for k in range(1, 10):
 			leftover = 'csv/park_' + str(pa) + '_' + str(k) + '.csv'
 			if os.path.exists(leftover):
 				with open(leftover) as f:
@@ -290,6 +295,9 @@ def fsegm(pa):
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='10000', iterations='20', seeds='rndseed', overwrite=True)
 			else:
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='10000', iterations='20', seeds=pa2s, overwrite=True)
+
+			if only and j < only:
+				continue
 
 			if CLIP_TO_PA:
 				grass.run_command('r.mask', vector=source, where=opt1)
