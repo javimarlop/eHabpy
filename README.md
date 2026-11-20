@@ -32,6 +32,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Desktop app, HFT model**: The cuts of the classification tree can be chosen (`SIMIL_CUTS`, % of the height of the tree, e.g. 15, 40, 60; by default 10, 25, 50, 75 and 90), before or after a run: changing them and running again from "plots" repeats only the classification (seconds, without segmenting again) and writes a folder p15, p40, p60 for each cut.
 - **Desktop app, HFT model**: With a fixed segmentation threshold (e.g. 0.1) the segmentation stops at that threshold and only it is converted, summarised and shown, instead of calculating the nine thresholds, which saves time (the segments are the same as before). The plots and tables that compare thresholds are not made then.
 - **Desktop app, Earth Engine variables**: The annual precipitation of OpenLandMap (about 1 km, a climatology of 2007–2018 that averages WorldClim, CHELSA Climate, IMERG and SM2RAIN-ASCAT) is ready to use in Other collection or image… (Source "Ready to use"), and Add from the catalog… offers it with the precipitation of the catalog (PRECIP and BIO12). Any other image or collection can combine several of its bands into one, their sum (e.g. 12 monthly bands into the annual total) or their mean, which needs MonitorEO 0.3.50 or later (Update MonitorEO).
 - **Documentation**: The tutorial says that the topographic wetness index is in the catalog of MonitorEO (TWI of MERIT Hydro, 90 m, a fixed layer), instead of that it is not in Earth Engine.

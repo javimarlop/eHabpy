@@ -2,6 +2,7 @@
 imports the variables and the study area into GRASS, run_hft.py runs the steps that are out of date (hft_state.py)."""
 
 import os
+import re
 import sys
 import multiprocessing
 
@@ -82,8 +83,14 @@ PARAMS = [
 	 'choices': [[3, 'Cuts at 10, 25, 50, 75 and 90 % of the height of the tree (p10 ... p90)'],
 	             [1, 'Cut at the 25th percentile of the merge heights, with an upper limit'],
 	             [2, 'No grouping of segments: set by the upper limits']],
-	 'help': 'With 3 the results of each cut are saved in p10, p25, p50, p75 and p90 (from more HFTs to fewer) and the '
+	 'help': 'With 3 the results of each cut are saved in p10, p25, p50, p75 and p90 by default (from more HFTs to fewer; the cuts can be changed below) and the '
 	         'cut closest to the elbow of the R² curve is suggested (_optim in its file names).'},
+	{'name': 'SIMIL_CUTS', 'group': 'class', 'type': 'cuts', 'default': [10, 25, 50, 75, 90], 'only_if': {'SIMIL': 3},
+	 'label': 'Cuts of the tree (% of its height)',
+	 'help': 'Percentages of the height of the tree (1 to 99, separated by commas) where it is cut; each gives a classification '
+	         'in its folder (p15, p40...), from more HFTs (the lowest) to fewer. After a run, change them and run again from '
+	         '"plots": only the classification is repeated, and the results of the scenario are replaced (the previous ones go '
+	         'to <scenario>_previous).'},
 	{'name': 'STAT_AGG', 'group': 'class', 'type': 'select', 'default': 'mean', 'label': 'Statistic of the segments',
 	 'choices': [['mean', 'Mean'], ['median', 'Median']],
 	 'help': 'Statistic of the pixels of each segment and variable used to classify the segments.'},
@@ -146,6 +153,15 @@ def _literal(p, value, fixed=None):
 		if value not in allowed:
 			raise ValueError(f"{p['label']}: invalid value {value!r}")
 		return repr(value)
+	if t == 'cuts':
+		items = value if isinstance(value, (list, tuple)) else re.split(r'[,;\s]+', str(value or '').strip())
+		try:
+			cuts = sorted({int(float(x)) for x in items if str(x).strip() != ''})
+		except ValueError:
+			raise ValueError(f"{p['label']}: write whole percentages separated by commas (e.g. 10, 25, 50, 75, 90)")
+		if not cuts or cuts[0] < 1 or cuts[-1] > 99 or any(float(x) != int(float(x)) for x in items if str(x).strip() != ''):
+			raise ValueError(f"{p['label']}: write whole percentages between 1 and 99 (e.g. 10, 25, 50, 75, 90)")
+		return repr(cuts)
 	if t == 'threshold':
 		if value == 'fixed':
 			try:

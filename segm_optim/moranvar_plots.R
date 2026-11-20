@@ -491,10 +491,16 @@ if (!grepl('^[A-Za-z0-9_-]+$', scenario) || grepl('_previous$', scenario)) {
 }
 outroot <- file.path('results', area, scenario)
 
-# Cortes del árbol: simil = 3 genera una clasificación por corte (10, 25, 50, 75 y 90 % de la altura máxima),
-# cada una en su subcarpeta, de la más detallada (p10, más HFTs) a la más general (p90, menos HFTs)
+# Cortes del árbol: simil = 3 genera una clasificación por corte (SIMIL_CUTS, por defecto 10, 25, 50, 75 y 90 % de la
+# altura máxima), cada una en su subcarpeta, de la más detallada (la de menor %, más HFTs) a la más general
 if (simil == 3) {
-	cuts <- c(p10=0.10, p25=0.25, p50=0.50, p75=0.75, p90=0.90)
+	# SIMIL_CUTS en config.py: porcentajes de la altura máxima (1 a 99), de menos a más (más HFTs a menos)
+	cut_txt <- read_config('SIMIL_CUTS')
+	cut_pct <- if (is.na(cut_txt)) c(10, 25, 50, 75, 90) else sort(unique(as.integer(strsplit(gsub('[^0-9]+', ' ', cut_txt), ' ')[[1]][nzchar(strsplit(gsub('[^0-9]+', ' ', cut_txt), ' ')[[1]])])))
+	if (length(cut_pct) == 0 || any(cut_pct < 1 | cut_pct > 99)) {
+		stop("SIMIL_CUTS en config.py debe ser una lista de porcentajes entre 1 y 99, p. ej. [10, 25, 50, 75, 90]")
+	}
+	cuts <- setNames(cut_pct / 100, paste0('p', cut_pct))
 } else {
 	cuts <- c(results=NA)
 }

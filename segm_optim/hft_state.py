@@ -254,7 +254,7 @@ def step_inputs(step, cfg=None, state=None):
 		inputs = opts(('THRESHOLD_METHOD', 'f'), ('THRESHOLD_ALPHA', 0.5), ('MORAN_NEIGHBOURS', 'rook'))
 	else:
 		inputs = opts(('SIMIL', 2), ('CLASS_METHOD', 'ward_area'))
-		inputs.update(later(('CLIP_PERCENTILE', 0)))
+		inputs.update(later(('CLIP_PERCENTILE', 0), ('SIMIL_CUTS', [10, 25, 50, 75, 90])))
 		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
 	inputs['code'] = _code_sig(CODE[step])
 	return inputs

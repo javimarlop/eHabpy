@@ -133,6 +133,12 @@ CLASS_METHOD = 'ward_area'
 #     más generales está cada HFT y en qué HFTs de los más detallados se divide.
 SIMIL = 3
 
+# CORTES DEL ÁRBOL con SIMIL = 3: lista de porcentajes (1 a 99) de la altura máxima del árbol en los que se corta;
+# cada uno da una clasificación en su carpeta p<porcentaje> (p. ej. [10, 25, 50, 75, 90] da p10, p25, p50, p75 y p90).
+# Menos porcentaje = más HFTs. Se puede cambiar después de ejecutar: basta repetir solo el último paso (run_hft.py
+# --from plots), que sustituye los resultados del escenario (los anteriores van a <escenario>_previous).
+SIMIL_CUTS = [10, 25, 50, 75, 90]
+
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:
 # 'mean'   = Utiliza la media (numpy.mean)
 # 'median' = Utiliza la mediana (numpy.median)
