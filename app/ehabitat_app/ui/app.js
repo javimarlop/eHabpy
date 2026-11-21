@@ -2847,6 +2847,13 @@ pages.results = (() => {
 		// the study area shown in black, the others of the file in grey (click one with results to show it)
 		S.outline = L.geoJSON(gj, {style: outlineStyle, onEachFeature: (f, layer) => {
 			const id = f.properties.id;
+			// on canvas (preferCanvas) Leaflet takes the inside of a polygon as its own even without fill, so the outline
+			// of the area shown would catch the mouse over its HFTs (their tooltip and popup): it only takes its edge;
+			// the other areas of the file keep their inside, to click on them and show their results
+			layer._containsPoint = function (p) {
+				const shown = id === undefined || id === null || !(S.data && S.data.ids.length > 1) || String(id) === $('#x-id').value;
+				return shown ? L.Polyline.prototype._containsPoint.call(this, p, true) : L.Polygon.prototype._containsPoint.call(this, p);
+			};
 			if (id === undefined || id === null) return;
 			layer.bindTooltip(leafletText(`ID ${id}${f.properties.label ? ' · ' + f.properties.label : ''}`), {sticky: true});
 			layer.on('click', e => {
