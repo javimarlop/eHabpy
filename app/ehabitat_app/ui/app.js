@@ -2773,6 +2773,7 @@ pages.results = (() => {
 		S.layer = L.geoJSON(h.geojson, {
 			style: f => style(f),
 			onEachFeature: (f, layer) => {
+				layer.bindTooltip(leafletText(`HFT ${f.properties.hft}`), {sticky: true});
 				layer.on('click', e => {
 					L.popup({maxWidth: 380}).setLatLng(e.latlng).setContent(popup(f.properties, area[f.properties.hft], h)).openOn(S.map);
 				});
