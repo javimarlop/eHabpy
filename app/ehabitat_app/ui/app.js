@@ -2980,7 +2980,10 @@ pages.similarity = (() => {
 		['LargPatArea_km2', 'Largest patch (km²)', 2, 'Area of the largest patch'],
 		['HSR', 'HSR', 2, 'Habitat Similarity Ratio: pixels of the patches at least as large as the HFT (or of the largest patch) / '
 			+ 'pixels of the HFT'],
-		['Aggregation', 'Aggregation', 1, 'Similar pixels per patch']];
+		['Aggregation', 'Aggregation', 1, 'Similar pixels per patch'],
+		['SelfSim_pct', 'Self-similar (%)', 0, 'Fit in the study area: % of the pixels of the HFT with a similarity to it of at least T'],
+		['SelfFit_pct', 'Self-fit (%)', 0, 'Fit in the study area: % of the pixels of the study area similar to the HFT (similarity ≥ T) '
+			+ 'that are the HFT itself; low values mean that its map also takes other HFTs of the study area as similar']];
 
 	const key = (sa, sc) => sa + '/' + sc;
 	function parts() {
@@ -3024,8 +3027,9 @@ pages.similarity = (() => {
 			const def = f.querySelector('.def');
 			if (def) def.textContent = 'Default: ' + defText(p);
 		}
-		for (const [id, name] of [['#s-stat', 'ECOSIM_STAT'], ['#s-nb', 'ECOSIM_NEIGHBOURS']]) {
+		for (const [id, name] of [['#s-stat', 'ECOSIM_STAT'], ['#s-covar', 'ECOSIM_COVARIANCE'], ['#s-nb', 'ECOSIM_NEIGHBOURS']]) {
 			const p = params.find(q => q.name === name);
+			if (!p) continue;
 			const sel = $(id);
 			const cur = sel.value;
 			sel.textContent = '';
@@ -3036,6 +3040,7 @@ pages.similarity = (() => {
 
 	function setValues(v) {
 		$('#s-stat').value = String(v.ECOSIM_STAT);
+		$('#s-covar').value = String(v.ECOSIM_COVARIANCE || 'mcd');
 		$('#s-nb').value = String(v.ECOSIM_NEIGHBOURS);
 		$('#s-cover').value = v.ECOSIM_MIN_COVER;
 		$('#s-eco').value = v.ECOSIM_ECOREGIONS || '';
@@ -3155,7 +3160,7 @@ pages.similarity = (() => {
 	function values() {
 		const cover = $('#s-cover').value;
 		return {ECOSIM_CUT: $('#s-cut').value || '', ECOSIM_AREA: $('#s-area').value || '', ECOSIM_RESOLUTION: resConfig(),
-			ECOSIM_STAT: $('#s-stat').value,
+			ECOSIM_STAT: $('#s-stat').value, ECOSIM_COVARIANCE: $('#s-covar').value,
 			ECOSIM_NEIGHBOURS: Number($('#s-nb').value), ECOSIM_MIN_COVER: cover === '' ? null : Number(cover),
 			ECOSIM_ECOREGIONS: $('#s-eco').value.trim(), ECOSIM_MARINE: $('#s-marine').value.trim()};
 	}
@@ -3558,6 +3563,7 @@ pages.similarity = (() => {
 	$('#s-cover').addEventListener('input', schedulePlan);
 	$('#s-eco').addEventListener('change', schedulePlan);
 	$('#s-stat').addEventListener('change', markChanged);
+	$('#s-covar').addEventListener('change', markChanged);
 	$('#s-nb').addEventListener('change', markChanged);
 	$('#s-marine').addEventListener('input', markChanged);
 	$('#s-eco-pick').addEventListener('click', () => pickVector($('#s-eco'), 'File of the ecoregions', f => f === S.defaultEcoPath));

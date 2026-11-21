@@ -184,6 +184,14 @@ ECOSIM_RESOLUTION = 0
 # 'median' = La mediana (columna MedianHFTSim, como ehab_optim_median.py).
 ECOSIM_STAT = 'mean'
 
+# COVARIANZA DE LOS HFTs (media y covarianza de sus píxeles para la distancia de Mahalanobis):
+# 'mcd'     = Robusta: Minimum Covariance Determinant (FastMCD, Rousseeuw y Van Driessen 1999), la de la mitad de
+#             los píxeles con la covarianza más compacta, reponderada: los píxeles mixtos de los bordes, caminos u
+#             otros valores atípicos no la ensanchan. Los HFTs con menos de 3 píxeles por variable, o cuya covarianza
+#             MCD es singular, usan la clásica (lo dice similarity_metadata.txt).
+# 'classic' = La clásica, con todos los píxeles del HFT (como ehab_optim.py).
+ECOSIM_COVARIANCE = 'mcd'
+
 # VECINOS DE LAS MANCHAS DE PÍXELES SIMILARES:
 # 8 = También los que solo se tocan en una esquina (como eHabitat+): menos manchas, más grandes.
 # 4 = Solo los que comparten un lado.

@@ -31,6 +31,7 @@ PLOTS = [
 	# regular expression, label
 	(r'^sim_maps_(?P<id>-?\d+)\.png$', 'Similarity of each HFT in the ecoregion'),
 	(r'^sim_metrics_(?P<id>-?\d+)\.png$', 'Metrics of the similar areas of each HFT'),
+	(r'^sim_fit_(?P<id>-?\d+)\.png$', 'Fit of the similarity in the study area'),
 ]
 # Colours of the map of the similar areas (similar_<id>_hft<h>.tif): 0 not similar and 255 NoData are transparent
 SIMILAR = [(1, '#f4a261', 'Similar, in a patch smaller than the HFT'),
@@ -60,6 +61,12 @@ PARAMS = [
 	             ['median', 'Median similarity of the HFT pixels (MedianHFTSim)']],
 	 'help': 'The pixels of the ecoregion with a similarity at least this statistic of the pixels of the HFT (those with '
 	         'a similarity above 0) are the similar areas of the HFT.'},
+	{'name': 'ECOSIM_COVARIANCE', 'type': 'select', 'default': 'mcd', 'label': 'Covariance of the HFTs',
+	 'choices': [['mcd', 'Robust: Minimum Covariance Determinant (MCD)'], ['classic', 'Classic (all the pixels)']],
+	 'help': 'Mean and covariance of the pixels of each HFT for the Mahalanobis distance. The MCD (FastMCD, Rousseeuw & '
+	         'Van Driessen 1999) uses the half of the pixels with the most compact covariance, reweighted, so that mixed '
+	         'pixels at the edges of the HFT, roads or other outliers do not widen it. HFTs with fewer than 3 pixels per '
+	         'variable, or whose MCD covariance is singular, use the classic one (the metadata says which).'},
 	{'name': 'ECOSIM_NEIGHBOURS', 'type': 'select', 'cast': 'int', 'default': 8, 'label': 'Neighbourhood of the patches',
 	 'choices': [[8, '8 neighbours (queen, as eHabitat+)'], [4, '4 neighbours (rook)']],
 	 'help': 'Similar pixels in the same patch: those that touch at a side or a corner (8), or only at a side (4). The '

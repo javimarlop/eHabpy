@@ -13,12 +13,15 @@ the indices of the study area (thdi.R). Run from the segm_optim folder, after ru
 
 For every HFT, the pixels of the similarity grid (the pixel of the variables of inVars/<set>/ecoregion, or a
 multiple of it with ECOSIM_RESOLUTION) that the HFT covers (at least ECOSIM_MIN_COVER of their area, from the
-polygons of the HFTs of the cut) give its mean and covariance of the variables. Every pixel of the ecoregion gets
+polygons of the HFTs of the cut) give its mean and covariance of the variables (robust, the Minimum Covariance
+Determinant, with ECOSIM_COVARIANCE = 'mcd'). Every pixel of the ecoregion gets
 the chi-square probability of its Mahalanobis distance to the HFT (0 if it is 0.001 or less): the similarity. The
 pixels outside the HFT with a similarity at least as high as the mean (or median, ECOSIM_STAT) of the HFT pixels
 are the similar areas, and their patches (ECOSIM_NEIGHBOURS) give the landscape metrics of eHabitat+ (HSR,
 number of patches, largest patch, aggregation...). thdi.R then computes the indices of each study area (THDI) and
-similarity_plots.R the plots.
+similarity_plots.R the plots. As a check of the robustness of the maps, every HFT is also compared with the pixels of
+all the HFTs of its study area (fit_matrix.csv): the % of the HFT similar to itself and the % of the similar area of
+the study area that is the HFT itself (SelfSim_pct, SelfFit_pct in hri_results.csv).
 
 The area compared is the folder ecoregion of the variables of the HFTs (the RESOLVE ecoregions that the study area
 touches, as downloaded by get_vars_gee.py) or, with ECOSIM_AREA, any folder with the same variables: a comparison
@@ -27,7 +30,7 @@ study_area when it has one (the study area at the pixel of the area, which get_v
 does not contain the study area), else from the area itself.
 
 The results go to results/<STUDY_AREA>/<SCENARIO>/<cut>/similarity_<pixel size>m (similarity_<pixel size>m_<area>
-for another area; see the wiki, Similarity and landscape metrics): sim_<id>_hft<h>.tif, similar_<id>_hft<h>.tif, hri_results.csv, thdi_res.csv, the plots,
+for another area; see the wiki, Similarity and landscape metrics): sim_<id>_hft<h>.tif, similar_<id>_hft<h>.tif, hri_results.csv, fit_matrix.csv, thdi_res.csv, the plots,
 similarity_metadata.txt and similarity_run.json (written last).
 """
 
@@ -80,7 +83,14 @@ CHUNK = 1 << 21  # pixels per block of the Mahalanobis distances
 BLOCK_BYTES = 256 * 2 ** 20  # memory of the blocks of rows read from the variables
 FACTORS = (1, 2, 5, 10)  # pixel sizes offered by the plan: multiples of the pixel of the ecoregion variables
 DEFAULTS = {'ECOSIM_AREA': '', 'ECOSIM_CUT': '', 'ECOSIM_RESOLUTION': 0, 'ECOSIM_STAT': 'mean',
-            'ECOSIM_NEIGHBOURS': 8, 'ECOSIM_MIN_COVER': 0.5, 'ECOSIM_ECOREGIONS': '', 'ECOSIM_MARINE': ''}
+            'ECOSIM_NEIGHBOURS': 8, 'ECOSIM_MIN_COVER': 0.5, 'ECOSIM_ECOREGIONS': '', 'ECOSIM_MARINE': '',
+            'ECOSIM_COVARIANCE': 'mcd'}
+COVARIANCES = ('mcd', 'classic')
+MCD_STARTS = 200  # random starts of FastMCD (each of p + 1 pixels, two C-steps on a subsample)
+MCD_SUBSAMPLE = 3000  # pixels of the subsample of the starts of FastMCD with larger HFTs
+MCD_BEST = 10  # starts iterated to convergence on all the pixels of the HFT
+MCD_SEED = 0  # FastMCD draws its starts at random: a fixed seed gives the same result in every run
+FIT_CSV = 'fit_matrix.csv'
 GTIFF = ['TILED=YES', 'COMPRESS=DEFLATE', 'NUM_THREADS=ALL_CPUS', 'BIGTIFF=IF_SAFER']
 
 
@@ -658,10 +668,102 @@ def _compact_index(valid, rows, cols):
 	return out
 
 
-def reference(Xh, eco_sd):
+def _mean_cov(X):
+	"""Mean and covariance (divided by n, as in the MCD) of the rows of X."""
+	mu = X.mean(axis=0)
+	Z = X - mu
+	return mu, Z.T @ Z / len(X)
+
+
+def _d2(X, mu, S):
+	"""Squared Mahalanobis distances of the rows of X to (MU, S); None if S is singular."""
+	from scipy.linalg import cho_factor, cho_solve
+	try:
+		c = cho_factor(S, lower=True, check_finite=False)
+	except np.linalg.LinAlgError:
+		return None
+	Z = X - mu
+	return np.einsum('ij,ij->i', Z, cho_solve(c, Z.T, check_finite=False).T)
+
+
+def _c_steps(X, h, mu, S, steps):
+	"""Up to STEPS C-steps of FastMCD: the H rows of X nearest to (MU, S) give the next mean and covariance, whose
+	determinant never grows. Returns (log det, mu, S), with log det = inf if S became singular."""
+	logdet = np.inf
+	for _ in range(steps):
+		d2 = _d2(X, mu, S)
+		if d2 is None:
+			return np.inf, mu, S
+		mu1, S1 = _mean_cov(X[np.argpartition(d2, h - 1)[:h]])
+		sign, ld = np.linalg.slogdet(S1)
+		if sign <= 0:
+			return np.inf, mu1, S1
+		if ld >= logdet - 1e-12:  # converged
+			return ld, mu1, S1
+		logdet, mu, S = ld, mu1, S1
+	return logdet, mu, S
+
+
+def mcd(X):
+	"""Minimum Covariance Determinant (FastMCD of Rousseeuw & Van Driessen 1999, Technometrics 41: 212-223, as
+	sklearn.covariance.MinCovDet): the mean and covariance of the h = (n + p + 1) / 2 pixels of X (pixels x variables)
+	with the covariance of smallest determinant, made consistent at the normal distribution and reweighted with the
+	pixels within the 97.5 % chi-square quantile. Robust to up to half the pixels being outliers (e.g. pixels of
+	another HFT at the edges, roads, clouds). Returns (mean, covariance, fraction of pixels kept by the reweighting),
+	or None if the covariance is singular (more than h pixels on a plane, e.g. variables with few distinct values)."""
+	from scipy.stats import chi2
+	X = np.asarray(X, dtype=np.float64)
+	n, p = X.shape
+	h = (n + p + 1) // 2
+	rng = np.random.default_rng(MCD_SEED)
+	sub = X[rng.choice(n, MCD_SUBSAMPLE, replace=False)] if n > MCD_SUBSAMPLE else X
+	hs = (len(sub) + p + 1) // 2
+	cands = []
+	for _ in range(MCD_STARTS):
+		idx = rng.choice(len(sub), p + 1, replace=False)
+		mu, S = _mean_cov(sub[idx])
+		if np.linalg.slogdet(S)[0] <= 0:  # a start of p + 1 pixels on a plane: from its nearest hs pixels instead
+			d = np.abs(sub - mu).sum(axis=1)
+			mu, S = _mean_cov(sub[np.argpartition(d, hs - 1)[:hs]])
+			if np.linalg.slogdet(S)[0] <= 0:
+				continue
+		ld, mu, S = _c_steps(sub, hs, mu, S, 2)
+		if np.isfinite(ld):
+			cands.append((ld, mu, S))
+	if not cands:
+		return None
+	cands.sort(key=lambda c: c[0])
+	best = (np.inf, None, None)
+	for _, mu, S in cands[:MCD_BEST]:
+		r = _c_steps(X, h, mu, S, 100)
+		if r[0] < best[0]:
+			best = r
+	if not np.isfinite(best[0]):
+		return None
+	_, mu, S = best
+	d2 = _d2(X, mu, S)
+	if d2 is None:
+		return None
+	S = S * np.median(d2) / chi2.ppf(0.5, p)  # consistency at the normal distribution
+	d2 = _d2(X, mu, S)
+	if d2 is None:
+		return None
+	keep = d2 <= chi2.ppf(0.975, p)
+	if keep.sum() <= p:
+		return None
+	mu, S = _mean_cov(X[keep])
+	if np.linalg.slogdet(S)[0] <= 0:
+		return None
+	return mu, S, float(keep.mean())
+
+
+def reference(Xh, eco_sd, covariance='classic'):
 	"""Mean, standard deviations and Cholesky factor of the correlation matrix of the values XH (pixels x variables)
 	of the HFT, without the variables that are constant in it (relative to their deviation in the ecoregion); RIDGE is
-	what had to be added to the diagonal of the correlation matrix to make it positive definite (0 almost always)."""
+	what had to be added to the diagonal of the correlation matrix to make it positive definite (0 almost always).
+	COVARIANCE 'mcd': the robust mean and covariance of mcd() instead of the classic ones, when the HFT has at least
+	3 pixels per variable and its MCD covariance is not singular (else the classic ones; 'covariance' and 'note' of
+	the result say which)."""
 	from scipy.linalg import cholesky
 	Xh = np.asarray(Xh, dtype=np.float64)
 	sd = Xh.std(axis=0, ddof=1)
@@ -670,10 +772,25 @@ def reference(Xh, eco_sd):
 		return None
 	mu, sd_k = Xh[:, keep].mean(axis=0), sd[keep]
 	corr = np.atleast_2d(np.corrcoef((Xh[:, keep] - mu) / sd_k, rowvar=False))
+	used, note, kept = 'classic', None, None
+	if covariance == 'mcd':
+		r = mcd(Xh[:, keep]) if len(Xh) >= 3 * len(keep) else None
+		if len(Xh) < 3 * len(keep):
+			note = 'too few pixels for the MCD (fewer than 3 per variable)'
+		elif r is None:
+			note = 'singular MCD covariance (more than half the pixels on a plane)'
+		else:
+			sd_r = np.sqrt(np.diag(r[1]))
+			if np.all(sd_r > 1e-6 * np.maximum(eco_sd[keep], 1e-30)):
+				mu, sd_k, kept, used = r[0], sd_r, r[2], 'mcd'
+				corr = np.atleast_2d(r[1] / np.outer(sd_r, sd_r))
+			else:
+				note = 'a variable is constant in the MCD subset'
 	for ridge in RIDGES:
 		try:
 			L = cholesky(corr + ridge * np.eye(len(keep)), lower=True, check_finite=False)
-			return {'keep': keep, 'mu': mu, 'sd': sd_k, 'L': L, 'ridge': ridge}
+			return {'keep': keep, 'mu': mu, 'sd': sd_k, 'L': L, 'ridge': ridge, 'covariance': used, 'note': note,
+			        'kept': kept}
 		except np.linalg.LinAlgError:
 			continue
 	return None
@@ -736,7 +853,8 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	hid = target['id']
 	rec = {'id': hid, 'hft': int(h), 'ecoregion': eco_of_hft, 'status': 'ok', 'ref_pixels': int(n), 'vars_used': None,
 	       'vars_dropped': [], 'ridge': None, 'area_ha': round(ctx['areas'][h], 2) if h in ctx['areas'] else None,
-	       'threshold': None, 'sim': None, 'similar': None}
+	       'threshold': None, 'sim': None, 'similar': None, 'covariance': None, 'covariance_note': None,
+	       'mcd_kept': None}
 	row = {'ecoregion': eco_of_hft, 'wdpaid': hid, 'wdpaid_hft': f'{hid}_{h}', 'hft': int(h),
 	       'HFTArea_ha': rec['area_ha'], 'PixelSize_m': cg.res, 'NrPixHFT': n}
 	for j, pr in enumerate(ctx['pairs']):
@@ -749,7 +867,7 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 		print(f'  HFT {h}: {n} pixels of {fmt_res(cg.res)} m (at least {ctx["min_pixels"]} are needed): not computed',
 		      flush=True)
 		return row, rec
-	ref = reference(Xh, ctx['eco_sd'])
+	ref = reference(Xh, ctx['eco_sd'], ctx['covariance'])
 	if ref is None:  # every variable is constant in the HFT: no distance can be computed
 		rec['status'] = row['Status'] = 'too_few_pixels'
 		rec['vars_dropped'] = [pr['key'] for pr in ctx['pairs']]
@@ -757,6 +875,9 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 		return row, rec
 	rec['vars_used'] = row['NrVars'] = int(len(ref['keep']))
 	rec['ridge'] = ref['ridge']
+	rec['covariance'] = row['Covariance'] = ref['covariance']
+	rec['covariance_note'], rec['mcd_kept'] = ref['note'], ref['kept']
+	rec['_ref'] = ref  # for the fit in the study area (fit()); not written to the record
 	# variables constant in the HFT: their covariance would be singular (the failure that the random noise of
 	# ehab_optim.py avoided), so they are left out of the distance (one degree of freedom less each)
 	rec['vars_dropped'] = [pr['key'] for j, pr in enumerate(ctx['pairs']) if j not in set(ref['keep'].tolist())]
@@ -785,6 +906,7 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	else:
 		T = float(agg(pos))
 		rec['threshold'] = T
+		rec['_T'] = T
 		similar = sim_full >= T
 		similar[cells] = False
 		del sim_full
@@ -820,10 +942,49 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	       f"{row.get('NrSimLcpPatEco') or 0} patches, HSR {_num(row.get('HSR'))}" if rec['threshold'] is not None
 	       else 'no pixel of the HFT has a similarity above 0')
 	ridge = f", ridge {ref['ridge']:g}" if ref['ridge'] else ''
+	ridge += (f", MCD ({100 * ref['kept']:.0f} % of the pixels kept)" if ref['covariance'] == 'mcd' else
+	          f", classic covariance ({ref['note']})" if ref['note'] else '')
 	dropped = f" (left out, constant in the HFT: {', '.join(rec['vars_dropped'])})" if rec['vars_dropped'] else ''
 	print(f"  HFT {h}: {n} pixels, {rec['vars_used']} variables{dropped}{ridge}: {msg} ({status}, "
 	      f"{time.time() - t0:.0f} s)", flush=True)
 	return row, rec
+
+
+def fit(hid, vals, rows, recs):
+	"""Fit of the similarity in the study area itself, as a check of its robustness: for every HFT h with a threshold
+	T, the pixels of each HFT k of the study area (VALS, those of the HFT statistics) with a similarity to h of at least
+	T. Adds to the rows of hri_results.csv (ROWS, RECS: those of the ID HID) the % of the HFT similar to itself
+	(SelfSim_pct), the % of the study area similar to h (StudySim_pct) and the % of that similar area that is h itself
+	(SelfFit_pct); returns the rows of fit_matrix.csv (% of each HFT k similar to each h)."""
+	total = sum(len(v) for v in vals.values())
+	out = []
+	for row, rec in zip(rows, recs):
+		ref, T = rec.pop('_ref', None), rec.pop('_T', None)
+		if ref is None or T is None or not total:
+			continue
+		h = rec['hft']
+		sim = {}
+		for k, Xk in vals.items():
+			n_k = len(Xk)
+			s_k = int((similarity_values(Xk, ref) >= T).sum()) if n_k else 0
+			sim[k] = s_k
+			out.append({'wdpaid': hid, 'hft_ref': h, 'hft': k, 'NrPixHFT': n_k, 'NrSimPix': s_k,
+			            'Sim_pct': 100.0 * s_k / n_k if n_k else None})
+		in_study = sum(sim.values())
+		n_h = len(vals.get(h, ()))
+		row.update({'NrSimPixStudy': in_study, 'SelfSim_pct': 100.0 * sim.get(h, 0) / n_h if n_h else None,
+		            'StudySim_pct': 100.0 * in_study / total,
+		            'SelfFit_pct': 100.0 * sim.get(h, 0) / in_study if in_study else None})
+		rec.update({k: row[k] for k in ('SelfSim_pct', 'StudySim_pct', 'SelfFit_pct')})
+	return out
+
+
+def write_fit(path, rows):
+	cols = ['wdpaid', 'hft_ref', 'hft', 'NrPixHFT', 'NrSimPix', 'Sim_pct']
+	with open(path, 'w', encoding='utf-8') as f:
+		f.write(' '.join(cols) + '\n')
+		for r in rows:
+			f.write(' '.join(_num(r[c]) if isinstance(r[c], float) or r[c] is None else str(r[c]) for c in cols) + '\n')
 
 
 def _num(v):
@@ -833,7 +994,8 @@ def _num(v):
 HRI_COLUMNS = ['ecoregion', 'wdpaid', 'wdpaid_hft', '{sim}', 'NrSimPixEco', 'NrPixHFT', 'NrSimPixHFT',
                'NrSimPixEco_NrPixHFT_ratio', 'NrSimLcpPatEco', 'NrPixLargLcpPat_NrPixHFT_ratio', 'HSR',
                'NrSimLcpPatEqLargArea', 'NrPixLargLcpPat', 'Aggregation', 'hft', 'HFTArea_ha', 'SimAreaEco_km2',
-               'LargPatArea_km2', 'PixelSize_m', 'NrVars', 'Status']
+               'LargPatArea_km2', 'PixelSize_m', 'NrVars', 'Covariance', 'NrSimPixStudy', 'SelfSim_pct',
+               'StudySim_pct', 'SelfFit_pct', 'Status']
 
 
 def write_hri(path, rows, pairs, sim_label):
@@ -858,7 +1020,7 @@ def write_hri(path, rows, pairs, sim_label):
 # Plan and run ----------------------------------------------------------------------------------------------------------
 
 def _settings(cfg, study_area=None, scenario=None, cut=None, ids=None, res=None, stat=None, neighbours=None,
-              min_cover=None, ecoregions=None, marine=None, area=None):
+              min_cover=None, ecoregions=None, marine=None, area=None, covariance=None):
 	s = {'study_area': study_area or cfg.get('STUDY_AREA'),
 	     'scenario': scenario or hft_state.scenario_name(cfg),
 	     'area': option(cfg, 'ECOSIM_AREA') if area is None else area,
@@ -869,7 +1031,10 @@ def _settings(cfg, study_area=None, scenario=None, cut=None, ids=None, res=None,
 	     'neighbours': int(option(cfg, 'ECOSIM_NEIGHBOURS') if neighbours is None else neighbours),
 	     'min_cover': float(option(cfg, 'ECOSIM_MIN_COVER') if min_cover is None else min_cover),
 	     'ecoregions': option(cfg, 'ECOSIM_ECOREGIONS') if ecoregions is None else ecoregions,
-	     'marine': option(cfg, 'ECOSIM_MARINE') if marine is None else marine}
+	     'marine': option(cfg, 'ECOSIM_MARINE') if marine is None else marine,
+	     'covariance': str(option(cfg, 'ECOSIM_COVARIANCE') if covariance is None else covariance).lower()}
+	if s['covariance'] not in COVARIANCES:
+		raise ValueError(f"ECOSIM_COVARIANCE must be 'mcd' or 'classic', not {s['covariance']!r}")
 	if s['stat'] not in ('mean', 'median'):
 		raise ValueError(f"ECOSIM_STAT must be 'mean' or 'median', not {s['stat']!r}")
 	if s['neighbours'] not in (4, 8):
@@ -1174,6 +1339,7 @@ def run(s, cfg, plots=True):
 	single = eco['features'][0]['id'] if area['kind'] == 'ecoregions' and eco and len(eco['features']) == 1 else None
 	from scipy import ndimage
 	ctx = {'X': X, 'valid': valid, 'cg': cg, 'pairs': pairs, 'eco_sd': eco_sd, 'stat': s['stat'],
+	       'covariance': s['covariance'],
 	       'sim_label': 'MedianHFTSim' if s['stat'] == 'median' else 'AveHFTSim',
 	       'structure': ndimage.generate_binary_structure(2, 2 if s['neighbours'] == 8 else 1),
 	       'min_pixels': max(5, p + 1), 'few_pixels': 3 * p}
@@ -1209,7 +1375,7 @@ def run(s, cfg, plots=True):
 		if os.path.isdir(outdir):
 			shutil.rmtree(outdir)
 		os.makedirs(outdir)
-		rows, recs = [], []
+		rows, recs, fit_rows = [], [], []
 		for t in ts:
 			vals, cov, hft_ids = hft_values(t, inp, cg, cg_ref, s['min_cover'], local_res, valid, X)
 			ctx['areas'] = hft_areas(t['shp'])
@@ -1233,8 +1399,16 @@ def run(s, cfg, plots=True):
 				row, rec = run_hft(h, ctx, t, vals[h], cells, eco_v, eco_of_hft, outdir)
 				rows.append(row)
 				recs.append(rec)
+			if hft_ids:  # the fit of the similarity of each HFT in the study area itself
+				fit_rows += fit(t['id'], vals, rows[-len(hft_ids):], recs[-len(hft_ids):])
+				for r in rows[-len(hft_ids):]:
+					if r.get('SelfFit_pct') is not None:
+						print(f"  HFT {r['hft']} in the study area: {r['SelfSim_pct']:.0f} % of it similar to itself, "
+						      f"{r['StudySim_pct']:.0f} % of the study area similar to it, {r['SelfFit_pct']:.0f} % of "
+						      f"that is the HFT", flush=True)
 		hri = os.path.join(outdir, HRI_CSV)
 		write_hri(hri, rows, pairs, ctx['sim_label'])
+		write_fit(os.path.join(outdir, FIT_CSV), fit_rows)
 		thdi = os.path.join(outdir, THDI_CSV)
 		cmd = ['Rscript', THDI_R, f'--hri={hri}', f'--out={thdi}'] + [f"--hfts={t['id']}={t['shp']}" for t in ts]
 		if eco:
@@ -1263,6 +1437,7 @@ def run(s, cfg, plots=True):
 		          'grid': {'width': cg.width, 'height': cg.height, 'geotransform': list(cg.gt)},
 		          'valid_cells': int(len(X)), 'area': _area_record(inp),
 		          'options': {'stat': s['stat'], 'neighbours': s['neighbours'], 'min_cover': s['min_cover'],
+		                      'covariance': s['covariance'],
 		                      'p_min': P_MIN, 'min_valid_fraction': MIN_VALID_FRACTION},
 		          'variables_from': source,
 		          'variables': [{'name': pr['name'], 'key': pr['key'], 'local': rel(pr['local']),
@@ -1272,7 +1447,8 @@ def run(s, cfg, plots=True):
 		          'marine': rel(marine),
 		          'shapefiles': {t['id']: rel(t['shp']) for t in ts},
 		          'colours': {t['id']: rel(t['colours']) for t in ts},
-		          'hfts': recs, 'tables': {'hri': HRI_CSV, 'thdi': THDI_CSV if os.path.isfile(thdi) else None},
+		          'hfts': recs, 'tables': {'hri': HRI_CSV, 'thdi': THDI_CSV if os.path.isfile(thdi) else None,
+		                                   'fit': FIT_CSV},
 		          'plots': plot_files, 'seconds': round(time.time() - t_start, 1)}
 		write_metadata(os.path.join(outdir, RUN_TXT), record, thdi)
 		with open(os.path.join(outdir, RUN_JSON), 'w', encoding='utf-8') as f:
@@ -1318,6 +1494,7 @@ def write_metadata(path, rec, thdi):
 	         f"{fmt_res(rec['native_res'])} m)",
 	         f"ECOSIM_STAT = {rec['options']['stat']!r}", f"ECOSIM_NEIGHBOURS = {rec['options']['neighbours']}",
 	         f"ECOSIM_MIN_COVER = {rec['options']['min_cover']}",
+	         f"ECOSIM_COVARIANCE = {rec['options'].get('covariance', 'classic')!r}",
 	         f"Similarity set to 0 at or below p = {P_MIN}; a coarser pixel needs data in "
 	         f"{int(MIN_VALID_FRACTION * 100)} % of its area", '',
 	         '## Grid of the similarity',
@@ -1335,11 +1512,24 @@ def write_metadata(path, rec, thdi):
 		lines.append('none: the ecoregion variables are taken as one ecoregion')
 	lines.append(f"Marine ecoregions: {rec['marine'] or 'none'}")
 	lines += ['', '## HFTs (shapefiles: ' + ', '.join(rec['shapefiles'].values()) + ')',
-	          'id hft pixels variables ridge threshold status left_out(constant)']
+	          'id hft pixels variables covariance ridge threshold self_sim_% study_sim_% self_fit_% status '
+	          'left_out(constant)']
 	for h in rec['hfts']:
+		cov = h.get('covariance') or 'NA'
+		if cov == 'mcd' and h.get('mcd_kept') is not None:
+			cov += f"({100 * h['mcd_kept']:.0f}%_kept)"
 		lines.append(f"{h['id']} {h['hft']} {h['ref_pixels']} {h['vars_used'] if h['vars_used'] is not None else 'NA'} "
-		             f"{h['ridge'] if h['ridge'] is not None else 'NA'} "
-		             f"{_num(h['threshold'])} {h['status']} {','.join(h.get('vars_dropped') or []) or '-'}")
+		             f"{cov} {h['ridge'] if h['ridge'] is not None else 'NA'} {_num(h['threshold'])} "
+		             f"{_num(h.get('SelfSim_pct'))} {_num(h.get('StudySim_pct'))} {_num(h.get('SelfFit_pct'))} "
+		             f"{h['status']} {','.join(h.get('vars_dropped') or []) or '-'}")
+	notes = [f"HFT {h['hft']} (ID {h['id']}): classic covariance, {h['covariance_note']}" for h in rec['hfts']
+	         if h.get('covariance_note') and h.get('covariance') == 'classic']
+	if notes:
+		lines += [''] + notes
+	lines += ['', 'Fit in the study area (fit_matrix.csv): self_sim_% = % of the HFT pixels similar to the HFT itself '
+	          '(similarity >= T); study_sim_% = % of the pixels of the HFTs of the study area similar to the HFT; '
+	          'self_fit_% = % of those similar pixels that are the HFT itself. A robust map has high self_sim_% and '
+	          'self_fit_%.']
 	if os.path.isfile(thdi):
 		lines += ['', '## Indices of the study areas (thdi_res.csv)'] + open(thdi).read().strip().splitlines()
 	lines += ['', f"Time: {rec['seconds']} s"]
@@ -1364,6 +1554,8 @@ def main():
 	ap.add_argument('--min-cover', type=float, help='minimum cover of a pixel by its HFT (ECOSIM_MIN_COVER)')
 	ap.add_argument('--ecoregions', help='polygons of the ecoregions (ECOSIM_ECOREGIONS)')
 	ap.add_argument('--marine', help='polygons of the marine ecoregions for the THDI (ECOSIM_MARINE)')
+	ap.add_argument('--covariance', choices=COVARIANCES, help='covariance of the HFTs: mcd (robust) or classic '
+	                                                          '(default: ECOSIM_COVARIANCE)')
 	ap.add_argument('--no-plots', action='store_true', help='do not run similarity_plots.R')
 	ap.add_argument('--plan', action='store_true', help='only print what would be done (JSON)')
 	a = ap.parse_args()
@@ -1374,7 +1566,7 @@ def main():
 			                      area=a.area), indent=1, ensure_ascii=False))
 			return
 		s = _settings(cfg, a.study_area, a.scenario, a.cut, a.ids, a.res, a.stat, a.neighbours, a.min_cover,
-		              a.ecoregions, a.marine, a.area)
+		              a.ecoregions, a.marine, a.area, a.covariance)
 		folders = run(s, cfg, plots=not a.no_plots)
 	except (ValueError, RuntimeError) as e:  # RuntimeError: GDAL/OGR (e.g. a file that cannot be read)
 		sys.exit(f'ERROR: {e}')

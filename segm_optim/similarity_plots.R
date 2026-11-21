@@ -6,13 +6,16 @@
 #### writes there, for each study area (wdpaid) of hri_results.csv:
 ####	sim_maps_<id>.png: one map of the similarity per HFT, with the ecoregion outline and the study area (red)
 ####	sim_metrics_<id>.png: bar charts of the similarity metrics per HFT, with the THDI of the study area
+####	sim_fit_<id>.png: fit of the similarity in the study area itself (fit_matrix.csv): % of the pixels of each HFT
+####	                  of the study area similar to each HFT, a check of the robustness of the maps
 #### Without --colours or --study, the hft_colours_<id>_*.csv and park_segm_<id>_*_class.shp of the folder above
 #### (the cut) are used when there is only one of them.
 
 usage <- paste(
 	'Usage: Rscript similarity_plots.R --dir=<similarity run folder> [--colours=<id>=<hft_colours csv> ...]',
 	'                                  [--ecoregions=<file>] [--study=<id>=<class.shp> ...] [--area=<name>]',
-	'Writes sim_maps_<id>.png and sim_metrics_<id>.png in the folder of a run of similarity.py.', sep='\n')
+	'Writes sim_maps_<id>.png, sim_metrics_<id>.png and sim_fit_<id>.png in the folder of a run of similarity.py.',
+	sep='\n')
 
 # Arguments: one argv element each, --name=value (the value may contain spaces and '='); --colours and --study
 # are <id>=<file> and can be repeated
@@ -498,6 +501,58 @@ plot_metrics <- function(id, df, hc, out) {
 	TRUE
 }
 
+# Fit of the similarity in the study area itself: a heat map of the % of the pixels of each HFT of the study area
+# (columns) similar to each HFT (rows: the HFT of each similarity map), with the % of the similar area of the study
+# area that is the HFT itself (SelfFit_pct) at the right. A robust map has its similar pixels on the diagonal.
+fit_file <- file.path(rd, 'fit_matrix.csv')
+fit_tab <- if (file.exists(fit_file)) read_tab(fit_file) else NULL
+plot_fit <- function(id, df, hc, out) {
+	if (is.null(fit_tab) || !'wdpaid' %in% names(fit_tab)) return(NA)
+	f <- fit_tab[as.character(fit_tab$wdpaid) == id, , drop=FALSE]
+	if (nrow(f) == 0) return(NA)
+	hfts <- hc$order
+	f$ref <- factor(f$hft_ref, levels=rev(hfts))
+	f$HFT <- factor(f$hft, levels=hfts)
+	f$lab <- ifelse(is.na(f$Sim_pct), '', paste0(round(f$Sim_pct), if (length(hfts) <= 10) '%' else ''))
+	self <- data.frame(hft=df$hft, SelfFit_pct=num(df, 'SelfFit_pct'), SelfSim_pct=num(df, 'SelfSim_pct'),
+	                   StudySim_pct=num(df, 'StudySim_pct'), Covariance=if ('Covariance' %in% names(df)) df$Covariance
+	                   else NA_character_)
+	self <- self[self$hft %in% f$hft_ref & !duplicated(self$hft), , drop=FALSE]
+	self$ref <- factor(self$hft, levels=rev(hfts))
+	self$lab <- ifelse(is.na(self$SelfFit_pct), 'NA', paste0(round(self$SelfFit_pct), '%'))
+	nx <- length(hfts)
+	p <- ggplot(f, aes(x=HFT, y=ref)) +
+		geom_tile(aes(fill=Sim_pct), colour='white', linewidth=0.6) +
+		geom_tile(data=f[f$hft == f$hft_ref, ], fill=NA, colour='grey15', linewidth=0.7) +
+		geom_text(aes(label=lab, colour=Sim_pct > 55), size=if (nx > 12) 2.2 else 3) +
+		geom_text(data=self, aes(x=nx + 0.9, y=ref, label=lab), size=3.1, fontface='bold', hjust=0, colour='grey15') +
+		annotate('text', x=nx + 0.9, y=length(unique(f$hft_ref)) + 0.75, label='Self-fit', hjust=0, size=3,
+		         colour='grey30') +
+		scale_fill_gradient(low='#f7fbff', high='#08306b', limits=c(0, 100), name='% of the HFT\nsimilar', na.value='grey90') +
+		scale_colour_manual(values=c('FALSE'='grey15', 'TRUE'='white'), guide='none', na.value='grey15') +
+		scale_x_discrete(drop=FALSE, expand=expansion(add=c(0.6, 1.6))) +
+		coord_cartesian(clip='off') +
+		labs(title=paste0('Fit of the similarity in study area ', id),
+		     subtitle=paste0(title_run, SEP, '% of the pixels of each HFT (column) with a similarity to the HFT of the row ',
+		                     GEQ, ' its threshold T'),
+		     x='HFT of the study area', y='Similarity map of the HFT',
+		     caption=paste0('Diagonal (framed): % of the HFT similar to itself. Self-fit: % of the similar pixels of ',
+		                    'the study area that are the HFT itself.',
+		                    if (any(!is.na(self$Covariance))) paste0('\nCovariance: ',
+		                    paste(unique(na.omit(self$Covariance)), collapse=', ')) else '')) +
+		theme_minimal(base_size=12) +
+		theme(panel.grid=element_blank(), plot.title=element_text(face='bold'),
+		      plot.caption=element_text(hjust=0, size=9, colour='grey25'), plot.subtitle=element_text(size=9.5))
+	side <- max(4.5, min(12, 2.2 + 0.55 * nx))
+	ggsave(out, p, width=side + 2.4, height=side + 0.6, dpi=200, bg='white')
+	ff <- f[order(match(f$hft_ref, hfts), match(f$hft, hfts)), , drop=FALSE]
+	ff$SelfFit_pct <- self$SelfFit_pct[match(ff$hft_ref, self$hft)]
+	write_data(data.frame(id=id, hft_ref=ff$hft_ref, hft=ff$hft, NrPixHFT=num(ff, 'NrPixHFT'),
+	                      NrSimPix=num(ff, 'NrSimPix'), Sim_pct=num(ff, 'Sim_pct'), SelfFit_pct=ff$SelfFit_pct,
+	                      check.names=FALSE), out)
+	TRUE
+}
+
 ids <- unique(hri$wdpaid[!is.na(hri$wdpaid)])
 if (length(ids) == 0) stop(paste('no rows in', hri_file), call.=FALSE)
 written <- character(0)
@@ -505,8 +560,9 @@ for (id in ids) {
 	df <- hri[!is.na(hri$wdpaid) & hri$wdpaid == id & !is.na(hri$hft), , drop=FALSE]
 	if (nrow(df) == 0) next
 	hc <- hft_colours(id, sort(unique(df$hft)))
-	for (f in file.path(rd, paste0(c('sim_maps_', 'sim_metrics_'), id, '.png'))) {
-		ok <- tryCatch(if (grepl('^sim_maps_', basename(f))) plot_maps(id, df, hc, f) else plot_metrics(id, df, hc, f),
+	for (f in file.path(rd, paste0(c('sim_maps_', 'sim_metrics_', 'sim_fit_'), id, '.png'))) {
+		ok <- tryCatch(if (grepl('^sim_maps_', basename(f))) plot_maps(id, df, hc, f)
+		               else if (grepl('^sim_fit_', basename(f))) plot_fit(id, df, hc, f) else plot_metrics(id, df, hc, f),
 		               error=function(err) {
 			warning(paste('could not plot', basename(f), ':', conditionMessage(err)), call.=FALSE)
 			FALSE
