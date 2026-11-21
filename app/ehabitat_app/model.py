@@ -310,7 +310,8 @@ def status():
 		out['setup'] = [f'cannot be checked: {e}']
 	steps = []
 	try:
-		for name, reasons in hft_state.plan(cfg, state):
+		setup = out['setup'] if isinstance(out['setup'], list) else []
+		for name, reasons in hft_state.plan(cfg, state, setup):
 			steps.append({'name': name, 'label': next(s['label'] for s in STEPS if s['name'] == name), 'reasons': reasons})
 	except Exception as e:
 		out['error'] = f'the state of the steps cannot be checked: {e}'

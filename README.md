@@ -32,6 +32,7 @@ time it opens, so it already has what is under **Unreleased** before its release
 
 ### Unreleased
 
+- **Desktop app, HFT model** (fix): After changing the input variables of the same study area, the segmentation no longer shows as up to date: it is marked to run, since setup.py imports the variables again first.
 - **Desktop app**: The HFT map of the results shows the number of the HFT under the mouse, and a click on a segment opens its HFT again (the outline of the study area took the mouse over the whole area).
 - **Desktop app, HFT model**: New tab HFT comparator: it puts together the tables of HFTs (`hft_means_*.csv`) of the folder `segm_optim/comparison`, which are added from the results with a button or copied by hand, and shows how similar the HFTs of other study areas, scenarios or options of the model are: a common table with a unique label (study area / scenario / ID / cut / HFT) and code for every HFT, the NMDS, the tree, the profiles, the PCA, the similarity between HFTs and sources, the most similar HFT of each other source and the radar plots (`hft_compare.R`).
 - **HFT model**: The tables of HFTs have the study area, the scenario, the ID, the threshold and the cut in their names (`hft_means_<area>_<scenario>_<id>_<k>.csv`, and with `SIMIL = 3` one per cut in its folder), so that those of different runs can be put in the same folder without renaming them.

@@ -322,13 +322,18 @@ def reasons(step, cfg=None, state=None):
 	return out
 
 
-def plan(cfg=None, state=None):
-	"""(step, reasons) for every step: once a step has to run, all the steps after it too."""
+def plan(cfg=None, state=None, setup=None):
+	"""(step, reasons) for every step: once a step has to run, all the steps after it too. SETUP: why setup.py has to
+	import the data again (by default setup_changes): then the segmentation has to run too, since the record of the
+	steps still has the data imported before."""
 	cfg = read_config() if cfg is None else cfg
 	state = load() if state is None else state
+	setup = setup_changes(cfg, state) if setup is None else setup
 	out, needed = [], False
 	for name in NAMES:
 		r = reasons(name, cfg, state)
+		if setup and name == NAMES[0] and r == []:
+			r = ['setup.py will import the input data again']
 		if needed and not r:
 			r = ['a step before it has to run']
 		needed = needed or bool(r)
