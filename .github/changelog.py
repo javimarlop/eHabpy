@@ -4,6 +4,8 @@ first (as that of MonitorEO, https://github.com/monitoreo-obsnev/monitoreo#chang
     python .github/changelog.py check                 # its format, and that it has the releases of the tags
     python .github/changelog.py notes 1.5             # the entries of a release in Markdown (its GitHub release notes)
     python .github/changelog.py unrecorded OLD NEW    # whether the commits OLD..NEW change eHabitat+ without an entry
+    python .github/changelog.py release [X.Y.Z]       # makes the release of "### Unreleased" (commit and tag)
+    python .github/changelog.py pending               # whether "### Unreleased" has entries (pushed without a release)
 
 Each release is a heading with its tag and the date of its GitHub release, followed by its entries, one per line, each
 with the parts of eHabitat+ it reaches (AREAS) and "(fix)" for the fixes:
@@ -13,12 +15,23 @@ with the parts of eHabitat+ it reaches (AREAS) and "(fix)" for the fixes:
     - **HFT model**: New CLASS_METHOD option in config.py ...
     - **Similarity** (fix): The similarity indices are right when a mask is used.
 
-Above the releases, "### Unreleased" holds the entries of the changes pushed to master since the last release (the
-desktop app has them already: it updates itself from master every time it opens); a release renames it. Every change
-that users notice adds its entry there, in the same commit. Only the standard library: it runs in GitHub Actions
-(.github/workflows/changelog.yml).
+Above the releases, "### Unreleased" holds the entries of the changes not yet released (the desktop app has those of
+master already: it updates itself from master every time it opens). Every change that users notice adds its entry
+there, in the same commit, and every push to master with entries is a release: "release" renames "### Unreleased" to
+the next version (the last number plus one: 1.6.1 after 1.6, then 1.6.2...; or the one given, e.g. 1.7) with the date
+of today in UTC (that of its GitHub release), commits README.md alone ("Release X.Y.Z") and tags that commit (an
+annotated tag). Pushed with
+
+    git push --atomic --follow-tags origin master
+
+the tag makes .github/workflows/release.yml create its GitHub release (notes: "notes X.Y.Z"), which Zenodo archives.
+If the push is rejected (master moved), undo the release (git tag -d X.Y.Z; git reset --keep HEAD~1), pull and make
+it again: a heading of a release without its tag is a problem for "check".
+"--trailer TEXT" (as often as needed) adds a trailer to the commit of the release. Only the standard library: it runs
+in GitHub Actions (.github/workflows/changelog.yml and release.yml).
 """
 
+import datetime
 import os
 import re
 import subprocess
@@ -140,6 +153,14 @@ def problems(text, known_tags=None):
 		if missing:
 			out.append(f'the releases {", ".join(missing)} (tags of git) have no heading in the changelog: a release '
 			           f'renames "{UNRELEASED}" to its heading')
+		tagged = {version(t) for t in known_tags}
+		untagged = [r['tag'] for r in releases if version(r['tag']) not in tagged]
+		if untagged:
+			t = untagged[0]
+			out.append(f'the releases {", ".join(untagged)} of the changelog have no tag of git, so no GitHub release '
+			           f'nor version in Zenodo: push the tag (git push --follow-tags origin master) or, if it is not '
+			           f'on the commit of its heading (e.g. after a rebase), make it there (git tag -d {t}; '
+			           f'git tag -a {t} -m "eHabitat+ {t}" <commit>) and push it')
 	return out
 
 
@@ -178,15 +199,116 @@ def unrecorded(old, new):
 	        f'change, add it under "{UNRELEASED}"')
 
 
+def newest(text, known_tags=()):
+	"""The newest version among the releases of the changelog and KNOWN_TAGS, as a tuple ((0, 0, 0) if none)."""
+	found = [version(r['tag']) for r in parse(text)['releases']] + [version(t) for t in known_tags]
+	return max(found, default=(0, 0, 0))
+
+
+def next_version(text, known_tags=()):
+	"""The release after the newest one: its last number plus one (1.6 -> 1.6.1, 1.6.1 -> 1.6.2)."""
+	major, minor, patch = newest(text, known_tags)
+	return f'{major}.{minor}.{patch + 1}'
+
+
+def released(text, tag, date, known_tags=()):
+	"""README.md with "### Unreleased" renamed to the heading of the release TAG of DATE (YYYY-MM-DD). Raises ValueError
+	if there is nothing to release, TAG is not a version newer than the newest release or tag, or the changelog would
+	have a problem."""
+	if not re.fullmatch(r'(0|[1-9]\d*)\.(0|[1-9]\d*)(\.(0|[1-9]\d*))?', tag):
+		raise ValueError(f'{tag} is not a version X.Y or X.Y.Z (numbers without leading zeros)')
+	if not parse(text)['unreleased']:
+		raise ValueError(f'nothing to release: "{UNRELEASED}" has no entries')
+	last = newest(text, known_tags)
+	if version(tag) <= last:
+		raise ValueError(f'{tag} is not newer than the last release, {".".join(map(str, last))}')
+	n = next(n for n, line in section(text) if line.strip() == UNRELEASED)
+	lines = text.splitlines(keepends=True)
+	end = lines[n - 1][len(lines[n - 1].rstrip('\r\n')):]
+	lines[n - 1] = f'### [{tag}]({REPO}/releases/tag/{tag}) · {date}{end}'
+	new = ''.join(lines)
+	found = problems(new, [*known_tags, tag])
+	if found:
+		raise ValueError('; '.join(found))
+	return new
+
+
+def release(tag=None, trailers=()):
+	"""The release of "### Unreleased" (see the top): renames it in README.md, commits README.md alone and tags that
+	commit (annotated, so that git push --follow-tags pushes it). Returns the tag. Raises ValueError, and leaves
+	README.md as it was, if it cannot be made."""
+	if (git('rev-parse', '--abbrev-ref', 'HEAD') or '').strip() != 'master':
+		raise ValueError('a release is made on master')
+	if git('diff', '--quiet', 'HEAD', '--', 'README.md') is None:
+		raise ValueError('README.md has changes that are not committed: commit them (with their entries) first')
+	text, known = readme(), tags() or []
+	tag = tag or next_version(text, known)
+	if git('rev-parse', '-q', '--verify', f'refs/tags/{tag}') is not None:
+		raise ValueError(f'the tag {tag} exists already')
+	new = released(text, tag, datetime.datetime.now(datetime.timezone.utc).date().isoformat(), known)
+	write_readme(new)
+	extra = [a for t in trailers for a in ('--trailer', t)]
+	err = git_error('commit', '-q', '-m', f'Release {tag}', *extra, '--', 'README.md')
+	if err:
+		write_readme(text)
+		raise ValueError(f'git commit of the release {tag} failed ({err}): README.md is as it was')
+	err = git_error('tag', '-a', tag, '-m', f'eHabitat+ {tag}')
+	if err:
+		raise ValueError(f'the commit "Release {tag}" is made, but git tag failed ({err}): make the tag with '
+		                 f'git tag -a {tag} -m "eHabitat+ {tag}" (annotated, so that git push --follow-tags pushes it)')
+	return tag
+
+
+def git_error(*args):
+	"""Runs git in the repository, without a time limit (a commit may wait for a passphrase): its error, or None if it
+	worked."""
+	try:
+		r = subprocess.run(['git', '-C', ROOT, *args], capture_output=True, text=True)
+	except OSError as e:
+		return str(e)
+	return None if r.returncode == 0 else (r.stderr.strip() or r.stdout.strip() or f'exit status {r.returncode}')
+
+
+def pending(text):
+	"""Why master has changes for users without their release (entries under "### Unreleased"), or None."""
+	n = len(parse(text)['unreleased'] or [])
+	if not n:
+		return None
+	return (f'"{UNRELEASED}" has {n} {"entry" if n == 1 else "entries"} pushed without a release: make it with python '
+	        f'.github/changelog.py release and push it with git push --atomic --follow-tags origin master')
+
+
 def readme():
-	with open(os.path.join(ROOT, 'README.md'), encoding='utf-8') as f:
+	with open(os.path.join(ROOT, 'README.md'), encoding='utf-8', newline='') as f:
 		return f.read()
 
 
+def write_readme(text):
+	with open(os.path.join(ROOT, 'README.md'), 'w', encoding='utf-8', newline='') as f:
+		f.write(text)
+
+
 def main(argv):
-	cmds = {'check': 1, 'notes': 2, 'unrecorded': 3}
+	usage = __doc__.split('\n\n')[1]
+	if argv and argv[0] == 'release':
+		args, trailers = list(argv[1:]), []
+		while '--trailer' in args:
+			i = args.index('--trailer')
+			if i + 1 >= len(args):
+				sys.exit(usage)
+			trailers.append(args[i + 1])
+			del args[i:i + 2]
+		if len(args) > 1:
+			sys.exit(usage)
+		try:
+			tag = release(args[0] if args else None, trailers)
+		except ValueError as e:
+			sys.exit(str(e))
+		print(f'Release {tag} committed and tagged: push it with git push --atomic --follow-tags origin master')
+		return
+	cmds = {'check': 1, 'notes': 2, 'unrecorded': 3, 'pending': 1}
 	if not argv or argv[0] not in cmds or len(argv) != cmds[argv[0]]:
-		sys.exit(__doc__.split('\n\n')[1])
+		sys.exit(usage)
 	try:
 		if argv[0] == 'check':
 			found = problems(readme())
@@ -195,6 +317,10 @@ def main(argv):
 			sys.exit(1 if found else 0)
 		if argv[0] == 'notes':
 			print(notes(readme(), argv[1]))
+		elif argv[0] == 'pending':
+			why = pending(readme())
+			if why:
+				print(why)
 		else:
 			why = unrecorded(argv[1], argv[2])
 			if why:

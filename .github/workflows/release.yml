@@ -1,0 +1,70 @@
+# The GitHub release of every tag X.Y or X.Y.Z of master, which Zenodo archives with its own DOI (concept DOI
+# 10.5281/zenodo.595844). Every push to master with entries under "### Unreleased" is a release: after the commit of the
+# change, python .github/changelog.py release renames that heading to the next version, commits README.md and tags it,
+# and git push --atomic --follow-tags origin master pushes both. The release is "eHabitat+ X.Y.Z" and its notes are its
+# entries of the changelog of README.md (python .github/changelog.py notes X.Y.Z). One release per push: GitHub makes
+# no tag events when more than three tags are pushed at once.
+# By hand (Actions > Release > Run workflow) with the tag of a release: without "publish", only the checks and the notes
+# (nothing is published); with it, it also creates the release if it is not there (e.g. after a failed run).
+name: Release
+
+on:
+  push:
+    tags: ['[0-9]+.[0-9]+', '[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag of the release (X.Y or X.Y.Z)'
+        required: true
+      publish:
+        description: 'Create the GitHub release, which Zenodo archives for ever (without it: only the checks and the notes)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  PUBLISH: ${{ github.event_name == 'push' || inputs.publish }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: The tag is a version
+        run: |
+          if [[ ! "$TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$ ]]; then
+            echo "::error title=Release::$TAG is not a version X.Y or X.Y.Z"
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.TAG }}
+          fetch-depth: 0  # master and the tags, for the checks
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Checks and notes
+        run: |
+          if ! git merge-base --is-ancestor HEAD origin/master; then
+            echo "::error title=Release::the tag $TAG is not on master"
+            exit 1
+          fi
+          # its heading and entries (the whole changelog is checked on master by changelog.yml: the README of this tag
+          # has no headings of later tags pushed with it)
+          python .github/changelog.py notes "$TAG" > "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/notes.md"
+      - name: GitHub release (archived in Zenodo)
+        if: env.PUBLISH == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "The release $TAG exists already"
+            exit 0
+          fi
+          gh release create "$TAG" --verify-tag --title "eHabitat+ $TAG" --notes-file "$RUNNER_TEMP/notes.md"

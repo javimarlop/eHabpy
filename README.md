@@ -23,15 +23,17 @@ the DOI of each release is on its page of Zenodo)
 
 ## Changelog
 
-What each release brings, newest first. A release is a tag of GitHub with its
-[release](https://github.com/javimarlop/eHabpy/releases), archived in Zenodo. Each entry names the parts of eHabitat+
+What each release brings, newest first. Every update of `master` with changes for users is a release (1.6, 1.6.1,
+1.6.2...): a tag of GitHub with its [release](https://github.com/javimarlop/eHabpy/releases), archived in
+[Zenodo](https://doi.org/10.5281/zenodo.595844) with its own DOI. Each entry names the parts of eHabitat+
 it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.py`, `run_hft.py` and their steps, the
 **Similarity**: `similarity.py` and `thdi.R`, the **Earth Engine variables**: `get_vars_gee.py`, and the
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
-time it opens, so it already has what is under **Unreleased** before its release.
+time it opens, so it has each release as soon as it is made.
 
 ### Unreleased
 
+- **eHabitat+**: Every update with changes for users is a new release (1.6, 1.6.1, 1.6.2...) archived in Zenodo with its own DOI, so the exact version that was used can be cited; its notes are its entries of this changelog.
 - **HFT model, Desktop app**: The thresholds of the segmentation can be chosen (Segmentation thresholds, `SEGM_THRESHOLDS`, by default the nine from 0.1 to 0.9), e.g. `[0.02, 0.04, 0.06, 0.08, 0.1]` for smaller segments in very small habitats (with a smaller `MIN_SEGM_SIZE`, since no segment is smaller than the minimum size); a fixed threshold must be one of them, and the plots, tables and the app show the value of each threshold. With other thresholds than the nine of 0.1 to 0.9 the `segm_id` of a segment has 2 digits for the threshold and 7 for the segment (up to 9,999,999 segments per threshold instead of 99,999).
 - **HFT model, Desktop app**: The pieces smaller than the minimum size that the segmentation leaves (cut by pixels without data or by the outline of the study area) can join the most similar larger segment within the radius (Merge small segments into, `SMALL_SEGM_MERGE = 'similar'`) instead of the most frequent one, which can be quite different from them; `'frequent'` is the default and keeps the rule used up to now.
 - **HFT model, Desktop app**: The statistics of the segments are computed for all of them at once, so a segmentation with tens of thousands of segments takes minutes instead of hours, with the same statistics except in the last digits. After this update the segmentation of every study area is marked to run once more.
@@ -57,7 +59,6 @@ time it opens, so it already has what is under **Unreleased** before its release
 - **Desktop app**: Conditions on variables in the recipe keep only the pixels where variables of the catalog are within some values, e.g. above 1500 m of elevation or with less than 600 mm of annual precipitation, together with the land cover mask.
 - **Desktop app, Earth Engine variables**: The true colour of the study area (red, green and blue reflectance) from the same images and pixels as a variable of the recipe, with its period, season, pixel filters and conditions and the metric of your choice, is downloaded with the variables to `inVars/<folder>/rgb` (`rgb: {index: NDVI, sensor: Sentinel-2, metric: median}` in the recipe) and shown on the map of Input variables.
 - **Desktop app** (fix): Dialogs taller than the window, such as the catalog of MonitorEO on a small screen, scroll instead of leaving their buttons out of reach.
-
 - **Desktop app** (fix): The date of the version shows also in a copy that was updated before the app kept it: the app reads it from GitHub when it is missing.
 - **Documentation**: Every release in Zenodo has the same title, "eHabitat+ model: mapping habitat functional types and similar areas", its author with ORCID and the licence of eHabitat+, CC BY-SA 3.0 (`.zenodo.json`), instead of the name of the release, the authors of GitHub and CC BY 4.0.
 - **Documentation**: The README and the wiki cite eHabitat+ with the DOI of all its versions, https://doi.org/10.5281/zenodo.595844, which leads to the last one, instead of the DOI of version 1.3.
