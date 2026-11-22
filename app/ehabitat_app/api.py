@@ -467,6 +467,8 @@ class Api:
 			for c in rec['cuts']:
 				c['shp'] = paths.rel(c['shp'])
 				c['colours'] = paths.rel(c['colours']) if c['colours'] else None
+				c['subclasses'] = bool(c['subclasses'])
+				c['subclass_table'] = paths.rel(c['subclass_table']) if c['subclass_table'] else None
 		return r
 
 	@exposed
@@ -479,6 +481,15 @@ class Api:
 		if not c:
 			raise ValueError(f'no results of the cut {cut}')
 		return results.hft_layer(c['shp'], c['colours'], r.get('metadata'))
+
+	@exposed
+	def subclass_layer(self, study_area, scenario, id_, cut):
+		r = results.scenario(study_area, scenario)
+		rec = r['per_id'].get(str(id_))
+		c = next((c for c in rec['cuts'] if c['cut'] == cut), None) if rec else None
+		if not c or not c['subclasses']:
+			raise ValueError(f'no subclasses of the HFTs in the cut {cut} of the ID {id_}')
+		return results.subclass_layer(c['subclasses'], c['subclass_table'])
 
 	@exposed
 	def study_outline(self, study_area):

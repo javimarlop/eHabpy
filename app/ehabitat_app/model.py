@@ -117,6 +117,14 @@ PARAMS = [
 	         'in its folder (p15, p40...), from more HFTs (the lowest) to fewer. After a run, change them and run again from '
 	         '"plots": only the classification is repeated, and the results of the scenario are replaced (the previous ones go '
 	         'to <scenario>_previous).'},
+	{'name': 'HFT_SUBCLASSES', 'group': 'class', 'type': 'bool', 'default': False, 'label': 'Subclasses of the pixels of the HFTs',
+	 'help': 'The HFTs group whole segments by the mean of their pixels, so they do not separate what changes inside a segment '
+	         '(e.g. a wet meadow that is only part of one). Ticked, the pixels of each HFT are also divided into subclasses by '
+	         'k-means: a subclass is divided in two, again and again, while the division separates its pixels at least as much '
+	         'as the two most similar HFTs of the cut are separated, so the number of subclasses follows from the variability '
+	         'of the HFTs of each cut, without choosing it. Each cut gets a map of the subclasses (GeoTIFF '
+	         'hft_subclasses_<id>_<k>_<cut>.tif, code = 100 x HFT + subclass) and their table. The subclasses follow the '
+	         'pixels, not the segments, so their map has more isolated pixels than that of the HFTs.'},
 	{'name': 'STAT_AGG', 'group': 'class', 'type': 'select', 'default': 'mean', 'label': 'Statistic of the segments',
 	 'choices': [['mean', 'Mean'], ['median', 'Median']],
 	 'help': 'Statistic of the pixels of each segment and variable used to classify the segments.'},

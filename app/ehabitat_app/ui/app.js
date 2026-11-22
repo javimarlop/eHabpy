@@ -2804,16 +2804,50 @@ pages.results = (() => {
 			},
 		}).addTo(S.map);
 		$('#x-map-sub').textContent = `${h.legend.length} HFTs · ${h.geojson.features.length} segments · ${h.colours_from === 'tree' ? 'colours of the plots' : 'Set1 colours (run the plots again for those of the tree)'}`;
-		legend(h);
+		S.cut = c;
+		$('#x-sub-lab').classList.toggle('hidden', !c.subclasses);
+		await drawSub();
 		if (!S.outline || S.outlineFor !== $('#x-sa').value) await outline();
 		if (S.outline) S.outline.bringToFront();
 		const key = $('#x-sa').value + '/' + $('#x-sc').value + '/' + $('#x-id').value;
 		if (S.fittedFor !== key) { fit(); S.fittedFor = key; }
 	}
 
+	// Subclasses of the pixels of the HFTs (HFT_SUBCLASSES): an image under the HFTs, which then keep only their edges
+	// (and their tooltip and popup)
+	async function drawSub() {
+		const req = S.subReq = (S.subReq || 0) + 1; // only the last request draws (the box can change meanwhile)
+		if (S.sub) { S.map.removeLayer(S.sub); S.sub = null; }
+		S.subLegend = null;
+		const c = S.cut;
+		if (c && c.subclasses && $('#x-sub').checked) {
+			let s;
+			try {
+				s = await api('subclass_layer', $('#x-sa').value, $('#x-sc').value, $('#x-id').value, c.cut);
+			} catch (e) { if (req === S.subReq) fail(e); }
+			if (req !== S.subReq) return;
+			if (s && S.cut === c && $('#x-sub').checked) {
+				if (S.sub) S.map.removeLayer(S.sub);
+				if (!S.map.getPane('subclasses')) {
+					const p = S.map.createPane('subclasses');
+					p.style.zIndex = 350;
+					p.style.pointerEvents = 'none';
+				}
+				const [w, so, e, n] = s.bbox;
+				S.sub = L.imageOverlay(s.image, [[so, w], [n, e]], {pane: 'subclasses', interactive: false,
+					opacity: Number($('#x-op').value) / 100}).addTo(S.map);
+				const img = S.sub.getElement();
+				if (img) img.style.imageRendering = 'pixelated';
+				S.subLegend = s.legend;
+			}
+		}
+		restyle();
+		if (S.hft) legend(S.hft);
+	}
+
 	function style(f) {
 		const hid = S.hidden.has(f.properties.hft);
-		const op = Number($('#x-op').value) / 100;
+		const op = S.sub ? 0 : Number($('#x-op').value) / 100;
 		return {fillColor: S.colour[f.properties.hft] || '#888', fillOpacity: hid ? 0 : op,
 			color: $('#x-edges').checked && !hid ? 'rgba(20,20,20,.55)' : 'transparent', weight: 0.6, opacity: 1};
 	}
@@ -2861,6 +2895,13 @@ pages.results = (() => {
 		box.append(el('div', {class: 'row', style: {marginTop: '6px'}},
 			el('button', {class: 'btn small ghost', onclick: () => { S.hidden.clear(); legend(h); restyle(); }}, 'All'),
 			el('button', {class: 'btn small ghost', onclick: () => { h.legend.forEach(l => S.hidden.add(l.hft)); legend(h); restyle(); }}, 'None')));
+		if (S.subLegend) {
+			box.append(el('h4', {style: {marginTop: '10px'}}, `Subclasses (${S.subLegend.length})`));
+			for (const l of S.subLegend) {
+				box.append(el('div', {class: 'legend-row'}, el('span', {class: 'sw', style: {background: l.colour}}), el('b', {}, l.subclass),
+					el('span', {class: 'ha'}, `${fmt(l.ha, 0)} ha · ${fmt(l.pct_of_hft, 0)} % of HFT ${l.hft}`)));
+			}
+		}
 	}
 
 	async function outline() {
@@ -2911,12 +2952,14 @@ pages.results = (() => {
 			if (t.file.startsWith('r2_') && t.file.endsWith('_hfts.csv')) continue; // long: shown in the R² plot
 			// hft_means_*.csv: without the columns that identify the scenario (the same in every row), kept in the file
 			// to join the tables of several study areas
-			const same = t.file.startsWith('hft_means_') ? new Set(['label', 'study_area', 'scenario', 'id', 'resolution', 'threshold']) : new Set();
+			const subs = t.file.startsWith('hft_subclasses_');
+			const same = t.file.startsWith('hft_means_') || subs ? new Set(['label', 'study_area', 'scenario', 'id', 'resolution', 'threshold',
+				...(subs ? ['cut', 'suggested', 'division_threshold'] : [])]) : new Set();
 			const cols = t.header.map((h, j) => j).filter(j => !same.has(t.header[j]));
 			const head = cols.map(j => t.header[j]);
 			const tbl = el('table', {class: 't'});
 			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', {title: h}, shortName(h))))));
-			const sugCol = t.header.indexOf('suggested');
+			const sugCol = subs ? -1 : t.header.indexOf('suggested');
 			const selCol = t.header.indexOf('selected');
 			const body = el('tbody');
 			for (const r of t.rows) {
@@ -2934,7 +2977,8 @@ pages.results = (() => {
 	$('#x-sc').addEventListener('change', () => loadScenario());
 	$('#x-id').addEventListener('change', () => onId());
 	$('#x-cut').addEventListener('change', onCut);
-	$('#x-op').addEventListener('input', restyle);
+	$('#x-op').addEventListener('input', () => { restyle(); if (S.sub) S.sub.setOpacity(Number($('#x-op').value) / 100); });
+	$('#x-sub').addEventListener('change', drawSub);
 	$('#x-edges').addEventListener('change', restyle);
 	$('#x-outline').addEventListener('change', () => { if (S.outline) $('#x-outline').checked ? S.outline.addTo(S.map) : S.map.removeLayer(S.outline); });
 	$('#x-fit').addEventListener('click', fit);
