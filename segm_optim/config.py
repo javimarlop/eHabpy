@@ -167,6 +167,18 @@ SIMIL = 3
 # --from plots), que sustituye los resultados del escenario (los anteriores van a <escenario>_previous).
 SIMIL_CUTS = [10, 25, 50, 75, 90]
 
+# SUBCLASES DE LOS HFTs (moranvar_plots.R, subclasses.R): los HFTs agrupan segmentos enteros por la media de sus
+# píxeles, así que no separan lo que cambia dentro de un segmento (p. ej. un borreguil que solo ocupa parte de él).
+# True = Además, los píxeles de cada HFT se dividen en subclases con k-means: la subclase cuya división más reduce la
+#        suma de cuadrados de sus píxeles (variables tipificadas) se divide en dos, una y otra vez, mientras la
+#        división la reduzca al menos tanto como la aumentaría unir los dos HFTs más parecidos del corte (el coste de
+#        Ward de esa unión): el nº de subclases sale del corte, sin otro parámetro. Cada corte tiene su GeoTIFF
+#        hft_subclasses_<id>_<k>_<corte>.tif (código 100 x HFT + subclase), su tabla y su mapa. Las subclases siguen
+#        a los píxeles, no a los segmentos: el mapa tiene más píxeles sueltos que el de los HFTs. En la prueba con
+#        borreguiles de Sierra Nevada separaron el borreguil mejor que dividir los HFTs en más HFTs.
+# False = Solo los HFTs.
+HFT_SUBCLASSES = False
+
 # ESTADÍSTICO DE AGREGACIÓN POR HFT:
 # 'mean'   = Utiliza la media (numpy.mean)
 # 'median' = Utiliza la mediana (numpy.median)

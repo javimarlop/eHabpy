@@ -6,9 +6,10 @@ validation (sorted, without repeats), the index k of every threshold (its positi
 THRESHOLD_METHOD, the layout of segm_id (1 + 5 digits with the nine of 0.1-0.9, 2 + 7 with any other list) and its
 largest value (segm_id_error), csv/segm_thresholds.csv and its fallback (the thresholds of config.py: k / 10 for the
 segmentations of eHabpy 1.5 and before), the checks of THRESHOLD_METHOD and SMALL_SEGM_MERGE (options_error,
-merge_rule), that the default values of SEGM_THRESHOLDS and SMALL_SEGM_MERGE are not recorded in the inputs of the
-segmentation (the runs made before these options existed stay up to date), and that the app replaces a value of
-config.py written over several lines whole (set_option).
+merge_rule) and of HFT_SUBCLASSES, that the default values of SEGM_THRESHOLDS and SMALL_SEGM_MERGE are not recorded
+in the inputs of the segmentation, nor that of HFT_SUBCLASSES in those of the plots (the runs made before these
+options existed stay up to date), and that the app replaces a value of config.py written over several lines whole
+(set_option).
 
     cd segm_optim && python -s tests/test_thresholds.py
 """
@@ -85,6 +86,10 @@ def test_options():
 		assert [h.merge_rule({'SMALL_SEGM_MERGE': m}) for m in ('Similar', None, '', 'frequent')] == \
 			['similar', 'frequent', 'frequent', 'frequent']
 		assert h.merge_rule({}) == 'frequent'
+		for v in (True, False):
+			assert h.options_error(dict(ok, HFT_SUBCLASSES=v)) is None, v
+		for v in ('True', 1, None):
+			assert 'HFT_SUBCLASSES' in h.options_error(dict(ok, HFT_SUBCLASSES=v)), v
 		with tempfile.TemporaryDirectory() as d:
 			h.PALIST = os.path.join(d, 'palist.csv')
 			open(h.PALIST, 'w').write('1\n1234567890\n')
@@ -156,6 +161,11 @@ def test_recorded():
 	assert segm(SEGM_THRESHOLDS=SMALL, THRESHOLD_METHOD=0.06)['thresholds segmented'] == '1-3'
 	assert segm(THRESHOLD_METHOD=0.5) == {'thresholds segmented': '1-5'}
 	assert segm(THRESHOLD_METHOD=0.55) == {}  # invalid: not recorded here, the scripts stop saying why
+	# HFT_SUBCLASSES in the inputs of the plots only when True (the runs made before the option stay up to date)
+	plots = lambda **kw: h.step_inputs('plots', dict(base, **kw), {})
+	assert 'HFT_SUBCLASSES' not in plots() and 'HFT_SUBCLASSES' not in plots(HFT_SUBCLASSES=False)
+	assert plots(HFT_SUBCLASSES=True)['HFT_SUBCLASSES'] == 'True'
+	assert 'subclasses.R' in h.CODE['plots']
 	print('test_recorded: OK')
 
 

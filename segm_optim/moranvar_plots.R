@@ -7,6 +7,7 @@ library(sf)
 library(RColorBrewer)
 
 source('plot_utils.R') # rescale01, short_labels, write_plot_csv, csv_label (shared with hft_compare.R)
+source('subclasses.R') # hft_subclasses, subclass_colours (HFT_SUBCLASSES)
 
 # Campos de las variables en el shapefile de los HFTs, de 10 caracteres como máximo, únicos y distintos de
 # 'taken': los de abbreviate, como los acortaba sf (p. ej. G_1_NDV), y si alguno no cabe (nombres que solo se
@@ -542,6 +543,8 @@ clip_pct <- read_config_num('CLIP_PERCENTILE', 0)
 if (clip_pct < 0 || clip_pct >= 50) stop(paste('CLIP_PERCENTILE en config.py debe ir de 0 a menos de 50, no', clip_pct))
 if (clip_pct > 0) class_label <- paste0(class_label, ', variables clipped to percentiles ', clip_pct, '-', 100 - clip_pct)
 median_stat <- identical(read_config('STAT_AGG'), 'median')
+# Subclases de los píxeles de cada HFT (HFT_SUBCLASSES en config.py, subclasses.R)
+subclasses_on <- identical(read_config('HFT_SUBCLASSES'), 'True')
 
 # Resultados en results/<área de estudio>/<escenario>: el área de los csv (anotada por segmentation_pca_par.py)
 # o STUDY_AREA de config.py, y SCENARIO de config.py; si falta o está vacío, el nombre de la subcarpeta de las
@@ -853,6 +856,7 @@ for (pmx in 1:mx) {
 	cut_sils <- sil_widths(ct, dsil, lapply(cut_cls, `[[`, 'cl'))
 
 	hft_rows <- list() # HFTs of each cut and statistics of their pixels, for the tables of the HFTs
+	cut_sub <- cut_r2sub <- c() # subclasses of each cut (HFT_SUBCLASSES) and the part of the pixel variance they explain
 	for (cn in names(cuts)) {
 		progress('DONE', 1)
 		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
@@ -1130,6 +1134,88 @@ for (pmx in 1:mx) {
 							           map=var_names[i], s, row.names=NULL)
 						})))
 
+					# --- SUBCLASES DE LOS HFTs (HFT_SUBCLASSES, subclasses.R) ---
+					# Los píxeles de cada HFT divididos por k-means en dos, una y otra vez, mientras una división los
+					# separe al menos tanto como están separados los dos HFTs más parecidos: GeoTIFF con la subclase de
+					# cada píxel (código 100 x HFT + subclase), su tabla y su mapa
+					if (subclasses_on && ncl > 1 && ncl < nrow(hri)) { # not when every segment is its own HFT (a cut of one HFT)
+						sc <- hft_subclasses(pixvals[inhft, , drop=FALSE], cls[inhft])
+						scode <- rep(NA_integer_, length(cls))
+						scode[which(inhft)] <- sc$code
+						codes <- sort(unique(sc$code[!is.na(sc$code)]))
+						codes <- codes[order(match(codes %/% 100L, hfts), codes %% 100L)] # in the order of the legend of the HFTs
+						sh <- codes %/% 100L
+						sub_lab <- paste0(sh, '.', codes %% 100L)
+						scl <- factor(scode[inhft], levels=codes)
+						s_ha <- tapply(pixarea[inhft], scl, sum)
+						s_ha[is.na(s_ha)] <- 0
+						s_px <- as.vector(table(scl))
+						s_col <- subclass_colours(codes, s_px, setNames(kolsn[hfts], hfts))
+						h_ha <- tapply(as.vector(s_ha), sh, sum)
+						cut_sub[cn] <- length(codes)
+						cut_r2sub[cn] <- sc$r2_subclasses
+						print(sprintf('%d subclasses in the %d HFTs%s: they explain %.0f %% of the variance of the pixels (the HFTs %.0f %%); a division had to reduce the sum of squares of the pixels by %.4g or more',
+						              length(codes), ncl, if (simil == 3) paste0(' of ', cn) else '', 100 * sc$r2_subclasses, 100 * sc$r2_hfts, sc$threshold))
+						# GeoTIFF of the subclasses, on the grid of the variables, cropped to the pixels of the HFTs
+						sr <- terra::rast(pixgrid, nlyrs=1)
+						terra::values(sr) <- scode
+						sr <- terra::trim(sr)
+						names(sr) <- 'subclass'
+						terra::writeRaster(sr, file.path(outdir, paste0('hft_subclasses_', park, '_', res, tag, '.tif')), overwrite=TRUE,
+						                   datatype='INT4S', NAflag=0, gdal='COMPRESS=LZW')
+						# Table of the subclasses: as hft_means_ (label, area and the mean of their pixels in each variable,
+						# after area_pct), with the HFT, its code in the GeoTIFF, its part of the area of its HFT and the
+						# least reduction of the sum of squares of a division (division_threshold)
+						sub_tab <- data.frame(label=paste0(area, '/', scenario, '/', park, '/', if (simil == 3) paste0(cn, '/'), 'HFT', sub_lab),
+						                      study_area=area, scenario=scenario, id=park, resolution=terra::res(pixgrid)[1], threshold=thr_val(res),
+						                      cut=hft_cut, suggested=hft_sug, HFT=sh, subclass=sub_lab, code=codes, colour=s_col, pixels=s_px,
+						                      pct_of_HFT=100 * as.vector(s_ha) / as.vector(h_ha[as.character(sh)]), division_threshold=sc$threshold,
+						                      area_ha=as.vector(s_ha), area_pct=100 * as.vector(s_ha) / sum(s_ha), check.names=FALSE)
+						for (i in seq_along(var_names)) {
+							sub_tab[[var_keys[i]]] <- as.vector(tapply(pixvals[inhft, i], scl, mean, na.rm=TRUE))
+						}
+						write_plot_csv(sub_tab, file.path(outdir, paste0('hft_subclasses_', gsub('[^A-Za-z0-9_-]', '_', area), '_', scenario, '_',
+						                                                   park, '_', res, tag, '.csv')))
+						# Map of the subclasses (at most 2000 pixels wide: the most frequent subclass of each block of
+						# pixels) with the outline of the study area
+						fact <- max(1, ceiling(max(dim(sr)[1:2]) / 2000))
+						spl <- if (fact > 1) terra::aggregate(sr, fact, fun='modal', na.rm=TRUE) else sr
+						sdf <- terra::as.data.frame(spl, xy=TRUE, na.rm=TRUE)
+						sdf$sub <- factor(sdf$subclass, levels=codes)
+						# Size: 12 inches wide (and the legend), the height of the area (5 to 16 inches), taller if the legend
+						# needs it to fit in 3 columns (rows of about 0.27 inches); without legend if it would need more than 4
+						ex <- terra::ext(sr)
+						s_asp <- as.numeric((ex$ymax - ex$ymin) / (ex$xmax - ex$xmin))
+						s_h <- min(max(10 * s_asp + 1.5, 5, 1.3 + 0.27 * ceiling(length(codes) / 3)), 16)
+						s_ncol <- ceiling(length(codes) / max(1, floor((s_h - 1.3) / 0.27)))
+						s_leg <- s_ncol <= 4
+						submap <- ggplot() +
+							geom_raster(data=sdf, aes(x=x, y=y, fill=sub)) +
+							scale_fill_manual(values=setNames(s_col, codes), labels=setNames(paste0(sub_lab, ': ', format(round(as.vector(s_ha)), big.mark=',', trim=TRUE), ' ha'), codes),
+							                  name='Subclass (area)', drop=FALSE, guide=if (s_leg) guide_legend(ncol=s_ncol) else 'none') +
+							labs(title=area, subtitle=paste0(plot_subtitle, ' | ', length(codes), ' subclasses of the pixels of the HFTs (k-means), in shades of the colour of their HFT',
+							                                 if (!s_leg) ' (legend in the .csv)')) +
+							theme_bw(base_size=14) +
+							theme(axis.title=element_blank())
+						if (!is.null(pa_outline)) {
+							po <- pa_outline
+							if (!is.na(st_crs(po)) && nzchar(terra::crs(pixgrid)) && st_crs(po) != st_crs(terra::crs(pixgrid))) po <- st_transform(po, terra::crs(pixgrid))
+							crd <- as.data.frame(st_coordinates(st_geometry(po)))
+							crd$grp <- interaction(crd[grep('^L', names(crd))], drop=TRUE)
+							submap <- submap + geom_path(data=crd, aes(x=X, y=Y, group=grp), colour='black', linewidth=0.8)
+						}
+						submap <- submap + coord_equal(expand=FALSE)
+						rpn6 <- file.path(outdir, paste('map_', park, '_', res, tag, '_subclasses.png', sep=''))
+						ggsave(rpn6, submap, width=12 + if (s_leg) 2.5 * s_ncol else 0, height=s_h, dpi=300)
+						# CSV of the map: one row per subclass (its pixels are those of the GeoTIFF hft_subclasses_ of this
+						# folder), in the order of the legend, with its HFT, code, area, colour and the centroid of its pixels
+						# (x, y in the CRS of the variables)
+						sxy <- terra::xyFromCell(pixgrid, which(inhft))
+						write_plot_csv(data.frame(subclass=sub_lab, HFT=sh, code=codes, area_ha=as.vector(s_ha), colour=s_col,
+						                          x=as.vector(tapply(sxy[, 1], scl, mean)), y=as.vector(tapply(sxy[, 2], scl, mean))),
+						               rpn6, precise=c('x', 'y'))
+					}
+
 					# --- MAPA DE CALOR DE LOS PERFILES DE LOS HFTs ---
 					# Mediana de cada HFT como z respecto a la media y la desviación típica de los píxeles del
 					# área; variables ordenadas por eta2 (parte de su varianza que explican los HFTs) y HFTs
@@ -1402,6 +1488,11 @@ for (pmx in 1:mx) {
 			r2_csv$suggested[i] <- as.integer(any(cut_r2$suggested[w] == 1))
 		}
 		write.table(r2_csv, file.path(outroot, paste0('r2_', park, '_hfts.csv')), sep=' ', row.names=F, quote=F)
+		# with HFT_SUBCLASSES, the subclasses of each cut and the part of the variance of the pixels that they explain
+		if (length(cut_sub)) {
+			cut_r2$subclasses <- as.integer(cut_sub[cut_r2$cut])
+			cut_r2$r2_subclasses <- as.numeric(cut_r2sub[cut_r2$cut])
+		}
 		write.table(cut_r2, file.path(outroot, paste0('r2_', park, '_cuts.csv')), sep=' ', row.names=F, quote=F)
 		if (!is.na(knee)) {
 			s <- cut_r2[cut_r2$suggested == 1, ]

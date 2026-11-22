@@ -50,7 +50,7 @@ STEPS = [
 	 ['get_mean_median_var.py', 'ehab_segm_core.py']),
 	('moranvar', "Moran's I, variance and threshold", 'python3 moranvar.py', ['moranvar.py']),
 	('plots', 'HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'plot_utils.R', 'CreateRadialPlot.R',
-	                                                         'ward_lowmem.py']),
+	                                                         'subclasses.R', 'ward_lowmem.py']),
 ]
 NAMES = [s[0] for s in STEPS]
 LABEL = {s[0]: s[1] for s in STEPS}
@@ -414,9 +414,10 @@ def segm_id_error(area, ths, kmax=None):
 
 
 def options_error(cfg=None):
-	"""Why SEGM_THRESHOLDS, THRESHOLD_METHOD or SMALL_SEGM_MERGE of config.py are not valid, or why the segm_id of an
-	area of palist.csv would not fit (segm_id_error), None if all is right: checked before any step runs (run_hft.py,
-	check_ready), so that a wrong value does not stop the run after the steps before the one that uses it."""
+	"""Why SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE or HFT_SUBCLASSES of config.py are not valid, or why
+	the segm_id of an area of palist.csv would not fit (segm_id_error), None if all is right: checked before any step
+	runs (run_hft.py, check_ready), so that a wrong value does not stop the run after the steps before the one that
+	uses it."""
 	cfg = read_config() if cfg is None else cfg
 	err = thresholds_error(cfg)
 	if err:
@@ -429,6 +430,8 @@ def options_error(cfg=None):
 		merge_rule(cfg)
 	except ValueError as e:
 		return str(e)
+	if not isinstance(cfg.get('HFT_SUBCLASSES', False), bool):
+		return f"HFT_SUBCLASSES in config.py must be True or False, not {cfg.get('HFT_SUBCLASSES')!r}"
 	if os.path.isfile(PALIST):
 		ths = segm_thresholds(cfg)
 		errs = [e for e in (segm_id_error(a, ths, fixed_level(cfg)) for a in sorted(set(open(PALIST).read().split()))) if e]
@@ -494,7 +497,7 @@ def step_inputs(step, cfg=None, state=None):
 		inputs = opts(('THRESHOLD_METHOD', 'f'), ('THRESHOLD_ALPHA', 0.5), ('MORAN_NEIGHBOURS', 'rook'))
 	else:
 		inputs = opts(('SIMIL', 2), ('CLASS_METHOD', 'ward_area'))
-		inputs.update(later(('CLIP_PERCENTILE', 0), ('SIMIL_CUTS', [10, 25, 50, 75, 90])))
+		inputs.update(later(('CLIP_PERCENTILE', 0), ('SIMIL_CUTS', [10, 25, 50, 75, 90]), ('HFT_SUBCLASSES', False)))
 		inputs['SCENARIO'] = repr(scenario_name(cfg))  # where the results are written
 	inputs['code'] = _code_sig(CODE[step])
 	return inputs
@@ -592,7 +595,8 @@ def not_ready(step, cfg=None, state=None):
 
 def check_ready(step):
 	"""Stop with a message saying what to run when a step before STEP is out of date, or what is wrong in the options
-	of config.py checked before every step (options_error: SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE)."""
+	of config.py checked before every step (options_error: SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE,
+	HFT_SUBCLASSES)."""
 	err = options_error()
 	msg = f'ERROR: {err}' if err else not_ready(step)
 	if msg:

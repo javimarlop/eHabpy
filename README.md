@@ -35,6 +35,10 @@ time it opens, so it has each release as soon as it is made.
 
 - **HFT model**: Segmentations with tens of thousands of segments (e.g. low thresholds in `SEGM_THRESHOLDS`, for small habitats) are classified into HFTs without running out of memory: a threshold with more than 7,500 segments gets its tree, cophenetic correlation and silhouettes with memory that grows with the segments instead of their square (about 0.5 GB instead of about 200 GB with 55,000 segments, in about a minute), with the same HFTs and values as before (with `CLASS_METHOD = 'ward'`, as long as every segment has data in every variable); thresholds with fewer segments are classified as until now.
 
+### [1.6.2](https://github.com/javimarlop/eHabpy/releases/tag/1.6.2) · 2026-11-22
+
+- **HFT model, Desktop app**: The pixels of each HFT can also be divided into subclasses (Subclasses of the pixels of the HFTs, `HFT_SUBCLASSES = True`), for what changes inside the segments, such as small wet meadows: as many as the variability of the HFTs of each cut gives, with nothing to choose. Each cut gets their map (GeoTIFF and plot) and their table, and the map of the results can show them over the HFTs.
+
 ### [1.6.1](https://github.com/javimarlop/eHabpy/releases/tag/1.6.1) · 2026-11-22
 
 - **Similarity, Desktop app**: The fit of each similarity map in its study area gives the % of the study area similar to the HFT (Study similar in the results table, `StudySim_pct`) and the % of that area that is the HFT itself (Self-fit), without the % of the HFT similar to itself (`SelfSim_pct`, no longer in `hri_results.csv`), which is set by the threshold of the HFT rather than by the fit (the threshold is the mean, or median, similarity of its own pixels, so about half of them are at or above it); `sim_fit_<id>.png` shows that diagonal in grey.
