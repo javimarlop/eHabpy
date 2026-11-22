@@ -35,6 +35,11 @@ time it opens, so it has each release as soon as it is made.
 
 - **HFT model, Desktop app**: The pixels of each HFT can also be divided into subclasses (Subclasses of the pixels of the HFTs, `HFT_SUBCLASSES = True`), for what changes inside the segments, such as small wet meadows: as many as the variability of the HFTs of each cut gives, with nothing to choose. Each cut gets their map (GeoTIFF and plot) and their table, and the map of the results can show them over the HFTs.
 
+### [1.6.1](https://github.com/javimarlop/eHabpy/releases/tag/1.6.1) · 2026-11-22
+
+- **Similarity, Desktop app**: The fit of each similarity map in its study area gives the % of the study area similar to the HFT (Study similar in the results table, `StudySim_pct`) and the % of that area that is the HFT itself (Self-fit), without the % of the HFT similar to itself (`SelfSim_pct`, no longer in `hri_results.csv`), which is set by the threshold of the HFT rather than by the fit (the threshold is the mean, or median, similarity of its own pixels, so about half of them are at or above it); `sim_fit_<id>.png` shows that diagonal in grey.
+- **Similarity** (fix): The subtitle and the note of the plot of the fit in the study area (`sim_fit_<id>.png`) are no longer cut at the right edge.
+
 ### [1.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6) · 2026-11-22
 
 - **eHabitat+**: Every update with changes for users is a new release (1.6, 1.6.1, 1.6.2...) archived in Zenodo with its own DOI, so the exact version that was used can be cited; its notes are its entries of this changelog.

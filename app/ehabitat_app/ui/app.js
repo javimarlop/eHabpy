@@ -3049,7 +3049,8 @@ pages.similarity = (() => {
 		['HSR', 'HSR', 2, 'Habitat Similarity Ratio: pixels of the patches at least as large as the HFT (or of the largest patch) / '
 			+ 'pixels of the HFT'],
 		['Aggregation', 'Aggregation', 1, 'Similar pixels per patch'],
-		['SelfSim_pct', 'Self-similar (%)', 0, 'Fit in the study area: % of the pixels of the HFT with a similarity to it of at least T'],
+		['StudySim_pct', 'Study similar (%)', 0, 'Fit in the study area: % of the pixels of the HFTs of the study area with a '
+			+ 'similarity to the HFT of at least T'],
 		['SelfFit_pct', 'Self-fit (%)', 0, 'Fit in the study area: % of the pixels of the study area similar to the HFT (similarity ≥ T) '
 			+ 'that are the HFT itself; low values mean that its map also takes other HFTs of the study area as similar']];
 
