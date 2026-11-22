@@ -53,8 +53,9 @@ PARAMS = [
 	         'previous one, so the list itself changes the segments. E.g. 0.02, 0.04, 0.06, 0.08, 0.1 for very small habitats, '
 	         'with a smaller minimum size of a segment: no segment is smaller than it, whatever the thresholds. Every '
 	         'threshold adds time, and the classification into HFTs compares every pair of segments of every threshold '
-	         'tested: it needs about 70 bytes × (number of segments)² of the threshold with the most segments (the lowest; '
-	         'with a fixed threshold, that one), about 7 GB with 10,000 segments and 16 GB with 15,000. Changing them runs '
+	         'tested: a threshold with up to 7,500 segments needs about 70 bytes × (number of segments)² (3.9 GB with '
+	         '7,500), and one with more is classified with little memory, in a time that grows with (number of '
+	         'segments)²: about a minute with 55,000 segments and four with 166,000. Changing them runs '
 	         'the segmentation again. With other thresholds than the nine of 0.1 to 0.9, the segm_id of a segment has 2 '
 	         'digits for the threshold and 7 for the segment (1 and 5 with those nine).'},
 	{'name': 'SMALL_SEGM_RADIUS', 'group': 'segm', 'type': 'int', 'default': 10, 'min': 1, 'step': 1, 'unit': 'pixels',

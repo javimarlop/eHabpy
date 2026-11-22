@@ -81,10 +81,11 @@ CLIP_PERCENTILE = 0
 # sus archivos (p. ej. shp/park_segm_<id>_<k>.shp). P. ej. [0.02, 0.04, 0.06, 0.08, 0.1] para hábitats muy pequeños,
 # con un MIN_SEGM_SIZE menor: ningún segmento es más pequeño que el tamaño mínimo, sean cuales sean los umbrales (por
 # defecto la raíz cuadrada del nº de píxeles con datos, 11.8 ha en Guajares). Cada umbral más alarga la segmentación,
-# y la clasificación en HFTs compara cada par de segmentos de cada umbral probado: necesita unos 70 bytes x (nº de
-# segmentos)² del umbral con más segmentos (el más bajo; con un umbral fijo, ese), unos 7 GB con 10 000 segmentos y
-# 16 GB con 15 000. Con otros umbrales que los nueve de 0.1 a 0.9, el segm_id de los segmentos lleva 2 cifras para el
-# umbral y 7 para el segmento (en vez de 1 y 5). Sin esta opción, los nueve.
+# y la clasificación en HFTs compara cada par de segmentos de cada umbral probado: un umbral de hasta 7 500 segmentos
+# necesita unos 70 bytes x (nº de segmentos)² (3.9 GB con 7 500), y uno con más se clasifica con poca memoria
+# (ward_lowmem.py, los mismos resultados) pero en un tiempo que crece con (nº de segmentos)²: alrededor de un minuto
+# por umbral con 55 000 segmentos y cuatro con 166 000. Con otros umbrales que los nueve de 0.1 a 0.9, el segm_id de
+# los segmentos lleva 2 cifras para el umbral y 7 para el segmento (en vez de 1 y 5). Sin esta opción, los nueve.
 SEGM_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
 
 # RADIO PARA UNIR SEGMENTOS PEQUEÑOS (en píxeles, así depende del tamaño de píxel):
