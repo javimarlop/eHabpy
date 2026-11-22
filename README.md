@@ -31,6 +31,11 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Similarity, Desktop app**: The fit of each similarity map in its study area gives the % of the study area similar to the HFT (Study similar in the results table, `StudySim_pct`) and the % of that area that is the HFT itself (Self-fit), without the % of the HFT similar to itself (`SelfSim_pct`, no longer in `hri_results.csv`), which is set by the threshold of the HFT rather than by the fit (the threshold is the mean, or median, similarity of its own pixels, so about half of them are at or above it); `sim_fit_<id>.png` shows that diagonal in grey.
+- **Similarity** (fix): The subtitle and the note of the plot of the fit in the study area (`sim_fit_<id>.png`) are no longer cut at the right edge.
+
 ### [1.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6) · 2026-11-22
 
 - **eHabitat+**: Every update with changes for users is a new release (1.6, 1.6.1, 1.6.2...) archived in Zenodo with its own DOI, so the exact version that was used can be cited; its notes are its entries of this changelog.
