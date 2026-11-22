@@ -17,6 +17,7 @@ CUT_FILES = [
 	('biplot', 'PCA biplot of the HFTs', r'pca_biplot_{id}_(?P<k>\d+){tag}_hft\.png'),
 	('hclust', 'Classification tree of the segments', r'hclust_{id}_(?P<k>\d+){tag}_segms_mean\.png'),
 	('silhouette', 'Silhouette of the segments by HFT', r'silhouette_{id}_(?P<k>\d+){tag}_segms\.png'),
+	('subclasses', 'Subclasses of the pixels of the HFTs', r'map_{id}_(?P<k>\d+){tag}_subclasses\.png'),
 ]
 SCENARIO_FILES = [
 	('threshold', "Moran's I and variance by threshold", r'{id}_moran_var_mean\.png'),
@@ -136,9 +137,17 @@ def scenario(study_area, scen):
 					if rx.match(f):
 						plots.append({'kind': kind, 'label': label, 'file': f, 'url': _url(os.path.join(d, f))})
 			stem = shp[:-len('_class.shp')].replace('park_segm_', '', 1)
+			# subclasses of the pixels of the HFTs (HFT_SUBCLASSES): their GeoTIFF and their table
+			sub_rx = re.compile(rf'^hft_subclasses_.+_{re.escape(stem)}\.csv$')
+			sub_table = next((os.path.join(d, f) for f in dfiles if sub_rx.match(f)), None)
+			sub_tif = _first([os.path.join(d, f'hft_subclasses_{stem}.tif')])
 			rec['cuts'].append({'cut': cut, 'suggested': bool(m.group('optim')), 'k': m.group('k'),
 			                    'shp': os.path.join(d, shp), 'plots': plots,
-			                    'colours': _first([os.path.join(d, f'hft_colours_{stem}.csv')])})
+			                    'colours': _first([os.path.join(d, f'hft_colours_{stem}.csv')]),
+			                    'subclasses': sub_tif if sub_tif and sub_table else None, 'subclass_table': sub_table})
+			if sub_table:
+				rec['tables'].append(dict(_table(sub_table), label=f"Subclasses of the HFTs{'' if cut == 'results' else ' of ' + cut}: "
+				                                                    'area and mean of the variables'))
 		# the cuts from more HFTs to fewer, and the counts of HFTs of each cut from r2_<id>_cuts.csv
 		counts = {}
 		for t in rec['tables']:
@@ -338,6 +347,30 @@ def area_labels(study_area):
 		return {str(a['id']): a['label'] for a in inputs.vector_areas(*sf) if a['label']}
 	except Exception:
 		return {}
+
+
+def subclass_layer(tif, table, max_size=1600):
+	"""Map of the subclasses of the HFTs of a cut (HFT_SUBCLASSES): their GeoTIFF (code = 100 x HFT + subclass) as a
+	PNG in Web Mercator, at most MAX_SIZE pixels wide (the most frequent subclass of each block of pixels), coloured as
+	in the table of the subclasses (hft_subclasses_*.csv, in the order of the legend)."""
+	import numpy as np
+	with open(table, newline='', encoding='utf-8', errors='replace') as f:
+		rows = [r for r in csv.reader(f, delimiter=' ') if r]
+	head, rows = rows[0], rows[1:]
+	col = {c: head.index(c) for c in ('HFT', 'subclass', 'code', 'colour', 'area_ha', 'pct_of_HFT')}
+	legend = [{'hft': int(r[col['HFT']]), 'subclass': r[col['subclass']], 'code': int(r[col['code']]),
+	           'colour': _hex(r[col['colour']]), 'ha': round(float(r[col['area_ha']]), 1),
+	           'pct_of_hft': round(float(r[col['pct_of_HFT']]), 1)} for r in rows]
+	a, valid, bbox = inputs.warp_preview(tif, max_size=max_size, resample='mode', overviews=False)
+	rgba = np.zeros((4,) + a.shape, dtype=np.uint8)
+	code = np.where(valid, a, 0).astype(np.int64)
+	for item in legend:
+		c = item['colour'].lstrip('#')
+		m = valid & (code == item['code'])
+		for i in range(3):
+			rgba[i][m] = int(c[2 * i:2 * i + 2], 16)
+		rgba[3][m] = 255
+	return {'image': inputs.png_uri(rgba), 'bbox': bbox, 'legend': legend, 'file': paths.rel(tif)}
 
 
 def study_outline(study_area):

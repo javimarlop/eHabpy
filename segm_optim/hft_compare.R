@@ -52,6 +52,10 @@ for (f in files) {
 		say('Skipped (not a table of HFTs with the columns label and area_pct, e.g. hft_stats): ', basename(f))
 		next
 	}
+	if ('subclass' %in% names(d)) {
+		say('Skipped (subclasses of the HFTs, hft_subclasses_: the HFTs are compared): ', basename(f))
+		next
+	}
 	d$file <- basename(f)
 	tabs[[f]] <- d
 }

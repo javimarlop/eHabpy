@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **HFT model, Desktop app**: The pixels of each HFT can also be divided into subclasses (Subclasses of the pixels of the HFTs, `HFT_SUBCLASSES = True`), for what changes inside the segments, such as small wet meadows: as many as the variability of the HFTs of each cut gives, with nothing to choose. Each cut gets their map (GeoTIFF and plot) and their table, and the map of the results can show them over the HFTs.
+
 ### [1.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6) · 2026-11-22
 
 - **eHabitat+**: Every update with changes for users is a new release (1.6, 1.6.1, 1.6.2...) archived in Zenodo with its own DOI, so the exact version that was used can be cited; its notes are its entries of this changelog.

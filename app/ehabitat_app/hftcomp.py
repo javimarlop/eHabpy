@@ -59,6 +59,9 @@ def _info(path):
 	if 'label' not in header or 'area_pct' not in header:
 		rec['reason'] = 'not a table of HFTs (hft_means_...): it has no label and area_pct columns'
 		return rec
+	if 'subclass' in header:
+		rec['reason'] = 'subclasses of the HFTs (hft_subclasses_...): the comparator compares HFTs (hft_means_...)'
+		return rec
 	ix = {h: i for i, h in enumerate(header)}
 	rec.update(usable=True, hfts=len(rows), variables=len(header) - ix['area_pct'] - 1)
 	src = {}
