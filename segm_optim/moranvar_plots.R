@@ -201,16 +201,106 @@ std_stats <- function(hri) {
 # de los píxeles (dentro + entre segmentos): con la distancia de Ward entre grupos y members = nº de
 # píxeles, hclust da el mismo árbol que el Ward de todos los píxeles partiendo de los segmentos.
 # z and n (std_stats) also with 'ward', for the silhouette of the HFTs (sil_width)
-class_tree <- function(hri, method) {
+# With more than lowmem_segments() segments, the same tree from ward_lowmem.py (lowmem_tree), without the matrix of the
+# distances: then dist is NULL, coph is the cophenetic correlation and lowmem is TRUE
+class_tree <- function(hri, method, lowmem=nrow(hri) > lowmem_segments()) {
 	s <- std_stats(hri)
+	if (lowmem) {
+		if (method == 'ward') {
+			# the variables of segm_dist, without the distances: a segment without data in one takes its mean
+			x <- sapply(hri[, 3:(2 + 2 * (ncol(hri) - 3) / 3)], function(v) {
+				v <- rescale01(v)
+				m <- mean(v, na.rm=TRUE)
+				v[is.na(v)] <- if (is.finite(m)) m else 0
+				v
+			})
+			lt <- lowmem_tree(x, rep(1, nrow(hri)))
+		} else {
+			lt <- lowmem_tree(s$z, s$n)
+		}
+		return(list(tree=lt$tree, dist=NULL, coph=lt$coph, z=s$z, n=s$n, lowmem=TRUE))
+	}
 	if (method == 'ward') {
 		d <- segm_dist(hri)
-		return(list(tree=hclust(d, "ward.D2"), dist=d, z=s$z, n=s$n))
+		return(list(tree=hclust(d, "ward.D2"), dist=d, z=s$z, n=s$n, lowmem=FALSE))
 	}
 	n <- s$n
 	d <- dist(s$z)
 	w <- sqrt(2 * outer(n, n) / outer(n, n, '+')) * as.matrix(d)
-	list(tree=hclust(as.dist(w), "ward.D2", members=n), dist=d, z=s$z, n=n)
+	list(tree=hclust(as.dist(w), "ward.D2", members=n), dist=d, z=s$z, n=n, lowmem=FALSE)
+}
+
+# Clasificación con poca memoria. hclust, cophenetic y sil_width usan la matriz de las distancias entre cada par de
+# segmentos (unos 70 bytes x segmentos², 200 GB con 55 000 segmentos); con más de LOWMEM_SEGMENTS segmentos en un
+# umbral, ward_lowmem.py (Python con numba, el de EHAB_PYTHON) da los mismos resultados (salvo redondeo) calculando
+# las distancias cuando las necesita: el árbol de Ward ponderado con la cadena de vecinos más próximos, la correlación
+# cofenética y las siluetas. Por debajo, los de siempre. LOWMEM_SEGMENTS es el de hft_state.py (con él las matrices
+# necesitan 3.9 GB como mucho); EHAB_LOWMEM_SEGMENTS lo cambia, para las pruebas
+LOWMEM_SEGMENTS <- 7500
+lowmem_segments <- function() {
+	v <- suppressWarnings(as.numeric(Sys.getenv('EHAB_LOWMEM_SEGMENTS')))
+	if (is.na(v)) LOWMEM_SEGMENTS else v
+}
+
+# Runs ward_lowmem.py CMD with the files of DIR (see its description) and the numbers ARGS (-s: without the packages of
+# the user's site-packages, which could hide the numba of the environment, as in the app: PYTHONNOUSERSITE)
+lowmem_run <- function(cmd, dir, args) {
+	st <- system2(Sys.getenv('EHAB_PYTHON', 'python3'), c('-s', 'ward_lowmem.py', cmd, shQuote(dir), args))
+	if (!identical(as.integer(st), 0L)) {
+		stop(paste0('ward_lowmem.py ', cmd, ' failed (exit status ', st, '): see the messages above'))
+	}
+}
+write_bin <- function(x, f, size=8) writeBin(if (size == 8) as.double(x) else as.integer(x), f, size=size, endian='little')
+read_bin <- function(f, what, n, size=8) {
+	v <- readBin(f, what, n + 1, size=size, endian='little')
+	if (length(v) != n) stop(paste('ward_lowmem.py wrote', length(v), 'values in', basename(f), 'instead of', n))
+	v
+}
+
+# Weighted Ward of the rows of x (segments) with the weights w (pixels) by ward_lowmem.py: the tree of
+# hclust(method='ward.D2', members=w) on the distances sqrt(2 w_i w_j / (w_i + w_j)) ||x_i - x_j|| (as class_tree), as an
+# hclust object with the labels of class_tree, and the cophenetic correlation with the Euclidean distances (coph)
+lowmem_tree <- function(x, w) {
+	x <- as.matrix(x)
+	n <- nrow(x)
+	dir <- tempfile('ward_')
+	dir.create(dir)
+	on.exit(unlink(dir, recursive=TRUE))
+	write_bin(x, file.path(dir, 'x.f8'))
+	write_bin(w, file.path(dir, 'w.f8'))
+	t0 <- Sys.time()
+	print(paste0('Classification of ', n, ' segments with little memory (ward_lowmem.py, more than ', lowmem_segments(),
+	             ' segments)'))
+	lowmem_run('tree', dir, c(n, ncol(x)))
+	print(paste('Tree and cophenetic correlation in', format(round(Sys.time() - t0, 1))))
+	tree <- structure(list(merge=matrix(read_bin(file.path(dir, 'merge.i4'), 'integer', 2 * (n - 1), 4), ncol=2),
+	                       height=read_bin(file.path(dir, 'height.f8'), 'double', n - 1),
+	                       order=read_bin(file.path(dir, 'order.i4'), 'integer', n, 4),
+	                       labels=as.character(seq_len(n)), method='ward.D2', call=quote(ward_lowmem.py(x, members=w)),
+	                       dist.method=NULL),
+	                  class='hclust')
+	list(tree=tree, coph=read_bin(file.path(dir, 'coph.f8'), 'double', 1))
+}
+
+# Silhouette widths (sil_width) of the segments in each classification of the list cls: with the matrix of the
+# distances D, or, if ct$lowmem, by ward_lowmem.py with the distances between the rows of ct$z (those of D), all at once
+sil_widths <- function(ct, D, cls) {
+	if (!ct$lowmem) return(lapply(cls, function(cl) sil_width(D, cl)))
+	ns <- nrow(ct$z)
+	out <- lapply(cls, function(cl) list(s=rep(NA_real_, ns), neighbour=rep(NA, ns)))
+	levs <- lapply(cls, function(cl) sort(unique(cl)))
+	ok <- which(sapply(levs, function(l) length(l) >= 2 && length(l) < ns))
+	if (length(ok) == 0) return(out)
+	dir <- tempfile('sil_')
+	dir.create(dir)
+	on.exit(unlink(dir, recursive=TRUE))
+	write_bin(ct$z, file.path(dir, 'x.f8'))
+	write_bin(sapply(ok, function(i) match(cls[[i]], levs[[i]]) - 1L), file.path(dir, 'groups.i4'), 4)
+	lowmem_run('silhouette', dir, c(ns, ncol(ct$z), length(ok)))
+	s <- matrix(read_bin(file.path(dir, 's.f8'), 'double', ns * length(ok)), ncol=length(ok))
+	nb <- matrix(read_bin(file.path(dir, 'neighbour.i4'), 'integer', ns * length(ok), 4), ncol=length(ok))
+	for (j in seq_along(ok)) out[[ok[j]]] <- list(s=s[, j], neighbour=levs[[ok[j]]][nb[, j] + 1])
+	out
 }
 
 # Silhouette width of each segment (Rousseeuw 1987, https://doi.org/10.1016/0377-0427(87)90125-7) in the HFTs cl,
@@ -658,12 +748,17 @@ for (pmx in 1:mx) {
 	dmh <- ct$dist
 	hclust_mh <- ct$tree
 	cophval <- 0
-	try(chcl <- cophenetic(hclust_mh))
-	try(cophval <- cor(chcl, dmh))
+	if (ct$lowmem) {
+		if (is.finite(ct$coph)) cophval <- ct$coph
+	} else {
+		try(chcl <- cophenetic(hclust_mh))
+		try(cophval <- cor(chcl, dmh))
+	}
 	# Distances for the silhouette of the HFTs: Euclidean between the standardized statistics z of the segments that
 	# the classification used (with CLIP_PERCENTILE and STAT_AGG), with every CLASS_METHOD, also with 'ward', whose
-	# tree uses other distances, so that the silhouettes of the methods are comparable
-	dsil <- as.matrix(dist(ct$z))
+	# tree uses other distances, so that the silhouettes of the methods are comparable (with little memory,
+	# sil_widths computes them when needed)
+	dsil <- if (ct$lowmem) NULL else as.matrix(dist(ct$z))
 	sil_stat <- paste0(if (median_stat) 'medians' else 'means',
 	                   if (!is.null(pixclip)) paste0('\n(variables clipped to percentiles ', clip_pct, '-', 100 - clip_pct, ', as for the classification)'))
 	cut_sil <- c() # mean silhouette width of each cut
@@ -724,22 +819,15 @@ for (pmx in 1:mx) {
 		}
 	}
 
-	hft_rows <- list() # HFTs of each cut and statistics of their pixels, for the tables of the HFTs
-	cut_sub <- cut_r2sub <- c() # subclasses of each cut (HFT_SUBCLASSES) and the part of the pixel variance they explain
-	for (cn in names(cuts)) {
-		progress('DONE', 1)
-		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
-		# el corte también va en el nombre de cada fichero, con _optim si es el sugerido
-		tag <- if (simil == 3) paste0('_', cn, if (identical(cn, suggested)) '_optim') else ''
-		dir.create(outdir, showWarnings = FALSE)
-
+	# HFTs of each cut (cl) and the number of HFTs of the cut of the tree (n_cut, for the message), before the cuts so
+	# that the silhouettes of all of them are computed at once (sil_widths)
+	cut_hfts <- function(cn) {
 		if (simil == 1) { hcut <- quantile(hclust_mh$height)[2] }
 		if (simil == 2) { hcut <- min(hclust_mh$height) - 0.1 }
 		if (simil == 3) { hcut <- cuts[[cn]] * max(hclust_mh$height) } # fracción de la altura máxima del árbol
 
 		cutree(hclust_mh, h=hcut) -> hclust_mean
-		ncl <- length(unique(hclust_mean))
-		print(paste('Number of HFTs is ', ncl, if (simil == 3) paste0(' (', cn, ')'), sep=''))
+		ncl <- n_cut <- length(unique(hclust_mean))
 
 		if (ncl == 1) {
 			as.numeric(match(hri$segm_id, unique(hri$segm_id))) -> hclust_mean # one HFT per segment, in the order of the rows
@@ -761,12 +849,28 @@ for (pmx in 1:mx) {
 		# siguen los del árbol, y los recuadros del dendrograma muestran los HFTs antes de reasignarlos)
 		if (class_method == 'ward_area_kmeans' && ncl > 1 && ncl < nrow(hri)) {
 			hclust_mean <- wkmeans(ct$z, ct$n, hclust_mean)
-			ncl <- length(unique(hclust_mean))
 		}
+		list(cl=hclust_mean, n_cut=n_cut)
+	}
+	cut_cls <- lapply(setNames(names(cuts), names(cuts)), cut_hfts)
+	cut_sils <- sil_widths(ct, dsil, lapply(cut_cls, `[[`, 'cl'))
+
+	hft_rows <- list() # HFTs of each cut and statistics of their pixels, for the tables of the HFTs
+	cut_sub <- cut_r2sub <- c() # subclasses of each cut (HFT_SUBCLASSES) and the part of the pixel variance they explain
+	for (cn in names(cuts)) {
+		progress('DONE', 1)
+		outdir <- if (simil == 3) file.path(outroot, cn) else outroot
+		# el corte también va en el nombre de cada fichero, con _optim si es el sugerido
+		tag <- if (simil == 3) paste0('_', cn, if (identical(cn, suggested)) '_optim') else ''
+		dir.create(outdir, showWarnings = FALSE)
+
+		print(paste('Number of HFTs is ', cut_cls[[cn]]$n_cut, if (simil == 3) paste0(' (', cn, ')'), sep=''))
+		hclust_mean <- cut_cls[[cn]]$cl
+		ncl <- length(unique(hclust_mean))
 
 		# Silhouette width of the segments in the HFTs of this cut (sil_width), its mean weighted by area and that of
 		# each HFT
-		sil <- sil_width(dsil, hclust_mean)
+		sil <- cut_sils[[cn]]
 		cut_sil[cn] <- sil_mean(sil$s, ct$n)
 		sil_h <- sil_hft(sil$s, ct$n, hclust_mean)
 		if (!is.na(cut_sil[cn])) print(sprintf('Mean silhouette width of the segments in the %d HFTs%s (weighted by area): %.2f',
@@ -1344,8 +1448,9 @@ for (pmx in 1:mx) {
 			r2m <- do.call(rbind, lapply(cls_t, function(cl) r2_groups(ss_t, cl)))
 			colnames(r2m) <- var_names
 			# Mean silhouette width of the segments of the same HFTs (distances computed once per threshold)
-			d_t <- if (tk == res) dsil else as.matrix(dist(ct_t$z))
-			sil_t <- sapply(cls_t, function(cl) sil_mean(sil_width(d_t, cl)$s, ct_t$n))
+			d_t <- if (tk == res) dsil else if (!ct_t$lowmem) as.matrix(dist(ct_t$z))
+			sil_t <- sapply(sil_widths(ct_t, d_t, cls_t), function(sl) sil_mean(sl$s, ct_t$n))
+			rm(d_t)
 			curves <- rbind(curves, data.frame(threshold=thr_val(tk), segments=nrow(hri_t),
 			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
 			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), silhouette=sil_t, r2m, check.names=FALSE))

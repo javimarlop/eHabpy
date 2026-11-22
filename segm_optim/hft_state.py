@@ -50,7 +50,7 @@ STEPS = [
 	 ['get_mean_median_var.py', 'ehab_segm_core.py']),
 	('moranvar', "Moran's I, variance and threshold", 'python3 moranvar.py', ['moranvar.py']),
 	('plots', 'HFTs and plots', 'Rscript moranvar_plots.R', ['moranvar_plots.R', 'plot_utils.R', 'CreateRadialPlot.R',
-	                                                         'subclasses.R']),
+	                                                         'subclasses.R', 'ward_lowmem.py']),
 ]
 NAMES = [s[0] for s in STEPS]
 LABEL = {s[0]: s[1] for s in STEPS}
@@ -262,6 +262,10 @@ SEGM_ID_MAX = 2 ** 63 - 1  # segm_id is a 64-bit integer in SQLite (GRASS) and N
 # segments: dense matrices of the distances between them (class_tree, the silhouette) of two thresholds at once (the R2
 # curves classify every threshold tested), measured: 2.5 GB with 6,000 segments (about 70 bytes x 6,000²)
 CLASS_BYTES = 70
+# A threshold with more segments is classified by ward_lowmem.py, without those matrices (the same results, with memory
+# proportional to the segments; its time grows with segments²: about a minute with 55,000, four with 166,000): with
+# this limit the matrices need at most 70 bytes x 7,500² = 3.9 GB. The same number is LOWMEM_SEGMENTS in moranvar_plots.R
+LOWMEM_SEGMENTS = 7500
 
 
 def parse_thresholds(value):
@@ -438,8 +442,9 @@ def options_error(cfg=None):
 
 def class_memory_gb(nseg):
 	"""Memory, in GB, that the classification into HFTs (moranvar_plots.R) needs when the threshold with the most
-	segments that it classifies has NSEG segments (CLASS_BYTES per pair)."""
-	return CLASS_BYTES * nseg ** 2 / 1e9
+	segments that it classifies has NSEG segments (CLASS_BYTES per pair): with more than LOWMEM_SEGMENTS, that of the
+	thresholds classified with the matrices of the distances, LOWMEM_SEGMENTS at most."""
+	return CLASS_BYTES * min(nseg, LOWMEM_SEGMENTS) ** 2 / 1e9
 
 
 def step_inputs(step, cfg=None, state=None):

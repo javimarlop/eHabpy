@@ -38,7 +38,6 @@ try:
 except ValueError as e:
 	sys.exit(f'ERROR: {e}')
 K_DIGITS, CAT_DIGITS = hft_state.segm_id_layout(SEGM_THRESHOLDS)
-MEMORY_WARNING_GB = 4  # a warning when the classification into HFTs will need more memory (hft_state.class_memory_gb)
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
 CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
 if not 0 <= CLIP_PERCENTILE < 50:
@@ -435,12 +434,14 @@ def fsegm(pa):
 			finally:
 				os.close(fd)
 			print(f"Area {pa}, threshold {thr}: {len(spa_list)} segments -> {segm_tif}")
-			# the classification into HFTs compares every pair of segments of the threshold with the most segments
-			gb = hft_state.class_memory_gb(len(spa_list))
-			if first_export and gb > MEMORY_WARNING_GB:
-				print(f"WARNING: area {pa}: {len(spa_list)} segments at threshold {thr}: the classification into HFTs "
-				      f"(moranvar_plots.R) will need about {gb:.0f} GB of memory ({hft_state.CLASS_BYTES} bytes x segments²). "
-				      "With less memory, use higher thresholds (SEGM_THRESHOLDS) or a larger MIN_SEGM_SIZE.")
+			# the classification into HFTs compares every pair of segments of the threshold with the most segments: with
+			# more than hft_state.LOWMEM_SEGMENTS, with little memory (ward_lowmem.py) but a time that grows with segments²
+			if first_export and len(spa_list) > hft_state.LOWMEM_SEGMENTS:
+				print(f"Area {pa}: {len(spa_list)} segments at threshold {thr}: the classification into HFTs "
+				      f"(moranvar_plots.R) will classify the thresholds with more than {hft_state.LOWMEM_SEGMENTS} segments "
+				      f"with little memory (ward_lowmem.py; it needs about {hft_state.class_memory_gb(len(spa_list)):.1f} GB "
+				      "at most), in a time that grows with segments² (about a minute with 55,000 segments, four with "
+				      "166,000).")
 			first_export = False
 
 			# the export of the segments (merge, vectors and segment raster) is the other half of the area,
