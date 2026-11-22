@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6) · 2026-11-22
 
 - **eHabitat+**: Every update with changes for users is a new release (1.6, 1.6.1, 1.6.2...) archived in Zenodo with its own DOI, so the exact version that was used can be cited; its notes are its entries of this changelog.
 - **HFT model, Desktop app**: The thresholds of the segmentation can be chosen (Segmentation thresholds, `SEGM_THRESHOLDS`, by default the nine from 0.1 to 0.9), e.g. `[0.02, 0.04, 0.06, 0.08, 0.1]` for smaller segments in very small habitats (with a smaller `MIN_SEGM_SIZE`, since no segment is smaller than the minimum size); a fixed threshold must be one of them, and the plots, tables and the app show the value of each threshold. With other thresholds than the nine of 0.1 to 0.9 the `segm_id` of a segment has 2 digits for the threshold and 7 for the segment (up to 9,999,999 segments per threshold instead of 99,999).
