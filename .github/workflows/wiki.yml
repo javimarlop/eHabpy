@@ -1,0 +1,37 @@
+# The links of the wiki (see .github/wiki_links.py): every link to a page, a section or an image of the wiki must lead
+# somewhere, in the wiki and in the files of the repository that link to it. It runs every time the wiki is edited
+# (gollum), on every push to master (a file may link to a section that is gone), every Monday (in case an edit of the
+# wiki did not start it) and by hand (Actions > Wiki links > Run workflow). A broken link fails the run: its log
+# says where it is ("wiki/<page>.md:<line>" or "<file>:<line>") and why.
+name: Wiki links
+
+on:
+  gollum:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ github.repository }}.wiki
+          path: wiki
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Tests of wiki_links.py
+        run: python .github/test_wiki_links.py
+      - name: Links of the wiki
+        run: |
+          git ls-files -z | grep -zvE '^\.github/(test_)?wiki_links\.py$|/vendor/' \
+            | xargs -0 grep -lIZ 'github.com/javimarlop/eHabpy/wiki' \
+            | xargs -0 python .github/wiki_links.py wiki
