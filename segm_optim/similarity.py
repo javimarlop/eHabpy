@@ -20,8 +20,10 @@ pixels outside the HFT with a similarity at least as high as the mean (or median
 are the similar areas, and their patches (ECOSIM_NEIGHBOURS) give the landscape metrics of eHabitat+ (HSR,
 number of patches, largest patch, aggregation...). thdi.R then computes the indices of each study area (THDI) and
 similarity_plots.R the plots. As a check of the robustness of the maps, every HFT is also compared with the pixels of
-all the HFTs of its study area (fit_matrix.csv): the % of the HFT similar to itself and the % of the similar area of
-the study area that is the HFT itself (SelfSim_pct, SelfFit_pct in hri_results.csv).
+all the HFTs of its study area (fit_matrix.csv): the % of the study area similar to the HFT and the % of that similar
+area that is the HFT itself (StudySim_pct, SelfFit_pct in hri_results.csv). The % of the HFT similar to itself (the
+diagonal of fit_matrix.csv, NrSimPixHFT / NrPixHFT) is set by the threshold, not by the fit: T is the mean or median
+similarity of the HFT pixels above 0, so about half of those are at or above it.
 
 The area compared is the folder ecoregion of the variables of the HFTs (the RESOLVE ecoregions that the study area
 touches, as downloaded by get_vars_gee.py) or, with ECOSIM_AREA, any folder with the same variables: a comparison
@@ -953,9 +955,10 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 def fit(hid, vals, rows, recs):
 	"""Fit of the similarity in the study area itself, as a check of its robustness: for every HFT h with a threshold
 	T, the pixels of each HFT k of the study area (VALS, those of the HFT statistics) with a similarity to h of at least
-	T. Adds to the rows of hri_results.csv (ROWS, RECS: those of the ID HID) the % of the HFT similar to itself
-	(SelfSim_pct), the % of the study area similar to h (StudySim_pct) and the % of that similar area that is h itself
-	(SelfFit_pct); returns the rows of fit_matrix.csv (% of each HFT k similar to each h)."""
+	T. Adds to the rows of hri_results.csv (ROWS, RECS: those of the ID HID) the % of the study area similar to h
+	(StudySim_pct) and the % of that similar area that is h itself (SelfFit_pct); returns the rows of fit_matrix.csv
+	(% of each HFT k similar to each h). Not the % of h similar to itself (NrSimPixHFT / NrPixHFT, the diagonal of
+	fit_matrix.csv): it is set by T, the mean or median similarity of the pixels of h above 0."""
 	total = sum(len(v) for v in vals.values())
 	out = []
 	for row, rec in zip(rows, recs):
@@ -971,11 +974,9 @@ def fit(hid, vals, rows, recs):
 			out.append({'wdpaid': hid, 'hft_ref': h, 'hft': k, 'NrPixHFT': n_k, 'NrSimPix': s_k,
 			            'Sim_pct': 100.0 * s_k / n_k if n_k else None})
 		in_study = sum(sim.values())
-		n_h = len(vals.get(h, ()))
-		row.update({'NrSimPixStudy': in_study, 'SelfSim_pct': 100.0 * sim.get(h, 0) / n_h if n_h else None,
-		            'StudySim_pct': 100.0 * in_study / total,
+		row.update({'NrSimPixStudy': in_study, 'StudySim_pct': 100.0 * in_study / total,
 		            'SelfFit_pct': 100.0 * sim.get(h, 0) / in_study if in_study else None})
-		rec.update({k: row[k] for k in ('SelfSim_pct', 'StudySim_pct', 'SelfFit_pct')})
+		rec.update({k: row[k] for k in ('StudySim_pct', 'SelfFit_pct')})
 	return out
 
 
@@ -994,8 +995,8 @@ def _num(v):
 HRI_COLUMNS = ['ecoregion', 'wdpaid', 'wdpaid_hft', '{sim}', 'NrSimPixEco', 'NrPixHFT', 'NrSimPixHFT',
                'NrSimPixEco_NrPixHFT_ratio', 'NrSimLcpPatEco', 'NrPixLargLcpPat_NrPixHFT_ratio', 'HSR',
                'NrSimLcpPatEqLargArea', 'NrPixLargLcpPat', 'Aggregation', 'hft', 'HFTArea_ha', 'SimAreaEco_km2',
-               'LargPatArea_km2', 'PixelSize_m', 'NrVars', 'Covariance', 'NrSimPixStudy', 'SelfSim_pct',
-               'StudySim_pct', 'SelfFit_pct', 'Status']
+               'LargPatArea_km2', 'PixelSize_m', 'NrVars', 'Covariance', 'NrSimPixStudy', 'StudySim_pct',
+               'SelfFit_pct', 'Status']
 
 
 def write_hri(path, rows, pairs, sim_label):
@@ -1403,9 +1404,8 @@ def run(s, cfg, plots=True):
 				fit_rows += fit(t['id'], vals, rows[-len(hft_ids):], recs[-len(hft_ids):])
 				for r in rows[-len(hft_ids):]:
 					if r.get('SelfFit_pct') is not None:
-						print(f"  HFT {r['hft']} in the study area: {r['SelfSim_pct']:.0f} % of it similar to itself, "
-						      f"{r['StudySim_pct']:.0f} % of the study area similar to it, {r['SelfFit_pct']:.0f} % of "
-						      f"that is the HFT", flush=True)
+						print(f"  HFT {r['hft']} in the study area: {r['StudySim_pct']:.0f} % of the study area similar "
+						      f"to it, {r['SelfFit_pct']:.0f} % of that is the HFT", flush=True)
 		hri = os.path.join(outdir, HRI_CSV)
 		write_hri(hri, rows, pairs, ctx['sim_label'])
 		write_fit(os.path.join(outdir, FIT_CSV), fit_rows)
@@ -1512,24 +1512,25 @@ def write_metadata(path, rec, thdi):
 		lines.append('none: the ecoregion variables are taken as one ecoregion')
 	lines.append(f"Marine ecoregions: {rec['marine'] or 'none'}")
 	lines += ['', '## HFTs (shapefiles: ' + ', '.join(rec['shapefiles'].values()) + ')',
-	          'id hft pixels variables covariance ridge threshold self_sim_% study_sim_% self_fit_% status '
-	          'left_out(constant)']
+	          'id hft pixels variables covariance ridge threshold study_sim_% self_fit_% status left_out(constant)']
 	for h in rec['hfts']:
 		cov = h.get('covariance') or 'NA'
 		if cov == 'mcd' and h.get('mcd_kept') is not None:
 			cov += f"({100 * h['mcd_kept']:.0f}%_kept)"
 		lines.append(f"{h['id']} {h['hft']} {h['ref_pixels']} {h['vars_used'] if h['vars_used'] is not None else 'NA'} "
 		             f"{cov} {h['ridge'] if h['ridge'] is not None else 'NA'} {_num(h['threshold'])} "
-		             f"{_num(h.get('SelfSim_pct'))} {_num(h.get('StudySim_pct'))} {_num(h.get('SelfFit_pct'))} "
+		             f"{_num(h.get('StudySim_pct'))} {_num(h.get('SelfFit_pct'))} "
 		             f"{h['status']} {','.join(h.get('vars_dropped') or []) or '-'}")
 	notes = [f"HFT {h['hft']} (ID {h['id']}): classic covariance, {h['covariance_note']}" for h in rec['hfts']
 	         if h.get('covariance_note') and h.get('covariance') == 'classic']
 	if notes:
 		lines += [''] + notes
-	lines += ['', 'Fit in the study area (fit_matrix.csv): self_sim_% = % of the HFT pixels similar to the HFT itself '
-	          '(similarity >= T); study_sim_% = % of the pixels of the HFTs of the study area similar to the HFT; '
-	          'self_fit_% = % of those similar pixels that are the HFT itself. A robust map has high self_sim_% and '
-	          'self_fit_%.']
+	lines += ['', 'Fit in the study area (fit_matrix.csv): study_sim_% = % of the pixels of the HFTs of the study area '
+	          'similar to the HFT (similarity >= T); self_fit_% = % of those similar pixels that are the HFT itself. A '
+	          'robust map has a high self_fit_%: what it takes as similar in the study area is mostly the HFT itself. '
+	          'The % of the HFT similar to itself (the diagonal of fit_matrix.csv) is set by the threshold, not by the '
+	          'fit: T is the mean or median similarity of the HFT pixels above 0, so about half of those are at or '
+	          'above it.']
 	if os.path.isfile(thdi):
 		lines += ['', '## Indices of the study areas (thdi_res.csv)'] + open(thdi).read().strip().splitlines()
 	lines += ['', f"Time: {rec['seconds']} s"]
