@@ -74,21 +74,41 @@ SEGM_PCA = True
 #       estadísticos de los HFTs usan siempre todos los valores originales.
 CLIP_PERCENTILE = 0
 
+# UMBRALES DE LA SEGMENTACIÓN (threshold de i.segment): lista de valores mayores que 0 y menores que 1, escritos de
+# menor a mayor y sin repetir (si no, es un error), 99 como máximo. Un umbral más bajo da segmentos más pequeños. Cada
+# umbral parte de los segmentos del anterior (el primero, de semillas al azar con el tamaño mínimo), así que la propia
+# lista cambia los segmentos. Cada umbral se conoce por su posición k en la lista (1, 2, ...), que va en el nombre de
+# sus archivos (p. ej. shp/park_segm_<id>_<k>.shp). P. ej. [0.02, 0.04, 0.06, 0.08, 0.1] para hábitats muy pequeños,
+# con un MIN_SEGM_SIZE menor: ningún segmento es más pequeño que el tamaño mínimo, sean cuales sean los umbrales (por
+# defecto la raíz cuadrada del nº de píxeles con datos, 11.8 ha en Guajares). Cada umbral más alarga la segmentación,
+# y la clasificación en HFTs compara cada par de segmentos de cada umbral probado: necesita unos 70 bytes x (nº de
+# segmentos)² del umbral con más segmentos (el más bajo; con un umbral fijo, ese), unos 7 GB con 10 000 segmentos y
+# 16 GB con 15 000. Con otros umbrales que los nueve de 0.1 a 0.9, el segm_id de los segmentos lleva 2 cifras para el
+# umbral y 7 para el segmento (en vez de 1 y 5). Sin esta opción, los nueve.
+SEGM_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+
 # RADIO PARA UNIR SEGMENTOS PEQUEÑOS (en píxeles, así depende del tamaño de píxel):
-# los segmentos con menos píxeles que minarea (raíz cuadrada del nº de píxeles con datos de
-# la región) se unen al segmento más frecuente de los mayores que ellos a esta distancia o
-# menos, en pasadas repetidas hasta que no cambia nada. Los que no tienen ningún segmento
-# mayor tan cerca se unen después al segmento de minarea píxeles o más más cercano, esté a
-# la distancia que esté. 5 = 5 x RESOLUTION (50 m con píxeles de 10 m).
+# i.segment ya une cada segmento con menos píxeles que MIN_SEGM_SIZE a su vecino más parecido, así que esto solo
+# actúa sobre los trozos que quedan más pequeños (cortados por píxeles sin datos o por CLIP_TO_PA): se unen a uno
+# de los segmentos mayores que ellos a esta distancia o menos (ver SMALL_SEGM_MERGE), en pasadas repetidas hasta
+# que no cambia nada. Los que no tienen ningún
+# segmento mayor tan cerca se unen después al segmento de minarea píxeles o más más cercano,
+# esté a la distancia que esté. 5 = 5 x RESOLUTION (50 m con píxeles de 10 m).
 SMALL_SEGM_RADIUS = 10
 
-# TAMAÑO MÍNIMO DE UN SEGMENTO (en píxeles, así depende del tamaño de píxel): los segmentos con menos píxeles se
-# unen a otros (ver SMALL_SEGM_RADIUS), y es el minsize de i.segment. 0 = automático: la raíz cuadrada del nº de
+# A QUÉ SEGMENTO SE UNE CADA SEGMENTO PEQUEÑO, de los mayores que él a SMALL_SEGM_RADIUS o menos:
+# 'frequent' = al más frecuente en ese radio, se parezca o no (la regla anterior; también sin esta opción).
+# 'similar'  = al más parecido: el de medias más cercanas en las capas de la segmentación (PC1-PC3, o las
+#              variables con SEGM_PCA = False), escaladas a su rango como hace i.segment.
+SMALL_SEGM_MERGE = 'frequent'
+
+# TAMAÑO MÍNIMO DE UN SEGMENTO (en píxeles, así depende del tamaño de píxel): es el minsize de i.segment, que une
+# los segmentos con menos píxeles a su vecino más parecido (y los trozos que quedan, ver SMALL_SEGM_RADIUS). 0 = automático: la raíz cuadrada del nº de
 # píxeles con datos de la región (cada área, así que crece con su tamaño). Un número fija el mismo mínimo en todas
 # las áreas, p. ej. 100 = 1 ha con píxeles de 10 m.
 MIN_SEGM_SIZE = 0
 
-# ELECCIÓN DEL UMBRAL DE SEGMENTACIÓN (moranvar.py), entre los nueve de 0.1 a 0.9, con el I de
+# ELECCIÓN DEL UMBRAL DE SEGMENTACIÓN (moranvar.py), entre los de SEGM_THRESHOLDS, con el I de
 # Moran de las medias de los segmentos (MI, bajo = segmentos distintos de sus vecinos) y la
 # varianza dentro de ellos (V, baja = segmentos homogéneos) de cada variable. Ver la wiki, How the HFT model works, A5:
 # 'f'              = Máximo de la función F de Johnson et al. (2015), como i.segment.uspo de
@@ -97,9 +117,10 @@ MIN_SEGM_SIZE = 0
 # 'gs_fixed'       = Mínimo de V / varianza total + |I de Moran|, sin reescalar entre los
 #                    umbrales: no depende de qué umbrales se prueben.
 # 'crossing'       = Primer cruce de las curvas de MI y V reescaladas menos un umbral (el método
-#                    original de eHabitat+).
+#                    original de eHabitat+): las curvas se cruzan entre las posiciones k de los umbrales,
+#                    y menos un umbral es el anterior de la lista.
 # 'crossing_first' = Primer cruce de las curvas, sin restar un umbral.
-# Un número        = Umbral fijo (p. ej. 0.5).
+# Un número        = Umbral fijo, uno de los de SEGM_THRESHOLDS (p. ej. 0.5): la segmentación se para en él.
 # En la prueba con Guajares, 'f' con alfa 0.5 fue el más estable y eligió el umbral cuyos HFTs
 # explican más varianza de los píxeles.
 THRESHOLD_METHOD = 'f'

@@ -21,6 +21,7 @@ and, used by moranvar_plots.R:
     python3 hft_state.py done STEP    # STEP finished
 """
 
+import ast
 import glob
 import hashlib
 import json
@@ -76,10 +77,35 @@ def read_config():
 	return runpy.run_path(CONFIG)
 
 
+def _assignment_span(text, name):
+	"""(start, end) in TEXT of the last statement NAME = value at the top level of config.py, from the start of its line
+	to the end of the value (so a value written over several lines is replaced whole, and the comment after it is
+	kept), or None if there is none or config.py cannot be parsed."""
+	try:
+		tree = ast.parse(text)
+	except (SyntaxError, ValueError):
+		return None
+	node = None
+	for n in tree.body:
+		if isinstance(n, ast.Assign) and len(n.targets) == 1 and isinstance(n.targets[0], ast.Name) and n.targets[0].id == name:
+			node = n  # the last one, which is the value that Python keeps
+	if node is None or node.end_lineno is None:
+		return None
+	lines = text.splitlines(keepends=True)
+	offset = lambda i: sum(len(x) for x in lines[:i - 1])  # first character of line i (from 1)
+	end_line = lines[node.end_lineno - 1]
+	end_col = len(end_line.encode('utf-8')[:node.end_col_offset].decode('utf-8', errors='ignore'))  # ast counts bytes
+	return offset(node.lineno), offset(node.end_lineno) + end_col
+
+
 def set_option(text, name, value):
-	"""Set NAME = value in the text of config.py keeping its comment, or append it."""
-	pattern = re.compile(rf'^{name}\s*=.*?(?=\s+#|$)', re.M)
+	"""Set NAME = value in the text of config.py keeping its comment, or append it. The whole value is replaced, also
+	when it is written over several lines (e.g. a long list)."""
 	line = f'{name} = {value}'
+	span = _assignment_span(text, name)
+	if span:
+		return text[:span[0]] + line + text[span[1]:]
+	pattern = re.compile(rf'^{name}\s*=.*?(?=\s+#|$)', re.M)  # config.py does not parse: a value on one line
 	if pattern.search(text):
 		return pattern.sub(lambda m: line, text, count=1)
 	return text.rstrip('\n') + '\n' + line + '\n'
@@ -221,15 +247,195 @@ def progress(kind, value=''):
 		os.write(1, f'##{kind} {value}\n'.encode())
 
 
+# Thresholds of the segmentation (SEGM_THRESHOLDS in config.py). Every threshold is known by its position k = 1..n in
+# the sorted list, which names its files (shp/park_segm_<id>_<k>.shp, csv/park_<id>_hri_results<k>.csv...). The
+# segmentation writes the value of every k to csv/segm_thresholds.csv, which the later steps read for the labels.
+DEFAULT_THRESHOLDS = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+MAX_THRESHOLDS = 99  # k has at most two digits (it is part of segm_id)
+THRESHOLD_TOL = 1e-9  # a fixed THRESHOLD_METHOD is the threshold of SEGM_THRESHOLDS within this distance
+THRESHOLDS_CSV = os.path.join(HERE, 'csv', 'segm_thresholds.csv')
+THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')  # THRESHOLD_METHOD, or a fixed threshold
+SMALL_SEGM_MERGES = ('frequent', 'similar')  # SMALL_SEGM_MERGE: 'frequent', the rule up to eHabpy 1.5, is the default
+SEGM_ID_MAX = 2 ** 63 - 1  # segm_id is a 64-bit integer in SQLite (GRASS) and NumPy: larger ones lose digits
+# Memory of the classification into HFTs of moranvar_plots.R per pair of segments of the threshold with the most
+# segments: dense matrices of the distances between them (class_tree, the silhouette) of two thresholds at once (the R2
+# curves classify every threshold tested), measured: 2.5 GB with 6,000 segments (about 70 bytes x 6,000²)
+CLASS_BYTES = 70
+
+
+def parse_thresholds(value):
+	"""A value of SEGM_THRESHOLDS as the list of its thresholds (floats); ValueError saying what is wrong if it is not a
+	list of 1 to MAX_THRESHOLDS numbers greater than 0 and smaller than 1, from the lowest to the highest without
+	repeating any (the order is that of the chain of the segmentation and gives the index k of each threshold, so it is
+	not changed silently: the app sorts the thresholds typed before writing them)."""
+	if isinstance(value, (str, bytes)) or not isinstance(value, (list, tuple)):
+		raise ValueError(f'SEGM_THRESHOLDS: it must be a list of thresholds between 0 and 1, e.g. {DEFAULT_THRESHOLDS}, not {value!r}')
+	out = []
+	for v in value:
+		if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
+			raise ValueError(f'SEGM_THRESHOLDS: {v!r} is not a number')
+		if not 0 < v < 1:
+			raise ValueError(f'SEGM_THRESHOLDS: every threshold must be greater than 0 and smaller than 1, not {v!r}')
+		v = float(v)
+		if out and abs(v - out[-1]) <= THRESHOLD_TOL:
+			raise ValueError(f'SEGM_THRESHOLDS: {threshold_label(out[-1])} is repeated')
+		if out and v < out[-1]:
+			raise ValueError(f'SEGM_THRESHOLDS: the thresholds must go from the lowest to the highest, '
+			                 f'and {threshold_label(v)} comes after {threshold_label(out[-1])}')
+		out.append(v)
+	if not out:
+		raise ValueError('SEGM_THRESHOLDS: the list cannot be empty')
+	if len(out) > MAX_THRESHOLDS:
+		raise ValueError(f'SEGM_THRESHOLDS: at most {MAX_THRESHOLDS} thresholds, not {len(out)}')
+	return out
+
+
+def segm_thresholds(cfg=None):
+	"""The thresholds of the segmentation (SEGM_THRESHOLDS in config.py, DEFAULT_THRESHOLDS without it), from the lowest
+	to the highest: k is the position of each one, from 1. ValueError if the option is not valid."""
+	cfg = read_config() if cfg is None else cfg
+	return parse_thresholds(cfg.get('SEGM_THRESHOLDS', DEFAULT_THRESHOLDS))
+
+
+def is_default_thresholds(ths):
+	"""Whether the thresholds THS (a sorted list) are the nine of 0.1-0.9, DEFAULT_THRESHOLDS: the layout of segm_id
+	and the inputs recorded are then those of eHabpy up to 1.5."""
+	return (isinstance(ths, (list, tuple)) and len(ths) == len(DEFAULT_THRESHOLDS)
+	        and all(isinstance(a, (int, float)) and abs(a - b) <= THRESHOLD_TOL for a, b in zip(ths, DEFAULT_THRESHOLDS)))
+
+
+def threshold_label(value):
+	"""A threshold as text for messages, plots and tables: 0.1, 0.05, 0.125 (no exponent, no trailing zeros)."""
+	return f'{float(value):.15f}'.rstrip('0').rstrip('.')
+
+
+def write_run_thresholds(ths, path=None):
+	"""csv/segm_thresholds.csv: 'k value', the value of every threshold k of the segmentation (written by it)."""
+	with open(path or THRESHOLDS_CSV, 'w') as f:
+		f.write('k value\n' + ''.join(f'{k} {threshold_label(v)}\n' for k, v in enumerate(ths, 1)))
+
+
+def run_thresholds(path=None, cfg=None):
+	"""{k: value} of the thresholds of the last segmentation (csv/segm_thresholds.csv). Without that file (a
+	segmentation of eHabpy 1.5 or before), or if it cannot be read, those of SEGM_THRESHOLDS in config.py (CFG), which
+	the steps check to be those of the segmentation (check_ready): the nine of 0.1-0.9 of those segmentations, value =
+	k / 10, or the default ones if the option is not valid."""
+	path = path or THRESHOLDS_CSV
+	try:
+		with open(path) as f:
+			rows = [line.split() for line in f.read().splitlines()[1:] if line.strip()]
+		out = {}
+		for row in rows:
+			k, v = row  # ValueError if a row does not have two fields
+			out[int(k)] = float(v)
+		if out:
+			return dict(sorted(out.items()))
+		raise ValueError('no thresholds')
+	except OSError:
+		pass
+	except ValueError as e:
+		print(f'WARNING: {os.path.basename(path)} cannot be read ({e}): the thresholds of config.py are used', file=sys.stderr)
+	try:
+		ths = segm_thresholds(cfg)
+	except ValueError:
+		ths = DEFAULT_THRESHOLDS
+	return dict(enumerate(ths, 1))
+
+
 def fixed_level(cfg=None):
-	"""Level (1-9, threshold 0.1-0.9) when THRESHOLD_METHOD in config.py is a fixed threshold, else None.
-	The segmentation then goes up the chain of thresholds only as far as that one, and the later steps
-	calculate and show only that one."""
+	"""Level k (1..n: the position of the threshold in SEGM_THRESHOLDS) when THRESHOLD_METHOD in config.py is a fixed
+	threshold, else None. The segmentation then goes up the chain of thresholds only as far as that one, and the later
+	steps calculate and show only that one. ValueError when the number is not one of the thresholds of SEGM_THRESHOLDS
+	(or that option is not valid)."""
 	cfg = read_config() if cfg is None else cfg
 	t = cfg.get('THRESHOLD_METHOD')
 	if isinstance(t, (int, float)) and not isinstance(t, bool):
-		return min(9, max(1, int(round(t * 10))))
+		ths = segm_thresholds(cfg)
+		for k, v in enumerate(ths, 1):
+			if abs(t - v) <= THRESHOLD_TOL:
+				return k
+		raise ValueError(f'THRESHOLD_METHOD = {t!r} in config.py is not one of the thresholds of the segmentation '
+		                 f"(SEGM_THRESHOLDS): {', '.join(map(threshold_label, ths))}")
 	return None
+
+
+def segm_id_layout(ths):
+	"""(digits of k, digits of the segment number) in segm_id = area ID || k || segment number, both zero-padded:
+	(1, 5) with the nine thresholds of 0.1-0.9, as up to eHabpy 1.5 (at most 99,999 segments per threshold), else
+	(2, 7) (at most 9,999,999). The same width for all the segments of a run, so a segm_id is unique among the areas
+	and the thresholds."""
+	return (1, 5) if is_default_thresholds(ths) else (2, 7)
+
+
+def thresholds_error(cfg=None):
+	"""Why SEGM_THRESHOLDS or a fixed THRESHOLD_METHOD of config.py are not valid (None if they are)."""
+	cfg = read_config() if cfg is None else cfg
+	try:
+		segm_thresholds(cfg)
+		fixed_level(cfg)
+	except ValueError as e:
+		return str(e)
+	return None
+
+
+def merge_rule(cfg=None):
+	"""SMALL_SEGM_MERGE of config.py as the segmentation uses it, 'frequent' or 'similar' (without the option, or with
+	None or '', 'frequent'; in capitals too); ValueError for any other value."""
+	cfg = read_config() if cfg is None else cfg
+	v = cfg.get('SMALL_SEGM_MERGE', 'frequent')
+	rule = 'frequent' if v is None or v == '' else v.strip().lower() if isinstance(v, str) else v
+	if rule not in SMALL_SEGM_MERGES:
+		raise ValueError(f"SMALL_SEGM_MERGE in config.py must be {' or '.join(map(repr, SMALL_SEGM_MERGES))}, not {v!r}")
+	return rule
+
+
+def segm_id_error(area, ths, kmax=None):
+	"""Why the segm_id of the segments of the area with ID AREA could be larger than SEGM_ID_MAX with the thresholds THS
+	(segmented up to the threshold KMAX, by default all), else None. The largest one is the area ID, the largest k and
+	the largest segment number allowed (segm_id_layout), so it is known before the segmentation. IDs that are not whole
+	numbers are not checked."""
+	s = str(area).strip()
+	digits = s[1:] if s.startswith('-') else s
+	if not digits.isdigit():
+		return None
+	kd, cd = segm_id_layout(ths)
+	largest = int(f'{digits}{(kmax or len(ths)):0{kd}d}{10 ** cd - 1}')
+	if largest <= SEGM_ID_MAX:
+		return None
+	return (f'area {s}: the segm_id of its segments could reach {largest} (the area ID followed by {kd} digit(s) for '
+	        f'the threshold and {cd} for the segment), larger than {SEGM_ID_MAX}, the largest whole number that GRASS '
+	        'and NumPy keep exactly: use a column of shorter IDs for the study areas (COL_ID)'
+	        + (', or the nine thresholds of 0.1-0.9 (1 + 5 digits)' if (kd, cd) != (1, 5) else ''))
+
+
+def options_error(cfg=None):
+	"""Why SEGM_THRESHOLDS, THRESHOLD_METHOD or SMALL_SEGM_MERGE of config.py are not valid, or why the segm_id of an
+	area of palist.csv would not fit (segm_id_error), None if all is right: checked before any step runs (run_hft.py,
+	check_ready), so that a wrong value does not stop the run after the steps before the one that uses it."""
+	cfg = read_config() if cfg is None else cfg
+	err = thresholds_error(cfg)
+	if err:
+		return err
+	t = cfg.get('THRESHOLD_METHOD', 'f')
+	if not (isinstance(t, str) and t in THRESHOLD_METHODS) and (isinstance(t, bool) or not isinstance(t, (int, float))):
+		return (f"THRESHOLD_METHOD in config.py must be {', '.join(map(repr, THRESHOLD_METHODS))} or one of the "
+		        f'thresholds of SEGM_THRESHOLDS (a number), not {t!r}')
+	try:
+		merge_rule(cfg)
+	except ValueError as e:
+		return str(e)
+	if os.path.isfile(PALIST):
+		ths = segm_thresholds(cfg)
+		errs = [e for e in (segm_id_error(a, ths, fixed_level(cfg)) for a in sorted(set(open(PALIST).read().split()))) if e]
+		if errs:
+			return 'the IDs of palist.csv are too long for segm_id: ' + '; '.join(errs[:3]) + (f' (and {len(errs) - 3} more)' if len(errs) > 3 else '')
+	return None
+
+
+def class_memory_gb(nseg):
+	"""Memory, in GB, that the classification into HFTs (moranvar_plots.R) needs when the threshold with the most
+	segments that it classifies has NSEG segments (CLASS_BYTES per pair)."""
+	return CLASS_BYTES * nseg ** 2 / 1e9
 
 
 def step_inputs(step, cfg=None, state=None):
@@ -249,8 +455,28 @@ def step_inputs(step, cfg=None, state=None):
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
 		inputs.update(later(('CLIP_PERCENTILE', 0), ('MIN_SEGM_SIZE', 0)))
-		if fixed_level(cfg):
-			inputs['thresholds segmented'] = f'1-{fixed_level(cfg)}'  # a fixed threshold stops the chain there
+		# SMALL_SEGM_MERGE as the segmentation reads it (merge_rule: 'Frequent' or None are 'frequent', the default, not
+		# recorded); an invalid value is recorded as it is (the scripts stop saying why: check_ready)
+		try:
+			rule = merge_rule(cfg)
+		except ValueError:
+			rule = cfg.get('SMALL_SEGM_MERGE')
+		if rule != 'frequent':
+			inputs['SMALL_SEGM_MERGE'] = repr(rule)
+		# the thresholds, as an option of later(): not recorded when they are the nine of 0.1-0.9, so the segmentations made before the option existed stay up to date; an invalid value is recorded
+		# as it is (the scripts stop saying why: check_ready)
+		try:
+			ths = segm_thresholds(cfg)
+		except ValueError:
+			ths = cfg.get('SEGM_THRESHOLDS')
+		if not is_default_thresholds(ths):
+			inputs['SEGM_THRESHOLDS'] = repr(ths)
+		try:
+			fixed = fixed_level(cfg)
+		except ValueError:
+			fixed = None
+		if fixed:
+			inputs['thresholds segmented'] = f'1-{fixed}'  # a fixed threshold stops the chain there
 		ids = open(PALIST).read().split() if os.path.isfile(PALIST) else []
 		inputs['palist.csv'] = ' '.join(sorted(set(ids)))
 		inputs['imported data'] = setup_digest(cfg, state)
@@ -359,8 +585,10 @@ def not_ready(step, cfg=None, state=None):
 
 
 def check_ready(step):
-	"""Stop with a message saying what to run when a step before STEP is out of date."""
-	msg = not_ready(step)
+	"""Stop with a message saying what to run when a step before STEP is out of date, or what is wrong in the options
+	of config.py checked before every step (options_error: SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE)."""
+	err = options_error()
+	msg = f'ERROR: {err}' if err else not_ready(step)
 	if msg:
 		print(msg, file=sys.stderr)
 		sys.exit(NOT_READY)

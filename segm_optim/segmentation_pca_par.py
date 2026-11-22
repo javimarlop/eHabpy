@@ -27,6 +27,18 @@ FORCE_RESTART = getattr(sys.modules['config'], 'FORCE_RESTART', False) or os.env
 PA_BUFFER = getattr(sys.modules['config'], 'PA_BUFFER', 0)
 SMALL_SEGM_RADIUS = getattr(sys.modules['config'], 'SMALL_SEGM_RADIUS', 5)
 MIN_SEGM_SIZE = int(getattr(sys.modules['config'], 'MIN_SEGM_SIZE', 0) or 0)  # 0 = sqrt of the pixels with data
+# 'frequent' (the rule up to eHabpy 1.5, also without the option) or 'similar', read as hft_state records it
+try:
+	SMALL_SEGM_MERGE = hft_state.merge_rule(vars(sys.modules['config']))
+except ValueError as e:
+	sys.exit(f'ERROR: {e}')
+# Thresholds of i.segment, from the lowest to the highest (k = 1..n, their position, names their files), and the layout of segm_id
+try:
+	SEGM_THRESHOLDS = hft_state.parse_thresholds(getattr(sys.modules['config'], 'SEGM_THRESHOLDS', hft_state.DEFAULT_THRESHOLDS))
+except ValueError as e:
+	sys.exit(f'ERROR: {e}')
+K_DIGITS, CAT_DIGITS = hft_state.segm_id_layout(SEGM_THRESHOLDS)
+MEMORY_WARNING_GB = 4  # a warning when the classification into HFTs will need more memory (hft_state.class_memory_gb)
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
 CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
 if not 0 <= CLIP_PERCENTILE < 50:
@@ -125,17 +137,53 @@ csvong2 = 'done.csv'
 csvarea = 'csv/study_area.csv'
 
 
-def merge_small_segments(grass, pa3, minarea):
-	"""Une cada segmento de pa3 con menos de minarea celdas al segmento más frecuente de los
-	mayores que él a SMALL_SEGM_RADIUS píxeles o menos (distancia entre centros de celda), en
-	pasadas repetidas hasta que no cambia nada: los grupos de fragmentos cercanos acaban en un
-	mismo segmento. Los que siguen siendo pequeños (sin ningún segmento mayor tan cerca) se
-	unen después al segmento de minarea celdas o más más cercano, a cualquier distancia.
+def segm_files(pa, k):
+	"""Files of the segments of area PA and threshold K read by the statistics step (ehab_segm_core.py): the segm_id
+	of every segment, the table cat -> segm_id and the segment raster (labels = cat, 0 outside the segments)."""
+	return (f'csv/park_{pa}_{k}.csv', f'csv/segm_{pa}_{k}_ids.csv', f'tiffs/segm_{pa}_{k}.tif')
+
+
+def _layer_means(data, layers, n):
+	"""Mean of every layer (pixels x layers, NaN = no data) in every segment of DATA (0 = none): n x layers."""
+	flat = data.ravel()
+	out = np.full((n, layers.shape[1]), np.nan)
+	for j in range(layers.shape[1]):
+		v = layers[:, j]
+		ok = (flat > 0) & np.isfinite(v)
+		cnt = np.bincount(flat[ok], minlength=n)
+		with np.errstate(invalid='ignore', divide='ignore'):
+			out[:, j] = np.bincount(flat[ok], weights=v[ok], minlength=n) / cnt
+	return out
+
+
+def merge_small_segments(grass, pa3, minarea, layers=None):
+	"""Une cada segmento de pa3 con menos de minarea celdas a uno de los mayores que él a
+	SMALL_SEGM_RADIUS píxeles o menos (distancia entre centros de celda): con SMALL_SEGM_MERGE =
+	'similar', al más parecido (distancia euclídea entre las medias de las capas LAYERS de la
+	segmentación, escaladas a su rango como hace i.segment), y con 'frequent', al más frecuente
+	en ese radio (el criterio anterior, que no mira si se parecen). En pasadas repetidas hasta
+	que no cambia nada: los grupos de fragmentos cercanos acaban en un mismo segmento. Los que
+	siguen siendo pequeños (sin ningún segmento mayor tan cerca, p. ej. fragmentos aislados entre
+	píxeles sin datos) se unen después al segmento de minarea celdas o más más cercano, a
+	cualquier distancia.
 	Se hace en memoria y no con un mapa por segmento: con datos enmascarados hay miles de
 	fragmentos aislados y r.patch agotaba los archivos abiertos."""
 	import grass.script.array as garray
 
 	data = np.asarray(garray.array(mapname=pa3, null=0, dtype=np.int32))
+	ids, counts = np.unique(data[data > 0], return_counts=True)
+	if not (counts < minarea).any():
+		print(f"{pa3}: no segment < {minarea} cells")
+		return
+	similar = SMALL_SEGM_MERGE == 'similar' and layers
+	if similar:
+		# the layers of the segmentation, each scaled to its range in the region (as i.segment does)
+		vals = []
+		for name in layers:
+			a = np.asarray(garray.array(mapname=name, null=np.nan), dtype=np.float32).ravel()
+			lo, hi = np.nanmin(a), np.nanmax(a)
+			vals.append((a - lo) / (hi - lo) if hi > lo else np.zeros_like(a))
+		vals = np.stack(vals, axis=1)
 	margin = int(SMALL_SEGM_RADIUS) + 1  # cells around the segment that can be within the radius
 	npass = 0
 	while True:
@@ -147,6 +195,7 @@ def merge_small_segments(grass, pa3, minarea):
 		size[ids] = counts
 		lut = np.arange(data.max() + 1, dtype=np.int32)
 		boxes = ndimage.find_objects(data)
+		means = _layer_means(data, vals, data.max() + 1) if similar and len(small) else None
 		for s in small:
 			rows, cols = boxes[s - 1]
 			sub = data[max(rows.start - margin, 0):rows.stop + margin, max(cols.start - margin, 0):cols.stop + margin]
@@ -157,7 +206,12 @@ def merge_small_segments(grass, pa3, minarea):
 			near = near[(size[near] > size[s]) | ((size[near] == size[s]) & (near > s))]
 			if near.size:
 				ids_near, n = np.unique(near, return_counts=True)
-				lut[s] = ids_near[np.argmax(n)]
+				if means is not None and np.isfinite(means[s]).all():
+					d = ((means[ids_near] - means[s]) ** 2).sum(axis=1)
+					d[~np.isfinite(d)] = np.inf  # a candidate without data in some layer: the last choice
+					lut[s] = ids_near[np.argmin(d)] if np.isfinite(d).any() else ids_near[np.argmax(n)]
+				else:
+					lut[s] = ids_near[np.argmax(n)]
 		if (lut == np.arange(len(lut))).all():
 			break
 		npass += 1
@@ -165,8 +219,9 @@ def merge_small_segments(grass, pa3, minarea):
 		while not (lut[lut] == lut).all():
 			lut = lut[lut]
 		data = lut[data]
-	print(f"{pa3}: {nsmall} segments < {minarea} cells, {len(small)} left after {npass} merging passes "
-	      f"(no larger segment within {SMALL_SEGM_RADIUS} pixels)")
+	print(f"{pa3}: {nsmall} segments < {minarea} cells merged into the "
+	      f"{'most similar' if similar else 'most frequent'} larger one within {SMALL_SEGM_RADIUS} pixels in {npass} "
+	      f"passes; {len(small)} left without a larger segment so close")
 
 	# Those left join the nearest segment with minarea cells or more, at any distance
 	changed = npass > 0
@@ -194,6 +249,10 @@ def merge_small_segments(grass, pa3, minarea):
 
 
 def fsegm(pa):
+	"""Segmentation of area PA at the thresholds of SEGM_THRESHOLDS (0.1-0.9 by default; or up to the fixed one): for
+	every threshold k exported (k = 1..n, its position in the list), shp/park_segm_<pa>_<k>.shp and the files of
+	segm_files(): one raster of all the segments, which the statistics step reads at once (no map or file per
+	segment). Every area is 1000 units of progress: half the i.segment of the thresholds, half the export."""
 	pa_list_done = np.genfromtxt(csvname1, dtype=str) if os.path.exists(csvname1) else np.array([])
 	if pa in pa_list_done:
 		hft_state.progress('DONE', 1000)  # an area done before (every area is 1000 units: see below)
@@ -217,23 +276,18 @@ def fsegm(pa):
 		fix_grass_env(gisbase)
 
 		source = STUDY_AREA
-		reps = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+		reps = list(SEGM_THRESHOLDS)
 		# Fixed threshold: each threshold starts from the segments of the previous one, so the chain is run up to
-		# it (same segments as with the nine), but only the chosen one is converted, exported and summarised
+		# it (same segments as with all the thresholds), but only the chosen one is converted, exported and summarised
 		only = hft_state.fixed_level()
 		if only:
 			reps = reps[:only]
 
-		# Remove leftovers of a previous interrupted run of this area (csv files are appended to)
-		for k in range(1, 10):
-			leftover = 'csv/park_' + str(pa) + '_' + str(k) + '.csv'
-			if os.path.exists(leftover):
-				with open(leftover) as f:
-					for spa in f.read().split():
-						tif = 'tiffs/pa_' + spa + '.tif'
-						if os.path.exists(tif):
-							os.remove(tif)
-				os.remove(leftover)
+		# Remove leftovers of a previous interrupted run of this area: its segment rasters and their lists
+		for k in range(1, hft_state.MAX_THRESHOLDS + 1):
+			for leftover in segm_files(pa, k) + ('tiffs/segm_' + str(pa) + '_' + str(k) + '.tif.aux.xml',):
+				if os.path.exists(leftover):
+					os.remove(leftover)
 
 		pa44x = 'pax_' + str(pa)
 		pa0 = 'v0_' + pa
@@ -255,7 +309,8 @@ def fsegm(pa):
 		grass.run_command('r.mapcalc', expression=f'const = if(isnull({FIRST_VAR}),null(),1)', overwrite=True)
 		grass.run_command('r.mapcalc', expression=same, overwrite=True)
 		grass.run_command('r.mapcalc', seed=10, expression=rndmap, overwrite=True)
-		grass.run_command('r.out.gdal', input='rndseed', output=rndname, overwrite=True)
+		# -c: without a colour table, which GTiff only takes for Byte or UInt16 bands (GDAL printed an ERROR 6)
+		grass.run_command('r.out.gdal', input='rndseed', output=rndname, flags='c', overwrite=True)
 
 		a = grass.read_command('r.stats', input='const', flags='nc', separator='\n').splitlines()
 		if len(a) == 0: a = [1, 625]
@@ -285,6 +340,7 @@ def fsegm(pa):
 		grass.run_command('i.group', group='segm', input=','.join(segm_input))
 
 		j = 0
+		first_export = True  # the first threshold exported has the most segments (they only grow with the threshold)
 		for thr in reps:
 			pa2 = pa + 'v2_' + str(j)
 			pa2s = pa + 'v2_' + str(j - 1)
@@ -294,12 +350,14 @@ def fsegm(pa):
 			grass.run_command('g.region', **region_kwargs)
 			j += 1
 
-			if thr == 0.1:
+			# the first threshold of the list starts from the random seeds with the minimum size; every next one, from
+			# the segments of the previous one (so the segments only grow, and the list itself changes them)
+			if j == 1:
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', minsize=minarea, similarity='euclidean', memory='10000', iterations='20', seeds='rndseed', overwrite=True)
 			else:
 				grass.run_command('i.segment', group='segm', output=pa2, threshold=thr, method='region_growing', similarity='euclidean', memory='10000', iterations='20', seeds=pa2s, overwrite=True)
 
-			hft_state.progress('DONE', f'{100 / len(reps):.4f}')  # i.segment of this threshold: 10 % of the area
+			hft_state.progress('DONE', f'{500 / len(reps):.4f}')  # i.segment of the thresholds: half of the area
 
 			if only and j < only:
 				continue
@@ -316,72 +374,78 @@ def fsegm(pa):
 				except Exception:
 					pass
 
-			merge_small_segments(grass, pa3, minarea)
+			merge_small_segments(grass, pa3, minarea, segm_input)
 
 			grass.run_command('r.to.vect', input=pa3, output=pa4, type='area', flags='v', overwrite=True)
-			# segm_id = area ID + threshold index (1 digit) + segment cat (5 digits, zero-padded):
-			# fixed-width suffix so IDs never collide between thresholds or areas, and are the same on reruns
+			# segm_id = area ID + threshold index k + segment cat, both zero-padded: 1 + 5 digits with the nine thresholds
+			# of 0.1-0.9 (as up to eHabpy 1.5), else 2 + 7 (hft_state.segm_id_layout); fixed-width suffix so IDs never
+			# collide between thresholds or areas, and are the same on reruns
 			maxcat = int(grass.read_command('v.db.select', map=pa4, columns='max(cat)', flags='c').strip() or 0)
-			if maxcat > 99999:
-				raise ValueError(f"Area {pa}: {maxcat} segments at threshold {thr}, segm_id allows at most 99999")
-			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR, segm_id numeric')
+			# (the length of the area ID is checked before the segmentation: hft_state.segm_id_error)
+			if maxcat >= 10 ** CAT_DIGITS:
+				raise ValueError(f"Area {pa}: {maxcat} segments at threshold {thr}, segm_id allows at most {10 ** CAT_DIGITS - 1}"
+				                 + (" (with SEGM_THRESHOLDS different from the nine of 0.1-0.9: 9999999)" if CAT_DIGITS == 5 else ''))
+			# VARCHAR(254): the width of a text field of the shapefile (with VARCHAR, 1000, v.out.ogr warned that it cut it)
+			grass.run_command('v.db.addcolumn', map=pa4, columns='cat_pa VARCHAR(254), segm_id numeric')
 			grass.run_command('v.db.update', map=pa4, column='cat_pa', value=pa)
-			grass.run_command('v.db.update', map=pa4, column='segm_id', query_column=f"cat_pa || '{j}' || printf('%05d', cat)")
+			grass.run_command('v.db.update', map=pa4, column='segm_id',
+			                  query_column=f"cat_pa || '{j:0{K_DIGITS}d}' || printf('%0{CAT_DIGITS}d', cat)")
 
 			name = 'shp/park_segm_' + str(pa) + '_' + str(j)
 			grass.run_command('v.out.ogr', input=pa4, output=name + '.shp', output_layer=os.path.basename(name), format='ESRI_Shapefile', type='area', overwrite=True)
 
-			spa_list0 = grass.read_command('v.db.select', map=pa4, column='segm_id').splitlines()
-			spa_list = np.unique(spa_list0)
-			sn = len(spa_list) - 1
-			econ = 'csv/ecoregs' + str(j) + '.csv'
-			
-			if not os.path.exists(econ):
-				open(econ, 'a').close()
+			# cat (the label of the segment in pa3: r.to.vect -v) and segm_id of every segment
+			pairs = sorted({tuple(r.split()) for r in grass.read_command(
+				'v.db.select', map=pa4, columns='cat,segm_id', separator='space', flags='c').splitlines() if r.strip()},
+				key=lambda p: int(p[0]))
+			spa_list = np.unique([sid for _, sid in pairs])  # sorted as text, as before
+			parkcsv, ids_csv, segm_tif = segm_files(pa, j)
 
-			# the export of the segments is 90 % of the area, shared by the thresholds that are exported
-			unit = (900 if only else 900 / len(reps)) / max(sn, 1)
-			for spx in range(0, sn):
-				hft_state.progress('DONE', f'{unit:.4f}')
-				spa = spa_list[spx]
-				if spa == 'segm_id':
-					continue
-				spa2 = 'svv' + spa
-				spa4 = 'spa_' + spa
-				spa5 = 'tiffs/pa_' + spa + '.tif'
-				spa0 = 'sv0_' + spa
-				sopt1 = 'segm_id = ' + spa
-				print(spx)
-				print("Extracting PA:" + spa)
+			# One raster of all the segments of the threshold (the statistics step reads it, ehab_segm_core.py):
+			# the labels of pa3 (= cat of the vector), 0 outside them, on the working region (the grid of the
+			# variables), masked to the pixels with data in FIRST_VAR with CLIP_TO_PA, as the masks of every
+			# segment were (tiffs/pa_<segm_id>.tif, one per segment, made with v.extract and v.to.rast up to 1.5)
+			segm_map = 'sgr_' + pa
+			if CLIP_TO_PA:
+				grass.run_command('r.mask', raster=FIRST_VAR)
+			grass.run_command('r.mapcalc', expression=f'{segm_map} = {pa3}', overwrite=True)
+			if CLIP_TO_PA:
+				try:
+					grass.run_command('r.mask', flags='r')
+				except Exception:
+					pass
+			grass.run_command('r.null', map=segm_map, null=0)
+			# -c: without a colour table, which GTiff only takes for Byte or UInt16 bands (GDAL printed an ERROR 6)
+			grass.run_command('r.out.gdal', input=segm_map, output=segm_tif, type='Int32', createopt='COMPRESS=LZW',
+			                  flags='c', overwrite=True)
 
-				grass.run_command('v.extract', input=pa4, output=spa0, where=sopt1, overwrite=True)
-				grass.message("setting up the working region")
-				grass.run_command('g.region', vector=spa0, align=FIRST_VAR)
-				grass.run_command('v.to.rast', input=spa0, output=spa0, use='val')
-				soptt = spa4 + '=' + spa0
+			# The lists read by the statistics step, each written in one go: segm_id of every segment
+			# (csv/park_<id>_<k>.csv), cat -> segm_id (csv/segm_<id>_<k>_ids.csv) and k once per segment
+			# (csv/ecoregs<k>.csv, shared by the areas)
+			with open(ids_csv, 'w') as wb:
+				wb.write('cat segm_id\n' + ''.join(f'{cat} {sid}\n' for cat, sid in pairs))
+			if len(spa_list):
+				with open(parkcsv, 'w') as wb:
+					wb.write(''.join(spa + '\n' for spa in spa_list))
+			# the areas run in parallel and append to the same csv/ecoregs<k>.csv: a single write() call (O_APPEND)
+			# so that the lines of two areas are never mixed
+			fd = os.open('csv/ecoregs' + str(j) + '.csv', os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+			try:
+				os.write(fd, f'{j}\n'.encode() * len(spa_list))
+			finally:
+				os.close(fd)
+			print(f"Area {pa}, threshold {thr}: {len(spa_list)} segments -> {segm_tif}")
+			# the classification into HFTs compares every pair of segments of the threshold with the most segments
+			gb = hft_state.class_memory_gb(len(spa_list))
+			if first_export and gb > MEMORY_WARNING_GB:
+				print(f"WARNING: area {pa}: {len(spa_list)} segments at threshold {thr}: the classification into HFTs "
+				      f"(moranvar_plots.R) will need about {gb:.0f} GB of memory ({hft_state.CLASS_BYTES} bytes x segments²). "
+				      "With less memory, use higher thresholds (SEGM_THRESHOLDS) or a larger MIN_SEGM_SIZE.")
+			first_export = False
 
-				if CLIP_TO_PA:
-					grass.run_command('r.mask', raster=FIRST_VAR)
-				
-				grass.run_command('r.mapcalc', expression=soptt, overwrite=True)
-
-				if CLIP_TO_PA:
-					try:
-						grass.run_command('r.mask', flags='r')
-					except Exception:
-						pass
-
-				grass.run_command('r.null', map=spa4, null=0)
-				econame = 'csv/park_' + str(pa) + '_' + str(j) + '.csv'
-				eco = str(j)
-
-				grass.run_command('r.out.gdal', input=spa4, output=spa5, overwrite=True)
-
-				with open(econame, 'a') as wb:
-					wb.write(spa + '\n')
-
-				with open(econ, 'a') as wb:
-					wb.write(eco + '\n')
+			# the export of the segments (merge, vectors and segment raster) is the other half of the area,
+			# shared by the thresholds that are exported
+			hft_state.progress('DONE', f'{500 if only else 500 / len(reps):.4f}')
 
 		shutil.rmtree(os.path.join(GRASSDBASE, MYLOC, mapset2), ignore_errors=True)
 
@@ -396,7 +460,8 @@ if __name__ == '__main__':
 		print("(e.g. '~/grassdata'), not the GRASS installation folder given by 'grass --config path'.")
 		sys.exit(1)
 
-	hft_state.check_ready('segm')  # the input data have not changed since setup.py imported them
+	hft_state.check_ready('segm')  # the input data have not changed since setup.py imported them; the options are valid
+	# and the segm_id of every area of palist.csv fits (hft_state.options_error), before anything is deleted or run
 
 	# Resume only an interrupted run with the same options, palist.csv and input data (run_state.json);
 	# otherwise csv, shp and tiffs (shared by all the study areas) are started from scratch
@@ -420,6 +485,8 @@ if __name__ == '__main__':
 		os.makedirs(folder, exist_ok=True)
 	with open(csvarea, 'w') as wb:
 		wb.write(STUDY_AREA + '\n')
+	# The value of every threshold k (csv/segm_thresholds.csv), for the labels of the later steps
+	hft_state.write_run_thresholds(SEGM_THRESHOLDS, 'csv/segm_thresholds.csv')
 
 	for f in [csvname1, csvong1, csvong2]:
 		if not os.path.isfile(f):

@@ -302,10 +302,18 @@ segm_sums <- function(seg, pix, nseg) {
 	})
 }
 
+# segm_id as text, to match those of the shapefiles (text fields) and write them: as a number, R writes those of
+# more than 15 digits rounded, and some others in scientific notation (as.character(1011000000) is "1.011e+09")
+sid_txt <- function(x) if (is.numeric(x)) format(x, scientific=FALSE, trim=TRUE) else as.character(x)
+
+# Statistics of the segments of a threshold (csv/park_<id>_hri_results<k>.csv of ehab_segm_core.py), with segm_id as
+# text (sid_txt): its rows are sorted by segm_id as a number
+read_hri <- function(f) read.table(f, sep=' ', header=TRUE, colClasses=c(segm_id='character'))
+
 # Segmento (fila de hri) de cada píxel de la malla de las variables, del umbral tk (NA fuera de los segmentos)
 segm_cells <- function(park, tk, hri, grid) {
 	v <- terra::vect(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))
-	v$row <- match(as.character(v$segm_id), format(hri$segm_id, scientific=FALSE, trim=TRUE))
+	v$row <- match(sid_txt(v$segm_id), sid_txt(hri$segm_id))
 	terra::values(terra::rasterize(v, grid, field='row'), mat=FALSE)
 }
 
@@ -374,7 +382,8 @@ run_state <- function(action) {
 	suppressWarnings(system2(Sys.getenv('EHAB_PYTHON', 'python3'), c('hft_state.py', action, 'plots')))
 }
 st <- run_state('check')
-if (st == 3) stop('a step before moranvar_plots.R is out of date (see the message above)', call. = FALSE)
+# 3: a step before is out of date, or an option of config.py is not valid (hft_state.py says which above)
+if (st == 3) stop('moranvar_plots.R cannot run (see the message above)', call. = FALSE)
 if (st != 0) warning('could not check the steps run before with hft_state.py (is python3 in the PATH?)')
 progress <- function(kind, value) if (nzchar(Sys.getenv('EHAB_PROGRESS'))) cat('##', kind, ' ', value, '\n', sep='')  # for the desktop app (hft_state.progress)
 
@@ -383,6 +392,18 @@ run_state('start')
 df0 <- read.table('csv/segm_done.csv', sep=' ', header=F)
 ecox_list <- unique(df0[,1])
 mx <- length(ecox_list)
+
+# Thresholds of the segmentation (SEGM_THRESHOLDS): the value of every k, the index that names the files and is the
+# column threshold of csv/<id>_threshold.csv, from csv/segm_thresholds.csv of segmentation_pca_par.py, as text for the
+# labels (thr_lab) and as a number (thr_val); without it (a segmentation of eHabpy 1.5 or before) the nine of 0.1-0.9
+thr_file <- 'csv/segm_thresholds.csv'
+thr_text <- if (file.exists(thr_file)) {
+	tt <- read.table(thr_file, sep=' ', header=TRUE, colClasses='character')
+	setNames(tt$value, tt$k)
+} else setNames(as.character((1:9) / 10), 1:9)
+thr_lab <- function(k) unname(thr_text[as.character(k)])
+thr_val <- function(k) as.numeric(thr_lab(k))
+thr_of_value <- function(v) unname(thr_text[match(v, as.numeric(thr_text))]) # label of a threshold given by its value
 
 # Lee el valor (sin comentario ni comillas) de una opción sencilla (NOMBRE = valor) de config.py
 read_config <- function(name) {
@@ -482,6 +503,7 @@ writeLines(c(
 	paste('Study area:', area),
 	paste('Scenario:', scenario),
 	paste('IDs processed (csv/segm_done.csv):', paste(ecox_list, collapse=', ')),
+	paste('Segmentation thresholds (k: value, csv/segm_thresholds.csv):', paste0(names(thr_text), ': ', thr_text, collapse=', ')),
 	'',
 	'## config.py',
 	cfg,
@@ -489,6 +511,8 @@ writeLines(c(
 	'## moranvar_plots.R',
 	paste('upper =', upper, '# max. HFTs (SIMIL 1 and 2): 1: log10(n. pixels), 2: log6(n. pixels)')
 ), file.path(outroot, 'processing_metadata.txt'))
+# The value of every threshold k of the files of the results (the desktop app shows it)
+write.table(data.frame(k=names(thr_text), value=thr_text), file.path(outroot, 'segm_thresholds.csv'), sep=' ', row.names=F, quote=F)
 
 progress('UNITS', mx * (length(cuts) + 3)) # per ID: thresholds, each cut, tree of the cuts and R2 curves
 for (pmx in 1:mx) {
@@ -516,9 +540,11 @@ for (pmx in 1:mx) {
 	thr_png <- file.path(outroot, paste(park, '_moran_var_mean.png', sep=''))
 	png(thr_png, width=640, height=540)
 	par(mar=c(4.5, 4.5, 4.5, 1))
-	plot(thr_all, x1, ylim=c(0, 1.35), col=1, typ='o', pch=19, xaxt='n', xlab='Similarity threshold (x 0.1)',
-	     ylab="Rescaled Moran's I, variance and score", main=paste0(park, ': selected threshold 0.', res))
-	axis(1, at=thr_all)
+	# one point per threshold k evaluated, equally spaced (the crossings are interpolated between consecutive ones),
+	# labelled with its value
+	plot(thr_all, x1, ylim=c(0, 1.35), col=1, typ='o', pch=19, xaxt='n', xlab='Similarity threshold',
+	     ylab="Rescaled Moran's I, variance and score", main=paste0(park, ': selected threshold ', thr_lab(res)))
+	axis(1, at=thr_all, labels=thr_lab(thr_all))
 	mtext(method_label, side=3, line=0.4)
 	lines(thr_all, x2, col=3, typ='o', pch=19)
 	leg <- c("M.I: Moran's I (low: neighbours differ)", 'Var: 1 - variance (high: homogeneous segments)')
@@ -541,11 +567,12 @@ for (pmx in 1:mx) {
 	abline(v=res, lty=2, col='grey40')
 	legend('top', legend=leg, col=legcol, lty=1, pch=19, bty='n', cex=0.9)
 	dev.off()
-	# CSV of the plot: the columns of csv/<id>_threshold.csv (moranvar.py: moran_norm, black; var_norm, green;
-	# selected, dashed line) and what the plot computes from them: the score rescaled 0-1 with 1 = best (blue) and,
-	# with THRESHOLD_METHOD 'crossing' or 'crossing_first', the crossings of the curves (red points) between each
-	# threshold and the next one
-	thr_csv <- thr_tab
+	# CSV of the plot: the columns of csv/<id>_threshold.csv (moranvar.py: threshold, the index k of each threshold,
+	# its position on the x axis; moran_norm, black; var_norm, green; selected, dashed line), the value of each threshold
+	# (threshold_value, the labels of the x axis) and what the plot computes from them: the score rescaled 0-1 with
+	# 1 = best (blue) and, with THRESHOLD_METHOD 'crossing' or 'crossing_first', the crossings of the curves (red points)
+	# between each threshold and the next one, as positions k on the x axis
+	thr_csv <- data.frame(threshold=thr_all, threshold_value=thr_val(thr_all), thr_tab[names(thr_tab) != 'threshold'], check.names=FALSE)
 	thr_csv$score_rescaled <- if (!all(is.na(thr_tab$score))) sc else NA
 	thr_csv$crossing_threshold <- NA
 	thr_csv$crossing_value <- NA
@@ -557,7 +584,7 @@ for (pmx in 1:mx) {
 	}
 
 	progress('DONE', 1)
-	k <- paste('0.', res, sep='')
+	k <- thr_lab(res) # value of the selected threshold (res: its index k)
 	write.table(thr_tab, file.path(outroot, paste(park, '_optim_thresholds.csv', sep='')), sep=' ', row.names=F, quote=F)
 
 	# One row per park: replace the previous row of this park instead of appending a duplicate
@@ -573,7 +600,7 @@ for (pmx in 1:mx) {
 	print(paste("Reading HRI file:", namef))
 	if (!file.exists(namef)) { print(paste("WARNING: HRI file not found, park skipped:", namef)); next }
 	
-	hri <- read.table(namef, sep=' ', header=T)
+	hri <- read_hri(namef)
 
 	num_vars <- (ncol(hri) - 3) / 3
 	maxnclas <- num_vars - 1
@@ -711,7 +738,7 @@ for (pmx in 1:mx) {
 		print(paste('Number of HFTs is ', ncl, if (simil == 3) paste0(' (', cn, ')'), sep=''))
 
 		if (ncl == 1) {
-			as.numeric(factor(hri$segm_id)) -> hclust_mean
+			as.numeric(match(hri$segm_id, unique(hri$segm_id))) -> hclust_mean # one HFT per segment, in the order of the rows
 			ncl <- length(unique(hclust_mean))
 		}
 
@@ -830,7 +857,7 @@ for (pmx in 1:mx) {
 			if (!is.na(cut_sil[cn])) {
 				sil_ha <- ct$n * cell_ha
 				hs <- hft_order[hft_order %in% hclust_mean]
-				so <- order(match(hclust_mean, hs), -sil$s, hri$segm_id)
+				so <- order(match(hclust_mean, hs), -sil$s, seq_len(nrow(hri))) # rows sorted by segm_id
 				g <- match(hclust_mean[so], hs)
 				hft_ha <- as.vector(rowsum(sil_ha[so], g))
 				ha_in <- 5 / sum(sil_ha) # inches per ha
@@ -879,8 +906,9 @@ for (pmx in 1:mx) {
 			shp_layer <- paste('park_segm_', park, '_', res, '_diss', sep='')
 			if (file.exists(file.path('shp', paste0(shp_layer, '.shp')))) {
 				segm_pa <- st_read('shp', layer=shp_layer, quiet=TRUE)
+				segm_pa$segm_id <- sid_txt(segm_pa$segm_id)
 
-				merge(segm_pa, hrin[, c(2, 2 + num_vars + 1)], by='segm_id') -> segm_pa_class
+				merge(segm_pa, data.frame(segm_id=hri$segm_id, hclust_mean=hclust_mean), by='segm_id') -> segm_pa_class
 
 				scaled0 <- scaled2
 				kl <- dim(scaled0)[2] + 1
@@ -1157,7 +1185,7 @@ for (pmx in 1:mx) {
 		# HFTs made with other pixel sizes are not directly comparable (the variables and the segments change with it)
 		hft_id <- function(d) data.frame(label=paste0(area, '/', scenario, '/', park, '/', if (simil == 3) paste0(d$cut, '/'), 'HFT', d$HFT),
 		                                 study_area=area, scenario=scenario, id=park, resolution=terra::res(pixgrid)[1],
-		                                 threshold=res / 10, d, check.names=FALSE)
+		                                 threshold=thr_val(res), d, check.names=FALSE)
 		info <- do.call(rbind, lapply(hft_rows, `[[`, 'info'))
 		info <- info[order(match(info$cut, names(cuts)), info$HFT), ]
 		hst <- do.call(rbind, lapply(hft_rows, `[[`, 'stats'))
@@ -1220,7 +1248,7 @@ for (pmx in 1:mx) {
 		for (tk in thr_all) {
 			hf <- paste('csv/park_', park, '_hri_results', tk, '.csv', sep='')
 			if (!file.exists(hf) || !file.exists(file.path('shp', paste0('park_segm_', park, '_', tk, '_diss.shp')))) next
-			hri_t <- if (tk == res) hri else read.table(hf, sep=' ', header=T)
+			hri_t <- if (tk == res) hri else read_hri(hf)
 			if (nrow(hri_t) < 3) next
 			seg_t <- if (tk == res) seg_sel else segm_cells(park, tk, hri_t, pixgrid)
 			ct_t <- if (tk == res) ct else class_tree(if (is.null(pixclip)) hri_t else clip_hri(hri_t, seg_t, pixclip, median_stat), class_method)
@@ -1232,12 +1260,12 @@ for (pmx in 1:mx) {
 			# Mean silhouette width of the segments of the same HFTs (distances computed once per threshold)
 			d_t <- if (tk == res) dsil else as.matrix(dist(ct_t$z))
 			sil_t <- sapply(cls_t, function(cl) sil_mean(sil_width(d_t, cl)$s, ct_t$n))
-			curves <- rbind(curves, data.frame(threshold=tk / 10, segments=nrow(hri_t),
+			curves <- rbind(curves, data.frame(threshold=thr_val(tk), segments=nrow(hri_t),
 			                                   r2_segments=mean(r2_groups(ss_t, seq_len(nrow(hri_t))), na.rm=TRUE),
 			                                   hfts=nh, r2=rowMeans(r2m, na.rm=TRUE), silhouette=sil_t, r2m, check.names=FALSE))
 		}
 		# Corte sugerido (calculado antes de los cortes) y parte del R2 de los segmentos que conserva cada corte
-		cut_r2$r2_share <- cut_r2$r2 / curves$r2_segments[curves$threshold == res / 10][1]
+		cut_r2$r2_share <- cut_r2$r2 / curves$r2_segments[curves$threshold == thr_val(res)][1]
 		cut_r2$suggested <- as.integer(cut_r2$cut %in% suggested)
 		# silhouette: mean silhouette width of the segments weighted by area (sil_width; NA with one HFT per segment)
 		cut_r2 <- cut_r2[, c('cut', 'hfts', 'r2', 'r2_share', 'silhouette', 'suggested', var_names)]
@@ -1247,7 +1275,7 @@ for (pmx in 1:mx) {
 		# (cut_silhouette) and suggested = 1 if one of them is the suggested cut. A cut beyond the curve (one HFT per
 		# segment) gets a row of its own. silhouette: that of the HFTs of each threshold and number of HFTs (not drawn)
 		r2_csv <- curves
-		r2_csv$selected <- as.integer(r2_csv$threshold == res / 10)
+		r2_csv$selected <- as.integer(r2_csv$threshold == thr_val(res))
 		r2_csv$bend <- as.integer(r2_csv$selected == 1 & r2_csv$hfts %in% knee)
 		r2_csv$cut <- NA
 		r2_csv$cut_r2 <- NA
@@ -1258,7 +1286,7 @@ for (pmx in 1:mx) {
 			i <- which(r2_csv$selected == 1 & r2_csv$hfts == h)
 			if (length(i) == 0) {
 				new <- r2_csv[NA_integer_, ]
-				new[, c('threshold', 'hfts', 'selected', 'bend')] <- list(res / 10, h, 1L, 0L)
+				new[, c('threshold', 'hfts', 'selected', 'bend')] <- list(thr_val(res), h, 1L, 0L)
 				new[, c('segments', 'r2_segments')] <- r2_csv[r2_csv$selected == 1, c('segments', 'r2_segments')][1, ]
 				r2_csv <- rbind(r2_csv, new)
 				i <- nrow(r2_csv)
@@ -1272,7 +1300,7 @@ for (pmx in 1:mx) {
 		write.table(cut_r2, file.path(outroot, paste0('r2_', park, '_cuts.csv')), sep=' ', row.names=F, quote=F)
 		if (!is.na(knee)) {
 			s <- cut_r2[cut_r2$suggested == 1, ]
-			msg <- paste0('ID ', park, ': the R2 curve of the threshold 0.', res, ' bends at ', knee, ' HFTs',
+			msg <- paste0('ID ', park, ': the R2 curve of the threshold ', k, ' bends at ', knee, ' HFTs',
 			              if (nrow(s) == 1) paste0(sprintf('; suggested cut %s: %d HFTs, R2 %.2f (%.0f %% of the R2 of the segments)',
 			                                               s$cut, s$hfts, s$r2, 100 * s$r2_share),
 			                                       if (!is.na(s$silhouette)) sprintf(', silhouette %.2f', s$silhouette)))
@@ -1280,9 +1308,9 @@ for (pmx in 1:mx) {
 			write(paste('Suggested cut:', msg), file.path(outroot, 'processing_metadata.txt'), append=TRUE)
 		}
 
-		# Umbrales en una rampa de azules (claro: 0.1, oscuro: 0.9) y el elegido en naranja y más grueso
-		curves$thr <- factor(sprintf('%.1f', curves$threshold))
-		sel <- sprintf('%.1f', res / 10)
+		# Umbrales en una rampa de azules (claro: el más bajo, oscuro: el más alto) y el elegido en naranja y más grueso
+		curves$thr <- factor(thr_of_value(curves$threshold), levels=thr_of_value(sort(unique(curves$threshold))))
+		sel <- k
 		thr_cols <- setNames(colorRampPalette(c('#86b6ef', '#0d366b'))(nlevels(curves$thr)), levels(curves$thr))
 		thr_cols[sel] <- '#eb6834'
 		seg_info <- unique(curves[, c('thr', 'segments', 'r2_segments')])

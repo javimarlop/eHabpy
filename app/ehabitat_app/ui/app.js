@@ -2439,20 +2439,30 @@ pages.model = (() => {
 		if (p.type === 'threshold') {
 			c = el('select', {id: 'p-' + p.name}, ...p.choices.map(([v, l]) => el('option', {value: v}, l)));
 			c.value = p.value;
-			const fx = el('input', {type: 'number', id: 'p-THRESHOLD_FIXED', min: 0.1, max: 0.9, step: 0.1, value: p.fixed});
+			// a fixed threshold is one of the segmentation thresholds (SEGM_THRESHOLDS), offered in its list
+			const fx = el('input', {type: 'number', id: 'p-THRESHOLD_FIXED', min: 0, max: 1, step: 'any', value: p.fixed,
+				list: 'thr-values', title: 'One of the segmentation thresholds'});
+			const dl = el('datalist', {id: 'thr-values'}, ...(p.thresholds || []).map(v => el('option', {value: v})));
 			const sync = () => { fx.classList.toggle('hidden', c.value !== 'fixed'); };
 			c.addEventListener('change', () => { sync(); changed(); });
 			fx.addEventListener('input', changed);
 			sync();
-			return el('div', {class: 'inline'}, c, fx);
+			return el('div', {class: 'inline'}, c, fx, dl);
 		}
 		if (p.type === 'number' || p.type === 'int') {
 			c = el('input', {type: 'number', id: 'p-' + p.name, min: p.min, max: p.max, step: p.step || 'any', value: p.value});
 			c.addEventListener('input', changed);
 			return el('div', {class: 'inline'}, c, p.unit ? el('span', {class: 'unit'}, p.unit) : null);
 		}
-		c = el('input', {type: 'text', id: 'p-' + p.name, value: p.value ?? '', style: {width: '100%'}});
+		c = el('input', {type: 'text', id: 'p-' + p.name, value: p.type === 'thresholds' && Array.isArray(p.value) ? p.value.join(', ') : p.value ?? '', style: {width: '100%'}});
 		c.addEventListener('input', changed);
+		if (p.type === 'thresholds') {
+			// the thresholds typed are those offered for a fixed threshold
+			c.addEventListener('input', () => {
+				const dl = $('#thr-values');
+				if (dl) dl.replaceChildren(...listNums(c.value).filter(v => v > 0 && v < 1).map(v => el('option', {value: v})));
+			});
+		}
 		if (p.name === 'SCENARIO') {
 			c.placeholder = S.status ? S.status.scenario : '';
 			c.addEventListener('change', checkScenario);
@@ -2468,6 +2478,7 @@ pages.model = (() => {
 
 	function defText(p) {
 		if (p.type === 'bool') return p.default ? 'on' : 'off';
+		if (p.type === 'thresholds' || p.type === 'cuts') return p.default.join(', ');
 		if (p.type === 'select' || p.type === 'threshold') return (p.choices.find(c => String(c[0]) === String(p.default)) || [, p.default])[1];
 		if (p.default === '') return 'empty';
 		return String(p.default) + (p.unit ? ' ' + p.unit : '');
@@ -2508,7 +2519,19 @@ pages.model = (() => {
 		return out;
 	}
 
-	function isDefault(p, v) { return String(v) === String(p.default); }
+	// numbers of a list typed (separated by commas or spaces, or by semicolons with decimal commas: 0,1; 0,2), sorted
+	// and without repeated ones, as saved (model._thresholds)
+	function listNums(v) {
+		const t = String(v ?? '');
+		const xs = (Array.isArray(v) ? v : t.includes(';') ? t.split(/[;\s]+/).map(x => x.replace(',', '.')) : t.split(/[,\s]+/))
+			.filter(x => String(x).trim() !== '').map(Number);
+		return [...new Set(xs)].sort((a, b) => a - b);
+	}
+
+	function isDefault(p, v) {
+		if (p.type === 'thresholds' || p.type === 'cuts') return listNums(v).join(',') === listNums(p.default).join(',');
+		return String(v) === String(p.default);
+	}
 
 	function markChanged() {
 		const v = values();
@@ -2645,6 +2668,7 @@ pages.model = (() => {
 			if (!c) continue;
 			if (p.type === 'bool') c.checked = !!p.default;
 			else if (p.type === 'threshold') { c.value = p.default; c.dispatchEvent(new Event('change')); }
+			else if (p.type === 'thresholds') { c.value = p.default.join(', '); c.dispatchEvent(new Event('input')); }
 			else c.value = p.default;
 		}
 		markChanged();

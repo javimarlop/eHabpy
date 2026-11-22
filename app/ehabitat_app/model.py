@@ -13,7 +13,8 @@ import hft_state  # segm_optim (paths puts it in sys.path)
 THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
 
 # The options of config.py that the app changes, with their default values (those of config.py in the repository)
-# and the help of config.py. type: bool, int, number, select, text, threshold (a method or a fixed threshold), folder.
+# and the help of config.py. type: bool, int, number, select, text, threshold (a method or a fixed threshold), folder,
+# cuts (a list of percentages) and thresholds (a list of thresholds of the segmentation).
 PARAMS = [
 	# Scenario and run
 	{'name': 'SCENARIO', 'group': 'run', 'type': 'text', 'default': '', 'label': 'Scenario',
@@ -45,28 +46,48 @@ PARAMS = [
 	 'help': '0 = no clipping. > 0: before the segmentation and the classification, each layer is clipped to its '
 	         'percentiles P and 100 - P (e.g. 0.5), so that a variable with a long tail (e.g. TWI) does not end up with '
 	         'almost no weight. The plots and statistics of the HFTs always use the original values.'},
+	{'name': 'SEGM_THRESHOLDS', 'group': 'segm', 'type': 'thresholds', 'default': list(hft_state.DEFAULT_THRESHOLDS),
+	 'label': 'Segmentation thresholds',
+	 'help': 'Thresholds of i.segment (greater than 0 and smaller than 1, separated by commas, at most 99; they are sorted '
+	         'from lowest to highest): lower thresholds give smaller segments. Each threshold starts from the segments of the '
+	         'previous one, so the list itself changes the segments. E.g. 0.02, 0.04, 0.06, 0.08, 0.1 for very small habitats, '
+	         'with a smaller minimum size of a segment: no segment is smaller than it, whatever the thresholds. Every '
+	         'threshold adds time, and the classification into HFTs compares every pair of segments of every threshold '
+	         'tested: it needs about 70 bytes × (number of segments)² of the threshold with the most segments (the lowest; '
+	         'with a fixed threshold, that one), about 7 GB with 10,000 segments and 16 GB with 15,000. Changing them runs '
+	         'the segmentation again. With other thresholds than the nine of 0.1 to 0.9, the segm_id of a segment has 2 '
+	         'digits for the threshold and 7 for the segment (1 and 5 with those nine).'},
 	{'name': 'SMALL_SEGM_RADIUS', 'group': 'segm', 'type': 'int', 'default': 10, 'min': 1, 'step': 1, 'unit': 'pixels',
 	 'label': 'Radius to merge small segments',
-	 'help': 'Segments with fewer pixels than the minimum size (by default the square root of the number of pixels with data) are merged with the '
-	         'most frequent larger segment within this distance, in repeated passes; those without any so close, with '
-	         'the nearest one. In pixels: 10 = 100 m with 10 m pixels.'},
+	 'help': 'i.segment already merges every segment smaller than the minimum size into its most similar neighbour; this '
+	         'only acts on the pieces left smaller (cut by pixels without data, or by the outline of the study area): they '
+	         'are merged with a larger segment within this distance (see the rule below), in repeated passes; those '
+	         'without any so close, with the nearest one. In pixels: 10 = 100 m with 10 m pixels.'},
+	{'name': 'SMALL_SEGM_MERGE', 'group': 'segm', 'type': 'select', 'default': 'frequent',
+	 'label': 'Merge small segments into',
+	 'choices': [['frequent', 'The most frequent larger segment within the radius (as before)'],
+	             ['similar', 'The most similar larger segment within the radius']],
+	 'help': '"frequent": the larger segment with the most pixels within the radius, whether it is similar or not (the '
+	         'rule up to now). "similar": the larger segment whose means in the layers of the segmentation (PC1-PC3, or the '
+	         'variables), each scaled to its range as i.segment does, are the closest.'},
 	{'name': 'MIN_SEGM_SIZE', 'group': 'segm', 'type': 'int', 'default': 0, 'min': 0, 'step': 1, 'unit': 'pixels',
 	 'label': 'Minimum size of a segment',
-	 'help': 'Segments with fewer pixels are merged with others (see the radius above), and it is the minimum size of '
-	         'the segmentation. 0 = automatic: the square root of the number of pixels with data of each area, so it grows '
+	 'help': 'The minimum size of i.segment: segments with fewer pixels are merged into their most similar neighbour '
+	         '(and the pieces left, see the radius above). 0 = automatic: the square root of the number of pixels with data of each area, so it grows '
 	         'with its size. A number sets the same minimum in every area (100 = 1 ha with 10 m pixels).'},
 	# Threshold
 	{'name': 'THRESHOLD_METHOD', 'group': 'thr', 'type': 'threshold', 'default': 'f', 'label': 'Choice of the segmentation threshold',
 	 'choices': [['f', 'F-function (Johnson et al. 2015, as i.segment.uspo)'],
 	             ['gs', 'Global Score (Espindola et al. 2006)'],
 	             ['gs_fixed', 'Global Score without rescaling between thresholds'],
-	             ['crossing', 'First crossing of MI and V minus a threshold (original eHabitat+)'],
+	             ['crossing', 'First crossing of MI and V minus one threshold, the previous one (original eHabitat+)'],
 	             ['crossing_first', 'First crossing of MI and V'],
 	             ['fixed', 'Fixed threshold']],
-	 'help': "Among the nine thresholds from 0.1 to 0.9, with the Moran's I of the means of the segments (MI, low = "
-	         'segments different from their neighbours) and the variance within them (V, low = homogeneous segments). In '
-	         'the test with Guajares, "f" with alpha 0.5 was the most stable. With a fixed threshold the segmentation stops at '
-	         'it and only that threshold is summarised and shown, which saves time (the higher the threshold, the less).'},
+	 'help': "Among the segmentation thresholds (by default the nine from 0.1 to 0.9), with the Moran's I of the means of "
+	         'the segments (MI, low = segments different from their neighbours) and the variance within them (V, low = '
+	         'homogeneous segments). In the test with Guajares, "f" with alpha 0.5 was the most stable. A fixed threshold '
+	         'must be one of the segmentation thresholds: the segmentation stops at it and only that threshold is summarised '
+	         'and shown, which saves time (the higher the threshold, the less).'},
 	{'name': 'THRESHOLD_ALPHA', 'group': 'thr', 'type': 'number', 'default': 0.5, 'min': 0.05, 'step': 0.05,
 	 'label': 'Weight of V against MI (alpha of F)', 'only_if': {'THRESHOLD_METHOD': 'f'},
 	 'help': '1 = the same weight; 0.5 = V weighs half (higher thresholds, fewer segments); 2 = V weighs double (lower '
@@ -104,8 +125,21 @@ BY_NAME = {p['name']: p for p in PARAMS}
 GROUPS = [['run', 'Scenario and run'], ['segm', 'Segmentation'], ['thr', 'Segmentation threshold'],
           ['class', 'Classification into HFTs']]
 STEPS = [{'name': n, 'label': lab} for n, lab in (
-	('segm', 'Segmentation (GRASS i.segment, 9 thresholds)'), ('stats', 'Statistics of the segments'),
+	('segm', 'Segmentation (GRASS i.segment, {n} thresholds)'), ('stats', 'Statistics of the segments'),
 	('moranvar', "Moran's I, variance and threshold"), ('plots', 'HFTs and plots (R)'))]
+
+
+def thresholds_of(cfg):
+	"""The thresholds of the segmentation in CFG (SEGM_THRESHOLDS), or the default ones if it is not valid."""
+	try:
+		return hft_state.segm_thresholds(cfg)
+	except ValueError:
+		return list(hft_state.DEFAULT_THRESHOLDS)
+
+
+def step_label(name, cfg):
+	label = next(s['label'] for s in STEPS if s['name'] == name)
+	return label.replace('{n}', str(len(thresholds_of(cfg))))
 
 
 def read_config():
@@ -119,13 +153,26 @@ def default_nproc():
 def params():
 	"""The parameters with their values in config.py and their defaults."""
 	cfg = read_config()
+	ths = thresholds_of(cfg)
 	out = []
 	for p in PARAMS:
 		q = dict(p)
 		v = cfg.get(p['name'], p['default'])
 		if p['type'] == 'threshold':
 			q['value'] = 'fixed' if isinstance(v, (int, float)) and not isinstance(v, bool) else v
-			q['fixed'] = float(v) if q['value'] == 'fixed' else 0.5
+			# a fixed threshold: by default the one in the middle of the thresholds (0.5 of 0.1-0.9)
+			q['fixed'] = float(v) if q['value'] == 'fixed' else ths[(len(ths) - 1) // 2]
+			q['thresholds'] = ths
+		elif p['type'] == 'thresholds':
+			try:
+				q['value'] = hft_state.parse_thresholds(v)
+			except ValueError:
+				q['value'] = v  # shown as it is in config.py; saving it sorts it (_thresholds)
+		elif p['name'] == 'SMALL_SEGM_MERGE':
+			try:
+				q['value'] = hft_state.merge_rule(cfg)  # 'Similar' or None in config.py: an option of the list
+			except ValueError:
+				q['value'] = v
 		else:
 			q['value'] = v
 		out.append(q)
@@ -134,8 +181,31 @@ def params():
 	        'nproc_default': default_nproc()}
 
 
-def _literal(p, value, fixed=None):
-	"""Python literal of VALUE for config.py, checked."""
+def _thresholds(p, value):
+	"""The thresholds of VALUE (a list, or a text with numbers separated by commas, or by semicolons with decimal
+	commas: '0,1; 0,2') sorted from the lowest to the highest and without repeated ones, as config.py needs them, checked."""
+	text = '' if isinstance(value, (list, tuple)) else str(value or '').strip()
+	if isinstance(value, (list, tuple)):
+		items = list(value)
+	elif ';' in text:  # '0,1; 0,2': decimal commas
+		items = [x.replace(',', '.') for x in re.split(r'[;\s]+', text) if x]
+	else:
+		items = [x for x in re.split(r'[,\s]+', text) if x]
+	hint = ' (write the decimals with a point: 0.1, 0.2, or separate the thresholds with semicolons: 0,1; 0,2)' \
+		if ';' not in text and re.search(r'\d,\d', text) else ''
+	try:
+		nums = sorted(float(x) for x in items)
+	except (TypeError, ValueError):
+		raise ValueError(f"{p['label']}: write numbers between 0 and 1 separated by commas (e.g. 0.1, 0.2, 0.3)")
+	nums = [v for i, v in enumerate(nums) if i == 0 or abs(v - nums[i - 1]) > hft_state.THRESHOLD_TOL]
+	try:
+		return hft_state.parse_thresholds(nums)
+	except ValueError as e:
+		raise ValueError(f"{p['label']}: {str(e).replace('SEGM_THRESHOLDS: ', '')}{hint}")
+
+
+def _literal(p, value, fixed=None, thresholds=None):
+	"""Python literal of VALUE for config.py, checked. THRESHOLDS: those of the segmentation, for a fixed threshold."""
 	name, t = p['name'], p['type']
 	if t == 'bool':
 		return repr(bool(value))
@@ -167,15 +237,20 @@ def _literal(p, value, fixed=None):
 		if not cuts or cuts[0] < 1 or cuts[-1] > 99 or any(float(x) != int(float(x)) for x in items if str(x).strip() != ''):
 			raise ValueError(f"{p['label']}: write whole percentages between 1 and 99 (e.g. 10, 25, 50, 75, 90)")
 		return repr(cuts)
+	if t == 'thresholds':
+		return repr(_thresholds(p, value))
 	if t == 'threshold':
 		if value == 'fixed':
 			try:
-				v = round(float(fixed), 1)
+				v = float(fixed)
 			except (TypeError, ValueError):
 				raise ValueError('Fixed threshold: not a number')
-			if not 0.1 <= v <= 0.9:
-				raise ValueError('Fixed threshold: must be between 0.1 and 0.9')
-			return repr(v)
+			ths = thresholds or list(hft_state.DEFAULT_THRESHOLDS)
+			same = [x for x in ths if abs(x - v) <= hft_state.THRESHOLD_TOL]
+			if not same:
+				raise ValueError('Fixed threshold: must be one of the segmentation thresholds: '
+				                 + ', '.join(map(hft_state.threshold_label, ths)))
+			return repr(same[0])
 		if value not in THRESHOLD_METHODS:
 			raise ValueError(f'Invalid threshold method: {value!r}')
 		return repr(value)
@@ -193,12 +268,18 @@ def _literal(p, value, fixed=None):
 
 def save_params(values, nproc=None):
 	"""Write VALUES ({name: value}, and THRESHOLD_FIXED for a fixed threshold) to config.py, keeping its comments."""
+	cfg = read_config()
+	# the thresholds of the segmentation after saving, which a fixed threshold must be one of
+	ths = _thresholds(BY_NAME['SEGM_THRESHOLDS'], values['SEGM_THRESHOLDS']) if 'SEGM_THRESHOLDS' in values else thresholds_of(cfg)
 	lits = {}
 	for name, value in values.items():
 		if name not in BY_NAME:
 			continue
-		lits[name] = _literal(BY_NAME[name], value, values.get('THRESHOLD_FIXED'))
-	cfg = read_config()
+		lits[name] = _literal(BY_NAME[name], value, values.get('THRESHOLD_FIXED'), ths)
+	if 'THRESHOLD_METHOD' not in lits:  # a fixed threshold of config.py must be one of the new thresholds
+		err = hft_state.thresholds_error(dict(cfg, SEGM_THRESHOLDS=ths))
+		if err:
+			raise ValueError(err)
 	changed = []
 	for name, lit in lits.items():
 		if repr(cfg.get(name)) != lit or name not in cfg:
@@ -312,7 +393,7 @@ def status():
 	try:
 		setup = out['setup'] if isinstance(out['setup'], list) else []
 		for name, reasons in hft_state.plan(cfg, state, setup):
-			steps.append({'name': name, 'label': next(s['label'] for s in STEPS if s['name'] == name), 'reasons': reasons})
+			steps.append({'name': name, 'label': step_label(name, cfg), 'reasons': reasons})
 	except Exception as e:
 		out['error'] = f'the state of the steps cannot be checked: {e}'
 	out['steps'] = steps

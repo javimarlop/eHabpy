@@ -6,6 +6,7 @@
 import glob
 import numpy as np
 import os
+import re
 import subprocess
 import sys
 import warnings
@@ -29,9 +30,13 @@ THRESHOLD_ALPHA = float(getattr(sys.modules['config'], 'THRESHOLD_ALPHA', 0.5))
 MORAN_NEIGHBOURS = getattr(sys.modules['config'], 'MORAN_NEIGHBOURS', 'rook')
 METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
 FIXED = isinstance(THRESHOLD_METHOD, (int, float)) and not isinstance(THRESHOLD_METHOD, bool)
-if not (THRESHOLD_METHOD in METHODS or (FIXED and 0.1 <= THRESHOLD_METHOD <= 0.9)):
+if not (THRESHOLD_METHOD in METHODS or FIXED):
     sys.exit(f"ERROR: THRESHOLD_METHOD in config.py must be {', '.join(map(repr, METHODS))} "
-             f"or a threshold between 0.1 and 0.9, not {THRESHOLD_METHOD!r}")
+             f"or one of the thresholds of SEGM_THRESHOLDS, not {THRESHOLD_METHOD!r}")
+try:
+    FIXED_K = hft_state.fixed_level()  # k of a fixed threshold: its position in SEGM_THRESHOLDS
+except ValueError as e:
+    sys.exit(f'ERROR: {e}')
 if MORAN_NEIGHBOURS not in ('rook', 'queen'):
     sys.exit(f"ERROR: MORAN_NEIGHBOURS in config.py must be 'rook' or 'queen', not {MORAN_NEIGHBOURS!r}")
 
@@ -42,6 +47,12 @@ hft_state.start('moranvar')
 print(f"Modo de análisis espacial: {'Estricto a PA (CLIP_TO_PA=True)' if CLIP_TO_PA else 'Bounding Box completo (CLIP_TO_PA=False)'}")
 
 idx_sumareas = 2 + (num_vars * 2)
+
+# Thresholds of the segmentation, {k: value} (csv/segm_thresholds.csv; the nine of 0.1-0.9 for a segmentation of
+# eHabpy 1.5 or before): k names the files, the value is shown
+THR = hft_state.run_thresholds()
+LEVELS = [FIXED_K] if FIXED else list(THR)
+lab = lambda k: hft_state.threshold_label(THR[k]) if k in THR else f'k = {k}'
 
 ecox_list0 = np.genfromtxt('csv/segm_done.csv', dtype=int)
 ecox_list = np.unique(np.atleast_1d(ecox_list0))
@@ -82,19 +93,22 @@ def crossings(thr, x1, x2):
 
 
 def choose_threshold(ks, mi, var, vartot):
-    """Umbral elegido (índice k, 1-9) y puntuación de cada umbral (None con 'crossing' o un umbral fijo)
-    según THRESHOLD_METHOD. mi, var y vartot: una fila por umbral de ks y una columna por variable."""
+    """Umbral elegido (índice k: su posición en SEGM_THRESHOLDS, 1-9 con los nueve de 0.1 a 0.9) y puntuación de cada
+    umbral (None con 'crossing' o un umbral fijo) según THRESHOLD_METHOD. mi, var y vartot: una fila por umbral de ks y
+    una columna por variable. Los cruces de 'crossing' se buscan sobre las posiciones k, así que 'menos un umbral' es
+    el umbral anterior de la lista."""
     m3, v3 = rescale(mi), rescale(var, high_good=True)
     mi_n, var_n = nanmean_rows(m3), nanmean_rows(v3)
     nearest = lambda k: int(ks[np.argmin(np.abs(ks - k))])  # umbral evaluado más próximo
+    mid = list(THR)[(len(THR) - 1) // 2]  # sin elección: el umbral del centro de la lista (0.5 de 0.1-0.9)
     score = None
     if FIXED:
-        return nearest(round(THRESHOLD_METHOD * 10)), score
+        return nearest(FIXED_K), score
     if THRESHOLD_METHOD in ('crossing', 'crossing_first'):
         xp = crossings(ks.astype(float), mi_n, var_n)
         if len(xp) == 0:
-            print("WARNING: the Moran's I and variance curves do not cross: threshold 0.5 used")
-            return nearest(5), score
+            print(f"WARNING: the Moran's I and variance curves do not cross: threshold {lab(mid)} used")
+            return nearest(mid), score
         return nearest(np.round(xp[0]) - (1 if THRESHOLD_METHOD == 'crossing' else 0)), score
     if THRESHOLD_METHOD == 'gs':
         score = nanmean_rows(m3 + (1 - v3))  # menor = mejor
@@ -107,13 +121,13 @@ def choose_threshold(ks, mi, var, vartot):
         with np.errstate(invalid='ignore', divide='ignore'):
             score = np.where(den > 0, (1 + a2) * nv * nm / den, 0)  # mayor = mejor
     if np.isnan(score).all():
-        print("WARNING: no threshold could be scored: threshold 0.5 used")
-        return nearest(5), score
+        print(f"WARNING: no threshold could be scored: threshold {lab(mid)} used")
+        return nearest(mid), score
     best = np.nanargmax(score) if THRESHOLD_METHOD == 'f' else np.nanargmin(score)
     return int(ks[best]), score
 
 
-hft_state.progress('UNITS', mx * (1 if FIXED else 9))
+hft_state.progress('UNITS', mx * len(LEVELS))
 for pmx in range(0, mx):
     park = ecox_list[pmx]
     print('park id is:', park)
@@ -129,15 +143,16 @@ for pmx in range(0, mx):
 
     # Los archivos de esta área se empiezan de cero: abajo se les añaden filas, y al ejecutarlo
     # otra vez se duplicarían
+    diss = re.compile(r'park_segm_' + re.escape(str(park)) + r'_\d+_diss\.\w+(\.\w+)?')
     for f in [csvname, csvnamem, csvnamev, csvnamem2, csvnamev2, csvname2, csvname5, csvthr] + \
-            glob.glob('shp/park_segm_' + str(park) + '_[1-9]_diss.*'):
+            [g for g in glob.glob('shp/park_segm_' + str(park) + '_*_diss.*') if diss.fullmatch(os.path.basename(g))]:
         if os.path.exists(f):
             os.remove(f)
 
     # Una fila por umbral evaluado y una columna por variable
     thr, nsegs, nisol, mors, varis, vartots = [], [], [], [], [], []
 
-    for k in ([hft_state.fixed_level()] if FIXED else range(1, 10)):
+    for k in LEVELS:
         hft_state.progress('DONE', 1)
         shpname = 'shp/park_segm_' + str(park) + '_' + str(k) + '.shp'
         shpname2 = 'shp/park_segm_' + str(park) + '_' + str(k) + '_diss.shp'
@@ -180,7 +195,7 @@ for pmx in range(0, mx):
         # 4. Vecinos: segmentos que comparten un borde (rook) o también una esquina (queen)
         wclass = libpysal.weights.Queen if MORAN_NEIGHBOURS == 'queen' else libpysal.weights.Rook
         w = wclass.from_dataframe(dissolved, use_index=False, silence_warnings=True)
-        print(f'segmentation threshold {k}: {w.n} segments, {len(w.islands)} without {MORAN_NEIGHBOURS} neighbours')
+        print(f'segmentation threshold {lab(k)}: {w.n} segments, {len(w.islands)} without {MORAN_NEIGHBOURS} neighbours')
         if w.n <= 1:
             continue
 
@@ -233,7 +248,7 @@ for pmx in range(0, mx):
     # Elección del umbral (moranvar_plots.R lee la columna selected)
     best, score = choose_threshold(ks, mors, varis, vartots)
     method = f"{THRESHOLD_METHOD} (alpha = {THRESHOLD_ALPHA})" if THRESHOLD_METHOD == 'f' else THRESHOLD_METHOD
-    print(f'Selected threshold for park {park}: 0.{best} (THRESHOLD_METHOD = {method}, {MORAN_NEIGHBOURS} neighbours)')
+    print(f'Selected threshold for park {park}: {lab(best)} (THRESHOLD_METHOD = {method}, {MORAN_NEIGHBOURS} neighbours)')
     fmt = lambda x: repr(float(x)) if np.isfinite(x) else 'NA'
     cols = [nanmean_rows(mors), nanmean_rows(varis / vartots), nanmean_rows(m3), nanmean_rows(v3),
             score if score is not None else np.full(len(ks), np.nan)]

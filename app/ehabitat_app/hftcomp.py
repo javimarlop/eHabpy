@@ -129,9 +129,21 @@ def _target(path):
 		return name
 	kind = 'hft_stats' if name.startswith('hft_stats') else 'hft_means'
 	try:
-		k = str(int(round(float(first[ix['threshold']]) * 10)))
+		thr = float(first[ix['threshold']])
 	except ValueError:
-		k = '0'
+		thr = None
+	# the index k of the threshold (its value in the table): from segm_thresholds.csv of the scenario (the table is in
+	# it or in the folder of a cut), else k = value x 10, as with the nine thresholds of 0.1-0.9 of the older runs
+	k = '0' if thr is None else str(int(round(thr * 10)))
+	for d in (os.path.dirname(path), os.path.dirname(os.path.dirname(path))):
+		if thr is not None and os.path.isfile(os.path.join(d, 'segm_thresholds.csv')):
+			for kk, v in results.threshold_values(d).items():
+				try:
+					if abs(float(v) - thr) < 1e-9:
+						k = kk
+				except ValueError:
+					pass
+			break
 	cuts = {r[ix['cut']] for r in _read(path)[1] if ix['cut'] < len(r)}
 	tag = ''
 	if len(cuts) == 1 and next(iter(cuts)) not in ('NA', ''):

@@ -94,6 +94,7 @@ def scenario(study_area, scen):
 	       'per_id': {}, 'labels': area_labels(study_area)}
 	meta = os.path.join(root, 'processing_metadata.txt')
 	out['metadata'] = open(meta, encoding='utf-8', errors='replace').read() if os.path.isfile(meta) else None
+	values = threshold_values(root)
 	overall = os.path.join(root, 'overall_optim_thresholds.csv')
 	thresholds = {}
 	if os.path.isfile(overall):
@@ -112,7 +113,10 @@ def scenario(study_area, scen):
 		                    (f'r2_{i}_hfts.csv', 'R² by number of HFTs')):
 			p = os.path.join(root, name)
 			if os.path.isfile(p):
-				rec['tables'].append(dict(_table(p), label=label))
+				t = _table(p)
+				if name.endswith('_optim_thresholds.csv'):
+					t = _with_threshold_values(t, values)
+				rec['tables'].append(dict(t, label=label))
 		# the HFTs of every cut with the mean of their variables (hft_stats_<id>_<k>.csv, with more statistics,
 		# is only in the folder)
 		for f in sorted(files):
@@ -146,6 +150,33 @@ def scenario(study_area, scen):
 		rec['cuts'].sort(key=lambda c: int(c['cut'][1:]) if CUT_RE.match(c['cut']) else 0)
 		out['per_id'][i] = rec
 	return out
+
+
+def threshold_values(root):
+	"""{k (text): value (text)} of the thresholds of the results in ROOT (segm_thresholds.csv of moranvar_plots.R, from
+	SEGM_THRESHOLDS); without it (results of eHabpy 1.5 or before), the nine of 0.1-0.9: k / 10."""
+	p = os.path.join(root, 'segm_thresholds.csv')
+	if os.path.isfile(p):
+		try:
+			with open(p, newline='') as f:
+				rows = [r for r in csv.reader(f, delimiter=' ') if r][1:]
+			out = {r[0]: r[1] for r in rows if len(r) >= 2}
+			if out:
+				return out
+		except OSError:
+			pass
+	return {str(k): str(k / 10) for k in range(1, 10)}
+
+
+def _with_threshold_values(t, values):
+	"""The table <id>_optim_thresholds.csv (column threshold: the index k of each threshold) with the value of each
+	threshold in a column 'value' after it, as shown in the app (the file is not changed)."""
+	h = t['header']
+	if 'threshold' not in h or 'value' in h:
+		return t
+	j = h.index('threshold') + 1
+	rows = [r[:j] + [values.get(r[j - 1], '')] + r[j:] if len(r) >= j else r for r in t['rows']]
+	return dict(t, header=h[:j] + ['value'] + h[j:], rows=rows)
 
 
 def _first(cands):
@@ -238,12 +269,23 @@ def hft_layer(shp, colours=None, metadata=None):
 	gj = w.__geo_interface__
 	for f in gj['features']:
 		f.pop('bbox', None)
-		f['properties'] = {k: (int(v) if k in ('hft', 'segm_id') else v) for k, v in f['properties'].items()}
+		# segm_id as text: it can have more digits than a number of JavaScript keeps (2^53)
+		f['properties'] = {k: (int(v) if k == 'hft' else _segm_id(v) if k == 'segm_id' else v) for k, v in f['properties'].items()}
 	_round(gj)
 	minx, miny, maxx, maxy = w.total_bounds
 	return {'geojson': gj, 'legend': legend, 'bounds': [[float(miny), float(minx)], [float(maxy), float(maxx)]],
 	        'variables': names, 'profiles': {str(k): v for k, v in profiles.items()},
 	        'colours_from': 'tree' if colours and os.path.isfile(colours) else 'set1', 'file': paths.rel(shp)}
+
+
+def _segm_id(v):
+	"""segm_id of a shapefile of the results (a text field, or a number in older ones) as text, without decimals."""
+	if v is None:
+		return None
+	if isinstance(v, float):
+		return str(int(v)) if v == v else None
+	s = str(v).strip()
+	return s[:-2] if s.endswith('.0') else s
 
 
 def _round(gj, nd=6):

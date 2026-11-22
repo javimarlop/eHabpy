@@ -2,8 +2,11 @@
 #### Modernized for Python 3 (2024)
 #### License: CC BY-SA 3.0
 ####
-#### Per-HFT SUMMARY (MEAN or MEDIAN according to config.py) + variance summary 
-#### of the input variables for each of the nine segmentation threshold levels (1..9).
+#### Per-HFT SUMMARY (MEAN or MEDIAN according to config.py) + variance summary
+#### of the input variables for each segmentation threshold level k (1..n, the thresholds of SEGM_THRESHOLDS;
+#### 1..9 for the nine of 0.1-0.9).
+#### ehab_segm_core.py computes them for all the segments of an area and threshold at once, from the
+#### segment raster tiffs/segm_<id>_<k>.tif written by segmentation_pca_par.py (one NumPy pass per variable).
 ####
 #### Usage:
 ####     python getmean_median_var.py
@@ -56,7 +59,8 @@ def ehabitat(ecor, nw, nwpathout, k):
 	return _core.ehabitat(ecor, nw, nwpathout, k, _AGG)
 
 
-# --- Backward-compatible per-level wrappers (ehabitat1..9 / run_batch1..9) ------
+# --- Backward-compatible per-level wrappers (ehabitat1..9 / run_batch1..9, the nine thresholds of 0.1-0.9; any level
+# k: ehabitat(ecor, nw, nwpathout, k) and run_batch(k)) ------
 def _make_level(k):
 	def _eh(ecor, nw, nwpathout, _k=k):
 		return _core.ehabitat(ecor, nw, nwpathout, _k, _AGG)
