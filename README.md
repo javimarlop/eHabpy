@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Desktop app**: The protected areas from MonitorEO (study areas, or the comparison area of the Earth Engine variables) can also be found by their WDPA ID, the number of protectedplanet.net (several separated by commas, e.g. `389011, 389012`), besides their name.
+
 ### [1.6.3](https://github.com/javimarlop/eHabpy/releases/tag/1.6.3) · 2026-11-22
 
 - **HFT model**: Segmentations with tens of thousands of segments (e.g. low thresholds in `SEGM_THRESHOLDS`, for small habitats) are classified into HFTs without running out of memory: a threshold with more than 7,500 segments gets its tree, cophenetic correlation and silhouettes with memory that grows with the segments instead of their square (about 0.5 GB instead of about 200 GB with 55,000 segments, in about a minute), with the same HFTs and values as before (with `CLASS_METHOD = 'ward'`, as long as every segment has data in every variable); thresholds with fewer segments are classified as until now.
