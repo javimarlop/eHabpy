@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.4](https://github.com/javimarlop/eHabpy/releases/tag/1.6.4) · 2026-11-23
 
 - **Desktop app**: The protected areas from MonitorEO (study areas, or the comparison area of the Earth Engine variables) can also be found by their WDPA ID, the number of protectedplanet.net (several separated by commas, e.g. `389011, 389012`), besides their name.
 
