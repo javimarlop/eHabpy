@@ -2301,10 +2301,10 @@ async function areaDialog(purpose = 'study', preset = {}) {
 			el('div', {class: 'btns'}, compute));
 	}
 
-	// Protected areas and administrative units: found by their name in Earth Engine, then made into a file ----------
+	// Protected areas (by their name or WDPA ID) and administrative units (by their name), then made into a file ------
 	function finder(kind) {
 		const box = el('div', {class: 'stack', style: {gap: '10px'}});
-		const text = el('input', {type: 'text', class: 'grow', placeholder: kind === 'protected' ? 'Part of its name: Sierra Nevada, Doñana…' : 'Part of its name: Granada, Andalucía…'});
+		const text = el('input', {type: 'text', class: 'grow', placeholder: kind === 'protected' ? 'Part of its name (Sierra Nevada, Doñana…) or its WDPA ID (389011; several: 389011, 389012)' : 'Part of its name: Granada, Andalucía…'});
 		const ramsar = el('input', {type: 'checkbox'});
 		const level = el('select', {}, el('option', {value: '2'}, 'Level 2: provinces, districts, municipalities…'), el('option', {value: '1'}, 'Level 1: regions, states, provinces…'));
 		const country = el('input', {type: 'text', placeholder: 'ISO3: ESP', style: {width: '80px'}, maxlength: 3});
@@ -2319,7 +2319,7 @@ async function areaDialog(purpose = 'study', preset = {}) {
 			const head = kind === 'protected' ? ['', 'WDPA ID', 'Name', 'Designation', 'IUCN', 'Country', 'km²', 'Year'] : ['', 'Code', 'Name', 'Full name', 'Country'];
 			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', {}, h)))));
 			const body = el('tbody');
-			if (!rows.length) body.append(el('tr', {}, el('td', {colspan: head.length, class: 'empty'}, 'Search by name.')));
+			if (!rows.length) body.append(el('tr', {}, el('td', {colspan: head.length, class: 'empty'}, kind === 'protected' ? 'Search by name or WDPA ID.' : 'Search by name.')));
 			for (const r of rows) {
 				const cb = el('input', {type: 'checkbox'});
 				cb.checked = chosen.has(r.id);
@@ -2335,9 +2335,16 @@ async function areaDialog(purpose = 'study', preset = {}) {
 			found.textContent = 'Searching in Earth Engine…';
 			try {
 				await pages.gee.saveAccount();
+				// only numbers: WDPA IDs (as areas.wdpa_ids), whatever "only Ramsar sites"
+				const ids = kind === 'protected' && /^\d+(?:[\s,;]+\d+)*$/.test(text.value.trim())
+					? text.value.trim().split(/[\s,;]+/).map(Number) : null;
 				rows = kind === 'protected' ? await api('area_find_protected', text.value, ramsar.checked)
 					: await api('area_find_admin', text.value, Number(level.value), country.value.trim() || null);
-				found.textContent = `${rows.length}${rows.length === 50 ? ' (the first 50)' : ''} found.` + (chosen.size ? ` ${chosen.size} chosen (they stay chosen in other searches).` : '');
+				const missing = ids ? ids.filter(i => !rows.some(r => Number(r.id) === i)) : [];
+				found.textContent = `${rows.length}${rows.length === 50 ? ' (the first 50)' : ''} found.`
+					+ (ids && ramsar.checked ? ' By WDPA ID, "only Ramsar sites" does not apply.' : '')
+					+ (missing.length ? ` No protected area with the WDPA ID ${missing.join(', ')}.` : '')
+					+ (chosen.size ? ` ${chosen.size} chosen (they stay chosen in other searches).` : '');
 				draw();
 			} catch (e) { found.textContent = ''; fail(e); }
 		}}, 'Search');
@@ -2345,12 +2352,14 @@ async function areaDialog(purpose = 'study', preset = {}) {
 		const make = el('button', {class: 'btn primary', onclick: () => {
 			if (!chosen.size) return toast('Tick at least one.', 'warn');
 			const items = [...chosen.values()];
-			start(kind, {items, join: join.checked, ramsar: ramsar.checked, level: Number(level.value), name: name.value.trim() || items[0].name});
+			// "only Ramsar sites" names the file only when every one chosen is a Ramsar site (it does not apply to the IDs)
+			const allRamsar = ramsar.checked && items.every(r => /ramsar/i.test(r.desig || ''));
+			start(kind, {items, join: join.checked, ramsar: allRamsar, level: Number(level.value), name: name.value.trim() || items[0].name});
 		}}, 'Make the file');
 		draw();
 		box.append(
 			el('p', {class: 'small muted', style: {margin: 0}}, kind === 'protected'
-				? 'The protected areas of the World Database on Protected Areas (WDPA, UNEP-WCMC & IUCN) in Earth Engine, by their name: each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'
+				? 'The protected areas of the World Database on Protected Areas (WDPA, UNEP-WCMC & IUCN) in Earth Engine, by their name or their WDPA ID (the number of protectedplanet.net): each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'
 				: 'The administrative units of FAO GAUL 2025 in Earth Engine, by their name: each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'),
 			el('div', {class: 'row'}, text, kind === 'protected' ? el('label', {class: 'check small'}, ramsar, 'only Ramsar sites') : level,
 				kind === 'admin' ? country : null, search),

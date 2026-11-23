@@ -5,8 +5,8 @@ Earth Engine (with the account of the downloads):
   dNBR, the RBR or the RdNBR (services.burn_severity with perimeter, monitoreo >= 0.3.47), and the unburned ring around
   it (a band of a given width outside the perimeter, starting at a given distance from it), e.g. the area to compare
   the HFTs of the burned area with;
-- protected areas of WDPA (also only its Ramsar sites) and administrative units of FAO GAUL 2025 (levels 1 and 2),
-  found by their name.
+- protected areas of WDPA (also only its Ramsar sites), found by their name or their WDPA ID, and administrative units
+  of FAO GAUL 2025 (levels 1 and 2), found by their name.
 
 Each area is a folder of segm_optim/areas with a GeoPackage of polygons in the WGS 84 / UTM zone of their centre,
 whose fields cat (1, 2, ...: the ID of each feature, a study area for setup.py) and name make it a file of study areas
@@ -99,14 +99,38 @@ def _connected():
 	return services
 
 
+def wdpa_ids(text):
+	"""The WDPA IDs of TEXT when it is only numbers (separated by commas, semicolons or spaces), else None."""
+	text = str(text or '').strip()
+	if not re.fullmatch(r'\d+(?:[\s,;]+\d+)*', text):
+		return None
+	return [int(x) for x in re.split(r'[\s,;]+', text)]
+
+
+def _protected_by_id(ids):
+	"""The rows of WDPA (as services.find_protected_areas gives them) of the protected areas with these WDPA IDs: in
+	SITE_ID, or in WDPAID in the versions of WDPA before 2025 (as monitoreo.areas.region with wdpa_id)."""
+	import ee
+	from monitoreo import areas as mo_areas
+	f = ee.Filter.Or(ee.Filter.inList('SITE_ID', ids), ee.Filter.inList('WDPAID', ids))
+	fc = ee.FeatureCollection(mo_areas.WDPA).filter(f).limit(50)
+	try:
+		feats = fc.map(lambda x: ee.Feature(None, x.toDictionary())).getInfo()['features']
+	except ee.EEException as e:
+		raise ValueError(f'Earth Engine: {e}') from e
+	return [x['properties'] for x in feats]
+
+
 def find_protected(text, ramsar=False):
-	"""Protected areas of WDPA whose name (or English name) contains TEXT (with RAMSAR, only the Ramsar sites):
+	"""Protected areas of WDPA whose name (or English name) contains TEXT (with RAMSAR, only the Ramsar sites), or,
+	when TEXT is only numbers, those with these WDPA IDs (whatever RAMSAR: the IDs say which ones):
 	[{id (WDPA ID), name, desig, iucn, iso3, km2, year}]."""
 	text = str(text or '').strip()
-	if len(text) < 2:
-		raise ValueError('write at least two letters of the name of the protected area')
+	ids = wdpa_ids(text)
+	if ids is None and len(text) < 2:
+		raise ValueError('write at least two letters of the name of the protected area, or its WDPA ID')
 	services = _connected()
-	rows = services.find_protected_areas(text, 50, 'ramsar' if ramsar else None)
+	rows = _protected_by_id(ids) if ids else services.find_protected_areas(text, 50, 'ramsar' if ramsar else None)
 	return [{'id': r.get('SITE_ID') or r.get('WDPAID'), 'name': r.get('NAME') or r.get('NAME_ENG'),
 	         'desig': r.get('DESIG_ENG') or r.get('DESIG'), 'iucn': r.get('IUCN_CAT'), 'iso3': r.get('ISO3'),
 	         'km2': r.get('REP_AREA'), 'year': r.get('STATUS_YR')} for r in rows]
