@@ -862,6 +862,9 @@ pages.gee = (() => {
 		if (!rec.period[0] || !rec.period[1]) throw new Error('Write the period.');
 		if (rec.season && !rec.season.every(s => /^\d\d-\d\d$/.test(s))) throw new Error('Write the season as MM-DD (e.g. 06-01).');
 		if (!rec.variables.length) throw new Error('Add at least one variable.');
+		const regions = rec.variables.filter(v => kind(v) === 'catalog' && isRegions(catRow(v))).map(v => v.index);
+		if (regions.length) throw new Error(`Remove ${regions.join(' and ')} from the variables: ${regions.length > 1 ? 'they are maps of regions (class codes), not continuous variables' : 'it is a map of regions (class codes), not a continuous variable'} `
+			+ 'for the HFTs. The RESOLVE ecoregions are the comparison area of the ecoregion grid by default.');
 		if (comp && !rec.comparison_area) throw new Error('Choose the vector file of the comparison area (or the RESOLVE ecoregions).');
 		if (comp && !rec.ecoregion.resolution) throw new Error('Write the pixel size of the grid of the comparison area.');
 		return rec;
@@ -1133,7 +1136,9 @@ pages.gee = (() => {
 		const cv = !isStatic(r) && (m === 'cv' || inter === 'cv');
 		const keeps = !['sum', 'count', 'std'].includes(m) && inter !== 'std';
 		const unit = cv ? ' %' : u && keeps && !/^(unitless|dimensionless|index|-|1)$/i.test(u) ? ` ${u}` : '';
-		const range = c.min !== undefined && c.min !== null && c.max !== undefined && c.max !== null ? `between ${c.min} and ${c.max}${unit}`
+		const list = x => [].concat(x).join(', ');
+		const range = c.classes != null ? `is class ${list(c.classes)}` : c.exclude != null ? `is not class ${list(c.exclude)}`
+			: c.min !== undefined && c.min !== null && c.max !== undefined && c.max !== null ? `between ${c.min} and ${c.max}${unit}`
 			: c.min !== undefined && c.min !== null ? `≥ ${c.min}${unit}` : `≤ ${c.max}${unit}`;
 		const how = isStatic(r) ? '' : ` · ${c.metric || onlyMetric(r) || 'mean'}${c.temporal && c.temporal !== 'period' ? ` ${TEMPORAL[c.temporal] || c.temporal}, ${c.interannual || 'mean'} between years` : ''}`
 			+ (Array.isArray(c.period) ? ` of ${c.period[0]} to ${c.period[1]}` : ' of the period of each variable');
@@ -1152,7 +1157,17 @@ pages.gee = (() => {
 		let cat;
 		try { cat = await ensureCatalog(); } catch (e) { return fail(e); }
 		const c0 = existing || {};
-		const rows = cat.variables.filter(r => !twoPeriods(r));
+		// a layer of regions (class codes) takes classes, not a minimum and a maximum: not offered here, and a condition
+		// on one (from a recipe file: classes or exclude) is kept as it is, or removed with ✕
+		if (isRegions(condRow(c0))) {
+			toast(`${c0.variable} is a map of regions: its condition (the classes to keep or leave out) is edited in the recipe file, or removed with ✕.`, 'warn', 7000);
+			return null;
+		}
+		if (twoPeriods(condRow(c0))) {  // RBR, RdNBR: only the burn severity computes them
+			toast(`${c0.variable} is not a variable of a period: remove its condition (✕).`, 'warn', 7000);
+			return null;
+		}
+		const rows = cat.variables.filter(r => !twoPeriods(r) && !isRegions(r));
 		const key = r => `${r.ref}`;
 		const pick = el('select', {style: {width: '100%'}});
 		const groups = {};
@@ -1272,8 +1287,14 @@ pages.gee = (() => {
 	// (RBR, RdNBR: only the burn severity computes them) or one with a single metric (the frequencies: SCF, CF)
 	const isStatic = r => !!(r && r.static);
 	const twoPeriods = r => !!(r && r.two_periods);
+	// a layer of class codes (categorical: ECOREGION, BIOME of RESOLVE): regions to choose study or comparison areas,
+	// not a variable of the HFTs (the mean of class codes over a segment means nothing)
+	const isRegions = r => !!(r && r.categorical);
+	const REGIONS_TITLE = 'Regions: a map of class codes (each ecoregion or biome a number), not a continuous variable. They are for choosing '
+		+ 'the comparison area, not for characterising the HFTs.';
 	const onlyMetric = r => (r && r.metric) ? String(r.metric) : null;
 	function catFlag(r) {
+		if (isRegions(r)) return el('span', {class: 'badge warn', title: REGIONS_TITLE}, 'regions' + (r.n_classes ? ` · ${r.n_classes} classes` : ''));
 		if (twoPeriods(r)) return el('span', {class: 'badge warn', title: 'It compares a period before and a period after a fire: make the burned area with "From MonitorEO…"'}, 'burn severity only');
 		if (isStatic(r)) return el('span', {class: 'badge', title: 'A fixed layer, without dates: no metric, period or temporal aggregation'}, 'fixed layer');
 		if (onlyMetric(r)) return el('span', {class: 'badge', title: `Only the metric ${r.metric}`}, `${r.metric} only`);
@@ -1297,9 +1318,9 @@ pages.gee = (() => {
 			const first = n + 1; n += files;
 			const src = k === 'catalog' ? `${v.sensor || ''}${v.collection ? ' · ' + v.collection : ''}`
 				: `${v.image || v.collection} · ${bandText(v)}${v.terrain ? ' · ' + v.terrain : ''}`;
-			body.append(el('tr', {'data-var': i + 1},
+			body.append(el('tr', {'data-var': i + 1, class: isRegions(row) ? 'regions' : null, title: isRegions(row) ? REGIONS_TITLE + ' Remove it (✕).' : null},
 				el('td', {class: 'num faint'}, files > 1 ? `${first}–${n}` : String(first)),
-				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || (bandList(v.band).length > 1 ? bandText(v) : v.band) || '?')), ' ', twoPeriods(row) ? catFlag(row) : null,
+				el('td', {}, el('b', {}, k === 'catalog' ? v.index : (v.name || (bandList(v.band).length > 1 ? bandText(v) : v.band) || '?')), ' ', twoPeriods(row) || isRegions(row) ? catFlag(row) : null,
 					el('div', {class: 'var-src'}, k === 'catalog' ? 'catalog of MonitorEO'
 						: `${communityRecord(v.image || v.collection) ? 'GEE Community Catalog' : 'Earth Engine'} ${k === 'image' ? 'image' : 'collection'}`)),
 				el('td', {class: 'small'}, src),
@@ -1472,10 +1493,18 @@ pages.gee = (() => {
 			tbl.textContent = '';
 			tbl.append(el('thead', {}, el('tr', {}, ...['Variable', 'Name', 'Sensor', 'Collection', 'Pixel', 'Dates', 'Unit'].map(h => el('th', {}, h)))));
 			const body = el('tbody');
-			for (const r of cat.variables) {
-				if (sensor.value && r.sensor !== sensor.value) continue;
-				if (q && !`${r.variable} ${r.name} ${r.group} ${r.collection}`.toLowerCase().includes(q)) continue;
-				const tr = el('tr', {class: 'click' + (chosen === r ? ' sel' : '') + (twoPeriods(r) ? ' dim' : '')},
+			const shown = cat.variables.filter(r => (!sensor.value || r.sensor === sensor.value)
+				&& (!q || `${r.variable} ${r.name} ${r.group} ${r.collection}`.toLowerCase().includes(q)));
+			// the indices of the burn severity and the regions: for choosing areas, after the variables
+			const forAreas = r => twoPeriods(r) || isRegions(r);
+			const areas = [...shown.filter(twoPeriods), ...shown.filter(isRegions)];
+			burnHint.classList.toggle('hidden', !/sever|burn|fire|incend|quema|dnbr|rbr/.test(q));
+			for (const r of [...shown.filter(r => !forAreas(r)), ...areas]) {
+				if (r === areas[0]) body.append(el('tr', {class: 'cat-sep'}, el('td', {colspan: 7},
+					el('b', {}, 'For choosing areas, not variables of the HFTs: '),
+					[areas.some(twoPeriods) ? 'the burn severity of a fire (its burned area as the study areas)' : null,
+						areas.some(isRegions) ? 'the regions (class codes, for the comparison area)' : null].filter(Boolean).join(' and '))));
+				const tr = el('tr', {class: 'click' + (chosen === r ? ' sel' : '') + (forAreas(r) ? ' dim' : '')},
 					el('td', {}, el('b', {}, r.variable)), el('td', {}, r.name, ' ', catFlag(r), el('div', {class: 'var-src'}, r.group || '')),
 					el('td', {}, r.sensor), el('td', {class: 'small mono'}, r.collection), el('td', {class: 'num'}, fmt(r.resolution_m, 0) + ' m'),
 					el('td', {class: 'small nowrap'}, r.dates), el('td', {class: 'small'}, r.unit));
@@ -1499,6 +1528,19 @@ pages.gee = (() => {
 					onclick: e => { readyPick = r; e.target.closest('.modal').querySelector('footer .btn.primary').click(); }},
 				existing ? 'Use it instead' : 'Add it instead'))))));
 		};
+		// the burned area of a fire (from the dNBR, the RBR or the RdNBR) as the study areas: "From MonitorEO…" on its tab
+		const burnedArea = (index, sensor) => {
+			const b = el('button', {class: 'btn small primary', onclick: () => {
+				b.closest('.modal').querySelector('header .btn').click();
+				areaDialog('study', {tab: 'burned', ...(index ? {index} : {}), ...(sensor ? {sensor} : {})});
+			}}, `Burned area of the fire as the study area${index ? ' (from the ' + index + ')' : ''}…`);
+			return b;
+		};
+		const burnNote = () => el('div', {class: 'notice info'}, el('div', {class: 'stack', style: {gap: '6px'}},
+			el('div', {}, el('b', {}, 'The burn severity of a fire '), '(dNBR, RBR, RdNBR: a period before minus a period after it) is not a variable of '
+				+ 'a recipe: MonitorEO uses it to delimit the burned area, which can be the study areas (and the unburned ring around it, the comparison area).'),
+			el('div', {}, burnedArea(null, null))));
+		const burnHint = burnNote();
 		const filtersText = r => !r.fixed_filters ? null : r.fixed_filters.length
 			? `Pixel filters always on: ${r.fixed_filters.join(', ')} (whatever the pixel filters of the recipe).`
 			: 'No pixel filters (those of the recipe do not apply to it).';
@@ -1507,15 +1549,36 @@ pages.gee = (() => {
 			if (!chosen) { detail.append(el('div', {class: 'small muted'}, 'Choose a variable of the table.')); return; }
 			const head = el('div', {class: 'notice info'}, el('div', {}, el('b', {}, `${chosen.variable} · ${chosen.sensor}`), ` — ${chosen.name}. `,
 				el('span', {class: 'muted'}, `${chosen.collection}, ${fmt(chosen.resolution_m, 0)} m, ${chosen.dates}, ${chosen.unit}`),
-				filtersText(chosen) ? el('div', {class: 'small muted'}, filtersText(chosen)) : null));
+				filtersText(chosen) && !isRegions(chosen) ? el('div', {class: 'small muted'}, filtersText(chosen)) : null));
 			if (twoPeriods(chosen)) {
 				// RBR, RdNBR: an index of a fire (a period before minus a period after it), not a variable of a period
 				detail.append(head, el('div', {class: 'notice warn'}, el('div', {class: 'stack', style: {gap: '6px'}},
 					el('div', {}, el('b', {}, `${chosen.variable} is not a variable of a period: `), 'it compares a period before and a period after a fire, '
 						+ 'so only the burn severity of MonitorEO computes it, and a recipe cannot download it. Use it to delimit the burned area of the fire '
 						+ '(its perimeter), as the study areas or a comparison area (the burned area, or the unburned ring around it).'),
-					el('div', {}, el('button', {class: 'btn small primary', onclick: () => areaDialog('study', {tab: 'burned', index: chosen.variable, sensor: chosen.sensor})},
-						`Burned area from the ${chosen.variable}…`)))));
+					el('div', {}, burnedArea(chosen.variable, chosen.sensor)))));
+				return;
+			}
+			if (isRegions(chosen)) {
+				const eco = chosen.variable === 'ECOREGION';
+				const useResolve = () => {
+					$('#r-eco-on').checked = true;
+					$('input[name=r-area][value=resolve]').checked = true;
+					for (const x of [$('#r-eco-on'), $('input[name=r-area][value=resolve]')]) x.dispatchEvent(new Event('change', {bubbles: true}));
+					detail.closest('.modal').querySelector('header .btn').click();
+					toast('The ecoregion grid: the RESOLVE ecoregions that the study area touches (check its pixel size).', 'ok', 6000);
+				};
+				detail.append(head, el('div', {class: 'notice warn'}, el('div', {class: 'stack', style: {gap: '6px'}},
+					el('div', {}, el('b', {}, `${chosen.variable} is a map of regions, not a variable: `),
+						`each pixel has the code of its ${eco ? 'ecoregion' : 'biome'} (${chosen.n_classes || 'its'} classes of RESOLVE Ecoregions 2017), `
+						+ 'not a quantity, so its mean over a segment means nothing and a recipe does not download it for the HFTs.'),
+					el('div', {}, eco
+						? 'Use the ecoregions to choose the comparison area: the ecoregion grid of "Also download the variables of the ecoregion '
+							+ 'or comparison area" is, by default, the RESOLVE ecoregions that the study area touches.'
+						: 'Use the biomes to choose a comparison area larger than the ecoregions: a vector file of the biome (in the region of '
+							+ 'the study area), e.g. made in QGIS from RESOLVE Ecoregions 2017 (field BIOME_NAME), as "A comparison area (vector file)".'),
+					existing ? el('div', {}, el('b', {}, 'Remove it from the variables (✕).'))
+						: eco ? el('div', {}, el('button', {class: 'btn small primary', onclick: useResolve}, 'Compare with the RESOLVE ecoregions')) : null)));
 				return;
 			}
 			name = el('input', {type: 'text', value: (existing && existing.name) || '', placeholder: `${chosen.variable}_… (automatic)`});
@@ -1562,7 +1625,7 @@ pages.gee = (() => {
 						+ 'between years cv): how stable the variable is from one year to another. With few years it is unstable (relative error ≈ 1/√(2n): about 25 % '
 						+ 'with the 8 years of Sentinel-2); MODIS (since 2000) or Landsat suit it better.' + caveats},
 					'Interannual variability (CV)')) : null;
-			detail.append(head, alsoReady() || '',
+			detail.append(head, alsoReady() || '', chosen.variable === 'NBR' && burnHint.classList.contains('hidden') ? burnNote() : '',
 				el('div', {class: 'form-grid'},
 					el('label', {}, 'Metrics (one file each)'), mbox,
 					shortcuts ? el('label', {}, 'Shortcuts') : null, shortcuts,
@@ -1577,12 +1640,13 @@ pages.gee = (() => {
 		sensor.addEventListener('change', draw);
 		draw(); drawDetail();
 		return modal({title: existing ? 'Edit variable of the catalog' : 'Add variables from the catalog of MonitorEO', wide: true,
-			body: el('div', {class: 'stack', style: {gap: '10px'}}, el('div', {class: 'row'}, search, sensor), wrap, detail,
+			body: el('div', {class: 'stack', style: {gap: '10px'}}, el('div', {class: 'row'}, search, sensor), burnHint, wrap, detail,
 				el('div', {class: 'small faint'}, `Catalog of MonitorEO (${(cat.source || {}).imported || ''}), package monitoreo ${cat.monitoreo || ''}.`)),
 			buttons: [{label: 'Cancel', result: null}, {label: existing ? 'Save' : 'Add', cls: 'primary', value: () => {
 				if (readyPick) return JSON.parse(JSON.stringify(readyPick.variable));  // Add it instead
 				if (!chosen) { toast('Choose a variable.', 'warn'); return undefined; }
 				if (twoPeriods(chosen)) { toast(`${chosen.variable} only comes with the burn severity: make the burned area with "From MonitorEO…".`, 'warn'); return undefined; }
+				if (isRegions(chosen)) { toast(`${chosen.variable} is a map of regions, not a variable of the HFTs: use it to choose the comparison area.`, 'warn'); return undefined; }
 				const fixed = isStatic(chosen);
 				const ms = fixed ? [] : chosenMetrics(mbox);
 				if (!fixed && !ms.length) { toast('Choose at least one metric.', 'warn'); return undefined; }

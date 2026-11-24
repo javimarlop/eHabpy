@@ -420,6 +420,8 @@ table.t td .hft { display: inline-flex; align-items: center; gap: 6px; font-weig
 .tabs button.on { background: var(--brand-soft); color: var(--brand); border-color: var(--brand); font-weight: 600; }
 .chip.locked { cursor: default; }
 table.t tr.dim td { color: var(--faint); }
+table.t tr.regions td { background: var(--err-soft); }
+table.t tr.cat-sep td { background: var(--panel-2); color: var(--muted); font-size: 12px; }
 table.t tr.bad td { background: var(--err-soft); }
 .area-file { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 0; border-top: 1px solid var(--line-2); }
 .area-file:first-child { border-top: none; }
