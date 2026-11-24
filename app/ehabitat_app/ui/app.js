@@ -3185,7 +3185,8 @@ pages.similarity = (() => {
 			const def = f.querySelector('.def');
 			if (def) def.textContent = 'Default: ' + defText(p);
 		}
-		for (const [id, name] of [['#s-stat', 'ECOSIM_STAT'], ['#s-covar', 'ECOSIM_COVARIANCE'], ['#s-nb', 'ECOSIM_NEIGHBOURS']]) {
+		for (const [id, name] of [['#s-classes', 'ECOSIM_CLASSES'], ['#s-stat', 'ECOSIM_STAT'], ['#s-covar', 'ECOSIM_COVARIANCE'],
+			['#s-nb', 'ECOSIM_NEIGHBOURS']]) {
 			const p = params.find(q => q.name === name);
 			if (!p) continue;
 			const sel = $(id);
@@ -3197,6 +3198,7 @@ pages.similarity = (() => {
 	}
 
 	function setValues(v) {
+		$('#s-classes').value = String(v.ECOSIM_CLASSES || 'hft');
 		$('#s-stat').value = String(v.ECOSIM_STAT);
 		$('#s-covar').value = String(v.ECOSIM_COVARIANCE || 'mcd');
 		$('#s-nb').value = String(v.ECOSIM_NEIGHBOURS);
@@ -3318,7 +3320,7 @@ pages.similarity = (() => {
 	function values() {
 		const cover = $('#s-cover').value;
 		return {ECOSIM_CUT: $('#s-cut').value || '', ECOSIM_AREA: $('#s-area').value || '', ECOSIM_RESOLUTION: resConfig(),
-			ECOSIM_STAT: $('#s-stat').value, ECOSIM_COVARIANCE: $('#s-covar').value,
+			ECOSIM_CLASSES: $('#s-classes').value || 'hft', ECOSIM_STAT: $('#s-stat').value, ECOSIM_COVARIANCE: $('#s-covar').value,
 			ECOSIM_NEIGHBOURS: Number($('#s-nb').value), ECOSIM_MIN_COVER: cover === '' ? null : Number(cover),
 			ECOSIM_ECOREGIONS: $('#s-eco').value.trim(), ECOSIM_MARINE: $('#s-marine').value.trim()};
 	}
@@ -3583,7 +3585,7 @@ pages.similarity = (() => {
 		try {
 			// 0 = the pixel of the ecoregion variables (not "that of config.py")
 			const p = await api('ecosim_plan', sa, sc, $('#s-cut').value || '', follow ? 0 : resMetres() ?? 0, cover, eco,
-				$('#s-area').value || '');
+				$('#s-area').value || '', $('#s-classes').value || 'hft');
 			if (seq !== S.planSeq || scKey !== $('#s-sc').value) return;
 			S.plan = p; S.planError = null;
 			if (!eco && p.ecoregions) { S.defaultEco = p.ecoregions.file; S.defaultEcoPath = p.ecoregions.path; ecoPlaceholder(); }
@@ -3630,17 +3632,17 @@ pages.similarity = (() => {
 			if (count('few_pixels')) summary.push(`${count('few_pixels')} with few pixels`);
 			if (count('too_few_pixels')) summary.push(`${count('too_few_pixels')} without similarity (too few pixels)`);
 			const tbl = el('table', {class: 't'});
-			tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'HFT'), el('th', {class: 'num'}, 'Area (ha)'),
+			tbl.append(el('thead', {}, el('tr', {}, el('th', {}, p.classes === 'subclass' ? 'Subclass' : 'HFT'), el('th', {class: 'num'}, 'Area (ha)'),
 				el('th', {class: 'num', title: 'Pixels of the grid of the similarity that belong to the HFT'}, 'Pixels'),
 				el('th', {}, 'Status'))));
 			const body = el('tbody');
 			for (const h of hfts) {
 				body.append(el('tr', {class: h.status === 'too_few_pixels' ? 'off' : ''},
-					el('td', {}, el('span', {class: 'hft'}, swatch(h.colour), h.hft)),
+					el('td', {}, el('span', {class: 'hft'}, swatch(h.colour), h.subclass || h.hft)),
 					el('td', {class: 'num'}, fmt(h.area_ha, 1)), el('td', {class: 'num'}, fmt(h.ref_pixels, 0)),
 					el('td', {}, statusBadge(h.status))));
 			}
-			if (!hfts.length) body.append(el('tr', {}, el('td', {colspan: 4, class: 'empty'}, 'No HFTs.')));
+			if (!hfts.length) body.append(el('tr', {}, el('td', {colspan: 4, class: 'empty'}, p.classes === 'subclass' ? 'No subclasses.' : 'No HFTs.')));
 			tbl.append(body);
 			const cut = t.cut === 'results' ? 'scenario folder' : `cut ${t.cut}${t.suggested ? ' (suggested)' : ''}`;
 			box.append(el('div', {class: 'stack', style: {gap: '6px'}},
@@ -3722,6 +3724,7 @@ pages.similarity = (() => {
 	$('#s-eco').addEventListener('change', schedulePlan);
 	$('#s-stat').addEventListener('change', markChanged);
 	$('#s-covar').addEventListener('change', markChanged);
+	$('#s-classes').addEventListener('change', () => { markChanged(); schedulePlan(); });
 	$('#s-nb').addEventListener('change', markChanged);
 	$('#s-marine').addEventListener('input', markChanged);
 	$('#s-eco-pick').addEventListener('click', () => pickVector($('#s-eco'), 'File of the ecoregions', f => f === S.defaultEcoPath));
@@ -3773,13 +3776,16 @@ pages.similarity = (() => {
 	});
 
 	// Results -----------------------------------------------------------------------------------------------------
+	// The name of a class of a run: HFT 10, or its subclass hft_10_sub_4 (similarity.py with ECOSIM_CLASSES = 'subclass')
+	const clsName = m => m.subclass || `HFT ${m.hft}`;
+
 	function runLabel(r) {
 		const c = r.counts || {};
 		const without = r.hfts - (c.ok || 0) - (c.few_pixels || 0) - (c.no_similar || 0);
 		// another area than the ecoregion of the set: its tag (the suffix of the folder) and name
 		const a = r.area || {};
 		const area = r.tag ? ` · vs ${a.name ? a.name + ' (' + r.tag + ')' : r.tag}` : '';
-		return `${r.cut === 'results' ? 'Scenario folder' : r.cut} · ${fmt(r.res)} m${area} · ${r.hfts} HFTs`
+		return `${r.cut === 'results' ? 'Scenario folder' : r.cut} · ${fmt(r.res)} m${area} · ${r.hfts} ${r.classes === 'subclass' ? 'subclasses' : 'HFTs'}`
 			+ (without > 0 ? ` (${without} without similarity)` : '') + (r.date ? ' · ' + r.date : '');
 	}
 
@@ -3829,7 +3835,7 @@ pages.similarity = (() => {
 		const cur = hsel.value;
 		hsel.textContent = '';
 		for (const m of R.maps) {
-			hsel.append(el('option', {value: `${m.id}_${m.hft}`}, `${multi ? 'ID ' + m.id + ' · ' : ''}HFT ${m.hft}`
+			hsel.append(el('option', {value: `${m.id}_${m.hft}`}, `${multi ? 'ID ' + m.id + ' · ' : ''}${clsName(m)}`
 				+ (m.sim || m.similar ? '' : ` (${(STATUS[m.status] || [, m.status])[1]})`)));
 		}
 		const first = R.maps.find(m => m.sim || m.similar) || R.maps[0];
@@ -3865,7 +3871,7 @@ pages.similarity = (() => {
 		const multi = new Set(R.hri.map(r => r.wdpaid)).size > 1;
 		const colour = Object.fromEntries(R.maps.map(m => [`${m.id}_${m.hft}`, m.colour]));
 		const cols = HRI.filter(([c]) => c === 'T' || t.header.includes(c));
-		tbl.append(el('thead', {}, el('tr', {}, multi ? el('th', {}, 'ID') : null, el('th', {}, 'HFT'), el('th', {}, 'Status'),
+		tbl.append(el('thead', {}, el('tr', {}, multi ? el('th', {}, 'ID') : null, el('th', {}, t.header.includes('subclass') ? 'Subclass' : 'HFT'), el('th', {}, 'Status'),
 			...cols.map(([c, h, , title]) => el('th', {class: 'num', title: c === 'T' ? `${title} (${tcol})` : `${title} (${c})`}, h)))));
 		const body = el('tbody');
 		for (const r of R.hri) {
@@ -3873,7 +3879,7 @@ pages.similarity = (() => {
 			const k = `${r.wdpaid}_${hft}`;
 			const tr = el('tr', {class: 'click', title: 'Show its maps'},
 				multi ? el('td', {}, r.wdpaid) : null,
-				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), hft)),
+				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), r.subclass || hft)),
 				el('td', {}, statusBadge(r.Status)),
 				...cols.map(([c, , d]) => el('td', {class: 'num'}, fmt(c === 'T' ? r[tcol] : r[c], d))));
 			tr.addEventListener('click', () => {
@@ -3955,7 +3961,7 @@ pages.similarity = (() => {
 		const tif = m ? m[kind] : null;
 		const multi = new Set(R.maps.map(x => x.id)).size > 1;
 		$('#s-map-title').textContent = !m ? 'Similarity map'
-			: `${kind === 'sim' ? 'Similarity' : 'Similar areas'} of HFT ${m.hft}${multi ? ' · ' + areaName(m.id) : ''}`;
+			: `${kind === 'sim' ? 'Similarity' : 'Similar areas'} of ${clsName(m)}${multi ? ' · ' + areaName(m.id) : ''}`;
 		const seq = ++S.mapSeq;
 		let p = null;
 		if (tif) {
@@ -4001,9 +4007,9 @@ pages.similarity = (() => {
 		box.textContent = '';
 		box.classList.toggle('hidden', !m);
 		if (!m) return;
-		box.append(el('h4', {class: 'row', style: {gap: '6px'}}, swatch(m.colour), `HFT ${m.hft}`, statusBadge(m.status)));
+		box.append(el('h4', {class: 'row', style: {gap: '6px'}}, swatch(m.colour), clsName(m), statusBadge(m.status)));
 		if (!p) {
-			const why = m.status && m.status !== 'ok' ? ': ' + (STATUS[m.status] || [, , m.status])[2] : ' of this HFT';
+			const why = m.status && m.status !== 'ok' ? ': ' + (STATUS[m.status] || [, , m.status])[2] : ' of this ' + (m.subclass ? 'subclass' : 'HFT');
 			box.append(el('div', {class: 'small muted', style: {maxWidth: '230px'}}, `No map${why}.`));
 		} else if (kind === 'sim') {
 			const tick = m.threshold !== null && m.threshold !== undefined

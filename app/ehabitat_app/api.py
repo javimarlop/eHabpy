@@ -534,8 +534,9 @@ class Api:
 		return ecosim.sources(study_area, scenario)
 
 	@exposed
-	def ecosim_plan(self, study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=None, area=None):
-		return ecosim.plan(study_area, scenario, cut, res, min_cover, ecoregions, area)
+	def ecosim_plan(self, study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=None, area=None,
+	                classes=None):
+		return ecosim.plan(study_area, scenario, cut, res, min_cover, ecoregions, area, classes)
 
 	@exposed
 	def ecosim_areas(self, study_area, scenario):

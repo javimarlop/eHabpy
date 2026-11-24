@@ -152,3 +152,34 @@ subclass_colours <- function(codes, size, hft_cols) {
 	}
 	out
 }
+
+# The shapefile of the HFTs with its segments split into the subclasses of their pixels: one polygon per segment and
+# subclass (with several parts when its pixels do not touch), with the fields of its segment (layer: class_layer of
+# moranvar_plots.R), its subclass (hft_<n>_sub_<y>) and code (100 x HFT + subclass), and its area (that of the
+# polygon, as that of the segments). The pixels of a segment without a subclass (no data in any variable) are one
+# more polygon, without subclass. pixgrid: the grid of the pixels; scode: the subclass code of each of its pixels (NA
+# none)
+subclass_pieces <- function(layer, pixgrid, scode) {
+	layer$.row <- seq_len(nrow(layer))
+	row <- terra::values(terra::rasterize(terra::vect(layer), pixgrid, field='.row'), mat=FALSE)
+	# the HFT of the subclass of every pixel is that of its segment (both from the same polygons, drawn alike)
+	both <- !is.na(row) & !is.na(scode)
+	if (any(scode[both] %/% 100L != layer$hft[row[both]])) stop('subclass_pieces: the subclasses of some pixels are not those of the HFT of their segment')
+	key <- row * 100 + ifelse(is.na(scode), 0L, scode %% 100L)
+	kr <- terra::rast(pixgrid, nlyrs=1)
+	terra::values(kr) <- key
+	names(kr) <- 'key'
+	pol <- sf::st_as_sf(terra::as.polygons(kr, dissolve=TRUE))
+	pol <- pol[order(pol$key), ]
+	k <- pol$key
+	sb <- as.integer(k %% 100)
+	a <- sf::st_drop_geometry(layer)[k %/% 100, setdiff(names(layer), c('.row', attr(layer, 'sf_column'))), drop=FALSE]
+	ha <- sf::st_area(sf::st_geometry(pol))
+	a$area_ha <- if (inherits(ha, 'units')) as.numeric(units::set_units(ha, 'ha', mode='standard')) else as.numeric(ha) / 1e4
+	a$subclass <- ifelse(sb > 0, sprintf('hft_%d_sub_%d', a$hft, sb), NA_character_)
+	a$sub_code <- ifelse(sb > 0, 100L * a$hft + sb, NA_integer_)
+	first <- c('segm_id', 'segm_cat', 'area_id', 'hft', 'subclass', 'sub_code', 'area_ha', 'silhouette')
+	a <- a[, c(first, setdiff(names(a), first))]
+	rownames(a) <- NULL
+	sf::st_sf(a, geometry=sf::st_geometry(pol))
+}

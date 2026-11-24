@@ -20,6 +20,53 @@ dbf_names <- function(x, taken = character(0)) {
 	paste0(p, substr(gsub('.', '_', d, fixed = TRUE), 1, 10 - nchar(p)))
 }
 
+# Fields of the shapefile of the HFTs (park_segm_<id>_<k>[_<cut>][_optim]_class.shp) besides the variables, and what
+# each one is (in park_segm_..._class_fields.csv, next to it). Up to eHabpy 1.6.6 they were hclst_m (hft), cat
+# (segm_cat), cat_pa and wdpaid (area_id) and label (always empty)
+CLASS_FIELDS <- c(
+	segm_id='ID of the segment: the ID of the study area, the position of the segmentation threshold and the number of the segment',
+	segm_cat='Number of the segment in the segmentation (cat of shp/park_segm_<id>_<k>.shp)',
+	area_id='ID of the study area (palist.csv)',
+	hft='HFT of the segment in this cut',
+	subclass='Subclass of the pixels of the HFT (HFT_SUBCLASSES, k-means): hft_<n>_sub_<y> is the subclass y of the HFT n; empty for the pixels without data in any variable',
+	sub_code='Code of the subclass in the GeoTIFF hft_subclasses_*.tif and the table hft_subclasses_*.csv: 100 x HFT + subclass',
+	area_ha='Area of the polygon (ha)',
+	silhouette='Silhouette width of the segment between the HFTs (-1 to 1; NA with one HFT per segment)')
+
+# Fields of the variables in the shapefile of the HFTs: the part of their names that differs (short_labels), without
+# the number in front (as in gee_<area>_1_NDVI) and with _ for the other characters, cut to the 10 characters of a
+# field of a .dbf (e.g. NDVI_S2_p9, CLre_lates); dbf_names if two of them would be equal
+var_fields <- function(x, taken = names(CLASS_FIELDS)) {
+	s <- gsub('_+', '_', gsub('[^A-Za-z0-9]', '_', short_labels(x, width = 1000)))
+	s <- sub('^[0-9]+_(?=[A-Za-z])', '', sub('^_+', '', s), perl = TRUE)
+	s <- sub('_+$', '', substr(s, 1, 10))
+	if (all(nzchar(s)) && !any(grepl('^[0-9]', s)) && !anyDuplicated(tolower(c(s, taken)))) return(s)
+	dbf_names(x, taken)
+}
+
+# The polygons of the segments with the fields of the shapefile of the HFTs: segs, the segments (sf, with cat and
+# segm_id) with their HFT (hclust_mean); vars, the value of each variable for each segment (columns named by the
+# fields of var_fields); sil, the silhouette width of each segment
+class_layer <- function(segs, park, vars, sil) {
+	ha <- st_area(st_geometry(segs))
+	ha <- if (inherits(ha, 'units')) as.numeric(units::set_units(ha, 'ha', mode = 'standard')) else as.numeric(ha) / 1e4
+	d <- data.frame(segm_id = segs$segm_id, segm_cat = as.integer(segs$cat), area_id = as.character(park),
+	                hft = as.integer(segs$hclust_mean), area_ha = ha, silhouette = sil, stringsAsFactors = FALSE)
+	st_sf(cbind(d, as.data.frame(vars, row.names = NULL, check.names = FALSE)), geometry = st_geometry(segs))
+}
+
+# Writes the shapefile of the HFTs and, next to it, park_segm_..._class_fields.csv: what each field is (vars: the
+# name of the variable of each field of a variable)
+write_class_layer <- function(x, path, vars) {
+	st_write(x, path, delete_layer = TRUE, quiet = TRUE)
+	f <- setdiff(names(x), attr(x, 'sf_column'))
+	what <- ifelse(f %in% names(CLASS_FIELDS), CLASS_FIELDS[f],
+	               paste0('Mean of ', vars[f], ' in the segments of the HFT, rescaled from 0 (the lowest HFT) to 1 (the ',
+	                      'highest), as in the radar plot of the HFTs'))
+	write.table(data.frame(field = f, meaning = unname(what)), sub('\\.shp$', '_fields.csv', path), sep = ' ',
+	            row.names = FALSE, quote = TRUE)
+}
+
 # Colores jerárquicos para cortes anidados del mismo árbol (SIMIL = 3), como los "tree colors" de Tennekes
 # y de Jonge (2014) en el espacio HCL: los HFTs del corte con menos HFTs se reparten el círculo de tonos, y
 # cada HFT reparte su parte entre los HFTs del corte siguiente que contiene (en proporción a los HFTs del
@@ -1018,24 +1065,14 @@ for (pmx in 1:mx) {
 
 				merge(segm_pa, data.frame(segm_id=hri$segm_id, hclust_mean=hclust_mean), by='segm_id') -> segm_pa_class
 
-				scaled0 <- scaled2
-				kl <- dim(scaled0)[2] + 1
-				scaled0[, kl] <- rep(park, dim(scaled0)[1])
-				names(scaled0)[1] <- 'hclust_mean'
-				names(scaled0)[kl] <- 'wdpaid'
-				merge(segm_pa_class, scaled0, by='hclust_mean') -> segm_pa_class2
-
-				# Nombres de los campos ya de 10 caracteres como máximo, para que sf no los acorte: los que acortaba
-				# pasaban de 10 con variables que solo se distinguen al final, y st_write fallaba ("Unknown field name")
-				names(segm_pa_class2)[names(segm_pa_class2) == 'hclust_mean'] <- 'hclst_m'
-				iv <- match(names(scaled2)[-1], names(segm_pa_class2))
-				names(segm_pa_class2)[iv] <- dbf_names(names(scaled2)[-1], taken = names(segm_pa_class2)[-iv])
-				# Silhouette width of each segment (NA with one HFT per segment), after wdpaid
-				segm_pa_class2$silhouette <- sil$s[match(segm_pa_class2$segm_id, hri$segm_id)]
-
-				st_write(segm_pa_class2,
-						 file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep='')),
-						 delete_layer=TRUE, quiet=TRUE)
+				# The shapefile of the HFTs: one polygon per segment, with its HFT, the mean of each variable in the HFT and
+				# the silhouette width of the segment (class_layer); with HFT_SUBCLASSES it is written again below, split
+				# into the subclasses of the pixels of each segment
+				class_shp <- file.path(outdir, paste('park_segm_', park, '_', res, tag, '_class.shp', sep=''))
+				class_var_names <- setNames(names(scaled2)[-1], var_fields(names(scaled2)[-1]))
+				class_vars <- setNames(scaled2[match(segm_pa_class$hclust_mean, scaled2$group), -1, drop=FALSE], names(class_var_names))
+				segm_pa_class2 <- class_layer(segm_pa_class, park, class_vars, sil$s[match(segm_pa_class$segm_id, hri$segm_id)])
+				write_class_layer(segm_pa_class2, class_shp, class_var_names)
 				# Color de cada HFT en los mapas y gráficas, en el orden de las leyendas (mapa interactivo de la app)
 				write.table(data.frame(HFT=hft_order, colour=kolsn[hft_order]),
 				            file.path(outdir, paste('hft_colours_', park, '_', res, tag, '.csv', sep='')),
@@ -1163,6 +1200,12 @@ for (pmx in 1:mx) {
 						names(sr) <- 'subclass'
 						terra::writeRaster(sr, file.path(outdir, paste0('hft_subclasses_', park, '_', res, tag, '.tif')), overwrite=TRUE,
 						                   datatype='INT4S', NAflag=0, gdal='COMPRESS=LZW')
+						# The shapefile of the HFTs again, its segments split into the subclasses of their pixels (the parts of a
+						# segment in the same subclass are one polygon, even if they do not touch), and the colours of the
+						# subclasses (code colour), for the similarity of the subclasses
+						write_class_layer(subclass_pieces(segm_pa_class2, pixgrid, scode), class_shp, class_var_names)
+						write.table(data.frame(code=codes, colour=s_col), file.path(outdir, paste0('subclass_colours_', park, '_', res, tag, '.csv')),
+						            sep=' ', row.names=F, quote=F)
 						# Table of the subclasses: as hft_means_ (label, area and the mean of their pixels in each variable,
 						# after area_pct), with the HFT, its code in the GeoTIFF, its part of the area of its HFT and the
 						# least reduction of the sum of squares of a division (division_threshold)

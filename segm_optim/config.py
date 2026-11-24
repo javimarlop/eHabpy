@@ -173,7 +173,9 @@ SIMIL_CUTS = [10, 25, 50, 75, 90]
 #        suma de cuadrados de sus píxeles (variables tipificadas) se divide en dos, una y otra vez, mientras la
 #        división la reduzca al menos tanto como la aumentaría unir los dos HFTs más parecidos del corte (el coste de
 #        Ward de esa unión): el nº de subclases sale del corte, sin otro parámetro. Cada corte tiene su GeoTIFF
-#        hft_subclasses_<id>_<k>_<corte>.tif (código 100 x HFT + subclase), su tabla y su mapa. Las subclases siguen
+#        hft_subclasses_<id>_<k>_<corte>.tif (código 100 x HFT + subclase), su tabla y su mapa, y en su shapefile
+#        park_segm_*_class.shp cada segmento se divide en las subclases de sus píxeles (campos subclass,
+#        hft_<n>_sub_<y>, y sub_code), que la similaridad puede comparar en vez de los HFTs (ECOSIM_CLASSES). Las subclases siguen
 #        a los píxeles, no a los segmentos: el mapa tiene más píxeles sueltos que el de los HFTs. En la prueba con
 #        borreguiles de Sierra Nevada separaron el borreguil mejor que dividir los HFTs en más HFTs.
 # False = Solo los HFTs.
@@ -197,6 +199,14 @@ STAT_AGG = 'mean'
 #          estudio: si no la contiene, la media y la covarianza de los HFTs salen de su subcarpeta study_area (el área
 #          de estudio con el píxel del área, que get_vars_gee.py descarga con ella).
 ECOSIM_AREA = ''
+
+# CLASES QUE SE COMPARAN CON LA ECORREGIÓN (columna del shapefile del corte, park_segm_*_class.shp):
+# 'hft'      = Los HFTs (columna hft).
+# 'subclass' = Las subclases de los píxeles de los HFTs (columna subclass, hft_<n>_sub_<y>; su código, 100 x HFT +
+#              subclase, en sub_code): necesita HFT_SUBCLASSES = True. Sus resultados van a otra carpeta
+#              (similarity_<píxel>m..._subclasses). Una subclase pequeña o dispersa puede no cubrir píxeles de la
+#              similaridad suficientes (ECOSIM_MIN_COVER), y entonces no se compara.
+ECOSIM_CLASSES = 'hft'
 
 # CORTE DEL ÁRBOL CUYOS HFTs SE COMPARAN CON LA ECORREGIÓN:
 # ''    = El corte sugerido (_optim) de cada ID.

@@ -10,6 +10,7 @@ the indices of the study area (thdi.R). Run from the segm_optim folder, after ru
     python3 similarity.py --cut p50 --res 500     # another cut of the tree, with 500 m pixels
     python3 similarity.py --plan                  # only show the grid and the pixels of every HFT (JSON)
     python3 similarity.py --area gee_snevada/ecoregion   # compare them with another area (a folder of inVars)
+    python3 similarity.py --classes subclass      # the subclasses of the HFTs (HFT_SUBCLASSES) instead of the HFTs
 
 For every HFT, the pixels of the similarity grid (the pixel of the variables of inVars/<set>/ecoregion, or a
 multiple of it with ECOSIM_RESOLUTION) that the HFT covers (at least ECOSIM_MIN_COVER of their area, from the
@@ -33,7 +34,11 @@ does not contain the study area), else from the area itself.
 
 The results go to results/<STUDY_AREA>/<SCENARIO>/<cut>/similarity_<pixel size>m (similarity_<pixel size>m_<area>
 for another area; see the wiki, Similarity and landscape metrics): sim_<id>_hft<h>.tif, similar_<id>_hft<h>.tif, hri_results.csv, fit_matrix.csv, thdi_res.csv, the plots,
-similarity_metadata.txt and similarity_run.json (written last).
+similarity_metadata.txt and similarity_run.json (written last). With ECOSIM_CLASSES = 'subclass' the classes compared
+are the subclasses of the pixels of the HFTs (the column sub_code of the shapefile, 100 x HFT + subclass, written by
+moranvar_plots.R with HFT_SUBCLASSES), in the same way, to similarity_<pixel size>m[_<area>]_subclasses: their files
+and rows are those of an HFT h = their code (sim_<id>_hft1004.tif is the subclass hft_10_sub_4), with their label in
+the column subclass of hri_results.csv and fit_matrix.csv.
 """
 
 import argparse
@@ -73,7 +78,10 @@ THDI_CSV = 'thdi_res.csv'
 RUN_DIR_RE = re.compile(r'^similarity_\d+(?:_\d+)?m(?:_[A-Za-z0-9_-]+)?$')  # as run() names them
 SHP_RE = re.compile(r'^park_segm_(?P<id>-?\d+)_(?P<k>\d+)(?:_(?P<cut>p\d+))?(?P<optim>_optim)?_class\.shp$')
 CUT_RE = re.compile(r'^p\d+$')
-HFT_FIELD = 'hclst_m'
+# Column of the classes compared in the shapefiles of the HFTs (ECOSIM_CLASSES): the HFTs (hclst_m up to eHabpy 1.6.6)
+# or the subclasses of their pixels (HFT_SUBCLASSES), as their code 100 x HFT + subclass
+CLASS_FIELDS = {'hft': ('hft', 'hclst_m'), 'subclass': ('sub_code',)}
+SUBCLASS_SUFFIX = '_subclasses'  # of the folder of a run of the subclasses
 
 NODATA = -9999.0  # of the similarity maps
 NO_ECO = -2147483647  # pixels outside the polygons of the ecoregions
@@ -86,7 +94,7 @@ BLOCK_BYTES = 256 * 2 ** 20  # memory of the blocks of rows read from the variab
 FACTORS = (1, 2, 5, 10)  # pixel sizes offered by the plan: multiples of the pixel of the ecoregion variables
 DEFAULTS = {'ECOSIM_AREA': '', 'ECOSIM_CUT': '', 'ECOSIM_RESOLUTION': 0, 'ECOSIM_STAT': 'mean',
             'ECOSIM_NEIGHBOURS': 8, 'ECOSIM_MIN_COVER': 0.5, 'ECOSIM_ECOREGIONS': '', 'ECOSIM_MARINE': '',
-            'ECOSIM_COVARIANCE': 'mcd'}
+            'ECOSIM_COVARIANCE': 'mcd', 'ECOSIM_CLASSES': 'hft'}
 COVARIANCES = ('mcd', 'classic')
 MCD_STARTS = 200  # random starts of FastMCD (each of p + 1 pixels, two C-steps on a subsample)
 MCD_SUBSAMPLE = 3000  # pixels of the subsample of the starts of FastMCD with larger HFTs
@@ -289,9 +297,9 @@ def reference_folder(area_dir, pairs, grid):
 	return ref, files, None
 
 
-def find_targets(root, cut, ids=None):
+def find_targets(root, cut, ids=None, classes='hft'):
 	"""The HFT shapefiles to compare: one per ID, of the cut CUT ('' = the suggested one of each ID; 'results' = the
-	scenario folder itself, with SIMIL 1 or 2)."""
+	scenario folder itself, with SIMIL 1 or 2), with the colours of its classes (CLASSES: the HFTs or the subclasses)."""
 	cut = str(cut or '').strip()
 	cut_dirs = sorted((d for d in os.listdir(root) if CUT_RE.match(d) and os.path.isdir(os.path.join(root, d))),
 	                  key=lambda d: int(d[1:]))
@@ -306,7 +314,9 @@ def find_targets(root, cut, ids=None):
 				found.setdefault(m.group('id'), []).append({
 					'id': m.group('id'), 'cut': c, 'k': m.group('k'), 'suggested': bool(m.group('optim')),
 					'shp': os.path.join(d, f), 'dir': d,
-					'colours': _existing(os.path.join(d, 'hft_colours_' + f[len('park_segm_'):-len('_class.shp')] + '.csv'))})
+					'classes': classes,
+					'colours': _existing(os.path.join(d, ('subclass_colours_' if classes == 'subclass' else 'hft_colours_')
+					                                  + f[len('park_segm_'):-len('_class.shp')] + '.csv'))})
 	if not found:
 		raise ValueError(f'no HFT polygons (park_segm_*_class.shp) in {rel(root)}')
 	want = [str(i) for i in ids] if ids else sorted(found, key=int)
@@ -325,6 +335,27 @@ def find_targets(root, cut, ids=None):
 			raise ValueError(f'the ID {i} has no HFTs in the cut {cut}')
 		out.append(opts[0])
 	return out
+
+
+def class_label(h, classes):
+	"""How the class H is named: HFT 10, or subclass hft_10_sub_4 (code 1004)."""
+	return f'subclass hft_{h // 100}_sub_{h % 100}' if classes == 'subclass' else f'HFT {h}'
+
+
+def subclass_name(h):
+	return f'hft_{h // 100}_sub_{h % 100}'
+
+
+def class_field(lyr, shp, classes):
+	"""The column of the classes CLASSES in the layer LYR of the shapefile SHP."""
+	d = lyr.GetLayerDefn()
+	for f in CLASS_FIELDS[classes]:
+		if d.GetFieldIndex(f) >= 0:
+			return f
+	if classes == 'subclass':
+		raise ValueError(f'{os.path.basename(shp)} has no subclasses (column sub_code): run the HFT model with '
+		                 f'HFT_SUBCLASSES = True, or compare the HFTs (ECOSIM_CLASSES = \'hft\')')
+	raise ValueError(f'{os.path.basename(shp)} has no column of the HFTs (hft)')
 
 
 def _existing(path):
@@ -557,10 +588,12 @@ def _layer_in(path, srs, extent=None):
 	return (mem, ds), out
 
 
-def hft_areas(shp):
-	"""Area (ha) of the polygons of every HFT, in the CRS of the shapefile (or in metres of its UTM if geographic)."""
+def hft_areas(shp, classes='hft'):
+	"""Area (ha) of the polygons of every HFT (or subclass), in the CRS of the shapefile (or in metres of its UTM if
+	geographic)."""
 	ds = ogr.Open(shp)
 	lyr = ds.GetLayer(0)
+	field = class_field(lyr, shp, classes)
 	srs = lyr.GetSpatialRef()
 	tr = None
 	if srs is not None and srs.IsGeographic():
@@ -576,8 +609,8 @@ def hft_areas(shp):
 	areas = {}
 	for f in lyr:
 		g = f.GetGeometryRef()
-		h = f.GetField(HFT_FIELD)
-		if g is None or h is None:
+		h = f.GetField(field)
+		if g is None or h is None or int(h) <= 0:
 			continue
 		if tr:
 			g = g.Clone()
@@ -586,15 +619,14 @@ def hft_areas(shp):
 	return areas
 
 
-def hft_cover(shp, cg, local_res, min_cover):
+def hft_cover(shp, cg, local_res, min_cover, classes='hft'):
 	"""The HFTs of SHP on the coarse grid: in a window around them, the HFT of every pixel (the one that covers most
 	of it, if it covers at least MIN_COVER of it; 0 = none) and the fraction it covers, from the polygons drawn on a
 	grid SUB times finer (SUB = pixel of the similarity / pixel of the HFT map, so that with nested grids the
 	fractions are those of the HFT map)."""
 	src, lyr = _layer_in(shp, cg.srs())
-	if lyr.GetLayerDefn().GetFieldIndex(HFT_FIELD) < 0:
-		raise ValueError(f'{os.path.basename(shp)} has no column of the HFTs ({HFT_FIELD})')
-	hfts = sorted({int(f.GetField(HFT_FIELD)) for f in lyr if f.GetField(HFT_FIELD) is not None})
+	field = class_field(lyr, shp, classes)
+	hfts = sorted({int(f.GetField(field)) for f in lyr if f.GetField(field) is not None and int(f.GetField(field)) > 0})
 	lyr.ResetReading()
 	xmin, xmax, ymin, ymax = lyr.GetExtent()
 	x0, y0, res = cg.gt[0], cg.gt[3], cg.res
@@ -613,7 +645,7 @@ def hft_cover(shp, cg, local_res, min_cover):
 	mem = gdal.GetDriverByName('MEM').Create('', nc * sub, nr * sub, 1, gdal.GDT_Int32)
 	mem.SetGeoTransform((x0 + c0 * res, res / sub, 0, y0 - r0 * res, 0, -res / sub))
 	mem.SetProjection(cg.wkt)
-	gdal.RasterizeLayer(mem, [1], lyr, options=[f'ATTRIBUTE={HFT_FIELD}'])
+	gdal.RasterizeLayer(mem, [1], lyr, options=[f'ATTRIBUTE={field}'])
 	a = mem.GetRasterBand(1).ReadAsArray().reshape(nr, sub, nc, sub).transpose(0, 2, 1, 3).reshape(nr * nc, sub * sub)
 	counts = np.stack([(a == h).sum(axis=1) for h in hfts], axis=1) if hfts else np.zeros((nr * nc, 0))
 	frac = counts / float(sub * sub)
@@ -853,12 +885,15 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	X, valid, cg = ctx['X'], ctx['valid'], ctx['cg']
 	n = len(Xh)
 	hid = target['id']
+	name = class_label(h, ctx['classes'])
 	rec = {'id': hid, 'hft': int(h), 'ecoregion': eco_of_hft, 'status': 'ok', 'ref_pixels': int(n), 'vars_used': None,
 	       'vars_dropped': [], 'ridge': None, 'area_ha': round(ctx['areas'][h], 2) if h in ctx['areas'] else None,
 	       'threshold': None, 'sim': None, 'similar': None, 'covariance': None, 'covariance_note': None,
 	       'mcd_kept': None}
 	row = {'ecoregion': eco_of_hft, 'wdpaid': hid, 'wdpaid_hft': f'{hid}_{h}', 'hft': int(h),
 	       'HFTArea_ha': rec['area_ha'], 'PixelSize_m': cg.res, 'NrPixHFT': n}
+	if ctx['classes'] == 'subclass':
+		rec['subclass'] = row['subclass'] = subclass_name(h)
 	for j, pr in enumerate(ctx['pairs']):
 		v = Xh[:, j] if n else np.zeros(0)
 		row[f"{pr['key']}_pamin"] = float(v.min()) if n else None
@@ -866,14 +901,14 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 		row[f"{pr['key']}_pamean"] = float(v.mean()) if n else None
 	if n < ctx['min_pixels']:
 		rec['status'] = row['Status'] = 'too_few_pixels'
-		print(f'  HFT {h}: {n} pixels of {fmt_res(cg.res)} m (at least {ctx["min_pixels"]} are needed): not computed',
+		print(f'  {name}: {n} pixels of {fmt_res(cg.res)} m (at least {ctx["min_pixels"]} are needed): not computed',
 		      flush=True)
 		return row, rec
 	ref = reference(Xh, ctx['eco_sd'], ctx['covariance'])
 	if ref is None:  # every variable is constant in the HFT: no distance can be computed
 		rec['status'] = row['Status'] = 'too_few_pixels'
 		rec['vars_dropped'] = [pr['key'] for pr in ctx['pairs']]
-		print(f'  HFT {h}: all its variables are constant in its {n} pixels: not computed', flush=True)
+		print(f'  {name}: all its variables are constant in its {n} pixels: not computed', flush=True)
 		return row, rec
 	rec['vars_used'] = row['NrVars'] = int(len(ref['keep']))
 	rec['ridge'] = ref['ridge']
@@ -947,12 +982,12 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	ridge += (f", MCD ({100 * ref['kept']:.0f} % of the pixels kept)" if ref['covariance'] == 'mcd' else
 	          f", classic covariance ({ref['note']})" if ref['note'] else '')
 	dropped = f" (left out, constant in the HFT: {', '.join(rec['vars_dropped'])})" if rec['vars_dropped'] else ''
-	print(f"  HFT {h}: {n} pixels, {rec['vars_used']} variables{dropped}{ridge}: {msg} ({status}, "
+	print(f"  {name}: {n} pixels, {rec['vars_used']} variables{dropped}{ridge}: {msg} ({status}, "
 	      f"{time.time() - t0:.0f} s)", flush=True)
 	return row, rec
 
 
-def fit(hid, vals, rows, recs):
+def fit(hid, vals, rows, recs, classes='hft'):
 	"""Fit of the similarity in the study area itself, as a check of its robustness: for every HFT h with a threshold
 	T, the pixels of each HFT k of the study area (VALS, those of the HFT statistics) with a similarity to h of at least
 	T. Adds to the rows of hri_results.csv (ROWS, RECS: those of the ID HID) the % of the study area similar to h
@@ -973,6 +1008,8 @@ def fit(hid, vals, rows, recs):
 			sim[k] = s_k
 			out.append({'wdpaid': hid, 'hft_ref': h, 'hft': k, 'NrPixHFT': n_k, 'NrSimPix': s_k,
 			            'Sim_pct': 100.0 * s_k / n_k if n_k else None})
+			if classes == 'subclass':
+				out[-1].update({'subclass_ref': subclass_name(h), 'subclass': subclass_name(k)})
 		in_study = sum(sim.values())
 		row.update({'NrSimPixStudy': in_study, 'StudySim_pct': 100.0 * in_study / total,
 		            'SelfFit_pct': 100.0 * sim.get(h, 0) / in_study if in_study else None})
@@ -980,8 +1017,10 @@ def fit(hid, vals, rows, recs):
 	return out
 
 
-def write_fit(path, rows):
+def write_fit(path, rows, classes='hft'):
 	cols = ['wdpaid', 'hft_ref', 'hft', 'NrPixHFT', 'NrSimPix', 'Sim_pct']
+	if classes == 'subclass':
+		cols[3:3] = ['subclass_ref', 'subclass']
 	with open(path, 'w', encoding='utf-8') as f:
 		f.write(' '.join(cols) + '\n')
 		for r in rows:
@@ -999,8 +1038,10 @@ HRI_COLUMNS = ['ecoregion', 'wdpaid', 'wdpaid_hft', '{sim}', 'NrSimPixEco', 'NrP
                'SelfFit_pct', 'Status']
 
 
-def write_hri(path, rows, pairs, sim_label):
+def write_hri(path, rows, pairs, sim_label, classes='hft'):
 	cols = [c.replace('{sim}', sim_label) for c in HRI_COLUMNS]
+	if classes == 'subclass':  # the label of the subclass after its code (hft)
+		cols.insert(cols.index('hft') + 1, 'subclass')
 	for pr in pairs:
 		cols += [f"{pr['key']}_pamin", f"{pr['key']}_pamax", f"{pr['key']}_pamean"]
 	with open(path, 'w', encoding='utf-8') as f:
@@ -1021,7 +1062,7 @@ def write_hri(path, rows, pairs, sim_label):
 # Plan and run ----------------------------------------------------------------------------------------------------------
 
 def _settings(cfg, study_area=None, scenario=None, cut=None, ids=None, res=None, stat=None, neighbours=None,
-              min_cover=None, ecoregions=None, marine=None, area=None, covariance=None):
+              min_cover=None, ecoregions=None, marine=None, area=None, covariance=None, classes=None):
 	s = {'study_area': study_area or cfg.get('STUDY_AREA'),
 	     'scenario': scenario or hft_state.scenario_name(cfg),
 	     'area': option(cfg, 'ECOSIM_AREA') if area is None else area,
@@ -1033,7 +1074,10 @@ def _settings(cfg, study_area=None, scenario=None, cut=None, ids=None, res=None,
 	     'min_cover': float(option(cfg, 'ECOSIM_MIN_COVER') if min_cover is None else min_cover),
 	     'ecoregions': option(cfg, 'ECOSIM_ECOREGIONS') if ecoregions is None else ecoregions,
 	     'marine': option(cfg, 'ECOSIM_MARINE') if marine is None else marine,
-	     'covariance': str(option(cfg, 'ECOSIM_COVARIANCE') if covariance is None else covariance).lower()}
+	     'covariance': str(option(cfg, 'ECOSIM_COVARIANCE') if covariance is None else covariance).lower(),
+	     'classes': str(option(cfg, 'ECOSIM_CLASSES') if classes is None else classes).lower()}
+	if s['classes'] not in CLASS_FIELDS:
+		raise ValueError(f"ECOSIM_CLASSES must be 'hft' or 'subclass', not {s['classes']!r}")
 	if s['covariance'] not in COVARIANCES:
 		raise ValueError(f"ECOSIM_COVARIANCE must be 'mcd' or 'classic', not {s['covariance']!r}")
 	if s['stat'] not in ('mean', 'median'):
@@ -1093,15 +1137,19 @@ def _other_area(outdir, inp):
 
 
 def _run_folder(t, cg, tag):
-	return os.path.join(t['dir'], f'similarity_{fmt_res(cg.res)}m' + (f'_{tag}' if tag else ''))
+	return os.path.join(t['dir'], f'similarity_{fmt_res(cg.res)}m' + (f'_{tag}' if tag else '')
+	                    + (SUBCLASS_SUFFIX if t['classes'] == 'subclass' else ''))
 
 
 def hft_values(t, inp, cg, cg_ref, min_cover, local_res, valid=None, X=None):
 	"""The HFTs of the target T on the grid of their statistics (the area, or the study area at its pixel): {hft:
 	values (pixels x variables)}, the cover of the area grid (None if the HFTs are outside it) and the HFTs."""
+	ds = ogr.Open(t['shp'])  # its column of the classes first: hft_cover's errors below are taken as "outside"
+	class_field(ds.GetLayer(0), t['shp'], t['classes'])
+	ds = None
 	if inp['ref']:
 		try:
-			cov_ref = hft_cover(t['shp'], cg_ref, local_res, min_cover)
+			cov_ref = hft_cover(t['shp'], cg_ref, local_res, min_cover, t['classes'])
 		except ValueError:
 			cov_ref = None
 		if cov_ref is None or cov_ref['clipped']:
@@ -1119,12 +1167,12 @@ def hft_values(t, inp, cg, cg_ref, min_cover, local_res, valid=None, X=None):
 			m = (cov_ref['assign'] == h) & ok
 			out[h] = np.stack([v[m] for v in vals], axis=1)
 		try:
-			cov = hft_cover(t['shp'], cg, local_res, min_cover)
+			cov = hft_cover(t['shp'], cg, local_res, min_cover, t['classes'])
 		except ValueError:  # the area does not reach the HFTs
 			cov = None
 		return out, cov, cov_ref['hfts']
 	try:
-		cov = hft_cover(t['shp'], cg, local_res, min_cover)
+		cov = hft_cover(t['shp'], cg, local_res, min_cover, t['classes'])
 	except ValueError:
 		cov = None
 	if cov is None or cov['clipped']:
@@ -1212,14 +1260,15 @@ def comparison_areas(study_area=None, scenario=None, cfg=None):
 
 
 def plan(study_area=None, scenario=None, cut=None, ids=None, res=None, min_cover=None, ecoregions=None, cfg=None,
-         area=None):
+         area=None, classes=None):
 	"""What a run would do, without computing it: variables of both scales, grids, the area and the pixels of every
 	HFT on the grid of the similarity (see the app, page Similarity). Raises ValueError for the errors of the user."""
 	cfg = cfg or hft_state.read_config()
-	s = _settings(cfg, study_area, scenario, cut, ids, res, min_cover=min_cover, ecoregions=ecoregions, area=area)
+	s = _settings(cfg, study_area, scenario, cut, ids, res, min_cover=min_cover, ecoregions=ecoregions, area=area,
+	              classes=classes)
 	inp = _inputs(s, cfg)
 	pairs = inp['pairs']
-	out = {'study_area': s['study_area'], 'scenario': s['scenario'], 'variables_from': inp['source'],
+	out = {'study_area': s['study_area'], 'scenario': s['scenario'], 'classes': s['classes'], 'variables_from': inp['source'],
 	       'variables': [{k: (rel(v) if k in ('local', 'ecoregion') else v) for k, v in p.items()} for p in pairs],
 	       'missing': inp['missing'], 'errors': [], 'warnings': [], 'area': None,
 	       'min_pixels': max(5, len(pairs) + 1), 'few_pixels': 3 * len(pairs), 'targets': [], 'ecoregions': None,
@@ -1256,18 +1305,20 @@ def plan(study_area=None, scenario=None, cut=None, ids=None, res=None, min_cover
 	except (ValueError, RuntimeError) as e:
 		out['errors'].append(f'the file of the ecoregions cannot be used: {e}')
 	local_res = local_resolution(pairs)
-	for t in find_targets(inp['root'], s['cut'], s['ids']):
+	for t in find_targets(inp['root'], s['cut'], s['ids'], s['classes']):
 		try:
 			vals, cov, hft_ids = hft_values(t, inp, cg, cg_ref, s['min_cover'], local_res)
 		except ValueError as e:
 			out['errors'].append(str(e))
 			continue
-		areas = hft_areas(t['shp'])
+		areas = hft_areas(t['shp'], s['classes'])
 		hfts = []
 		for h in hft_ids:
 			n = int(len(vals[h]))
 			st = 'too_few_pixels' if n < out['min_pixels'] else 'few_pixels' if n < out['few_pixels'] else 'ok'
 			hfts.append({'hft': h, 'area_ha': round(areas.get(h, 0.0), 1), 'ref_pixels': n, 'status': st})
+			if s['classes'] == 'subclass':
+				hfts[-1]['subclass'] = subclass_name(h)
 		folder = _run_folder(t, cg, inp['area']['tag'])
 		other = _other_area(folder, inp)
 		if other:
@@ -1282,9 +1333,10 @@ def plan(study_area=None, scenario=None, cut=None, ids=None, res=None, min_cover
 				f"area does not contain the study area, and there is no {STUDY_AT_AREA} folder in it with the study area "
 				f"at its pixel (get_vars_gee.py downloads it with the area)")
 			continue
-		skipped = [str(x['hft']) for x in hfts if x['status'] == 'too_few_pixels']
+		skipped = [x.get('subclass') or str(x['hft']) for x in hfts if x['status'] == 'too_few_pixels']
 		if skipped:
-			out['warnings'].append(f"ID {t['id']}: HFTs with too few pixels of {fmt_res(cg.res)} m, which will not be "
+			what = 'subclasses' if s['classes'] == 'subclass' else 'HFTs'
+			out['warnings'].append(f"ID {t['id']}: {what} with too few pixels of {fmt_res(cg.res)} m, which will not be "
 			                       f"compared: {', '.join(skipped)}")
 	return out
 
@@ -1300,7 +1352,7 @@ def run(s, cfg, plots=True):
 	native, nodata = inp['native'], inp['nodata']
 	cg = CoarseGrid(native, s['res'] or native.res)
 	cg_ref = CoarseGrid(inp['ref_native'], cg.res) if inp['ref'] else cg
-	targets = find_targets(root, s['cut'], s['ids'])
+	targets = find_targets(root, s['cut'], s['ids'], s['classes'])
 	eco = ecoregion_features(inp['eco_file']) if inp['eco_file'] else None
 	marine = user_path(s['marine']) if str(s['marine'] or '').strip() else None
 	if marine and not os.path.isfile(marine):
@@ -1340,7 +1392,7 @@ def run(s, cfg, plots=True):
 	single = eco['features'][0]['id'] if area['kind'] == 'ecoregions' and eco and len(eco['features']) == 1 else None
 	from scipy import ndimage
 	ctx = {'X': X, 'valid': valid, 'cg': cg, 'pairs': pairs, 'eco_sd': eco_sd, 'stat': s['stat'],
-	       'covariance': s['covariance'],
+	       'covariance': s['covariance'], 'classes': s['classes'],
 	       'sim_label': 'MedianHFTSim' if s['stat'] == 'median' else 'AveHFTSim',
 	       'structure': ndimage.generate_binary_structure(2, 2 if s['neighbours'] == 8 else 1),
 	       'min_pixels': max(5, p + 1), 'few_pixels': 3 * p}
@@ -1365,7 +1417,7 @@ def run(s, cfg, plots=True):
 			again = []
 			for i in others:
 				try:
-					again += [x for x in find_targets(root, ts[0]['cut'], [i]) if x['dir'] == d]
+					again += [x for x in find_targets(root, ts[0]['cut'], [i], s['classes']) if x['dir'] == d]
 				except ValueError:
 					pass
 			if again:
@@ -1379,9 +1431,10 @@ def run(s, cfg, plots=True):
 		rows, recs, fit_rows = [], [], []
 		for t in ts:
 			vals, cov, hft_ids = hft_values(t, inp, cg, cg_ref, s['min_cover'], local_res, valid, X)
-			ctx['areas'] = hft_areas(t['shp'])
-			print(f"ID {t['id']}, cut {t['cut']}{' (suggested)' if t['suggested'] else ''}: {len(hft_ids)} HFTs "
-			      f"({os.path.basename(t['shp'])})", flush=True)
+			ctx['areas'] = hft_areas(t['shp'], s['classes'])
+			print(f"ID {t['id']}, cut {t['cut']}{' (suggested)' if t['suggested'] else ''}: {len(hft_ids)} "
+			      f"{'subclasses of the HFTs' if s['classes'] == 'subclass' else 'HFTs'} ({os.path.basename(t['shp'])})",
+			      flush=True)
 			if cov is None:
 				print('  (the HFTs are outside the area: all its pixels are compared)', flush=True)
 			for h in hft_ids:
@@ -1401,14 +1454,14 @@ def run(s, cfg, plots=True):
 				rows.append(row)
 				recs.append(rec)
 			if hft_ids:  # the fit of the similarity of each HFT in the study area itself
-				fit_rows += fit(t['id'], vals, rows[-len(hft_ids):], recs[-len(hft_ids):])
+				fit_rows += fit(t['id'], vals, rows[-len(hft_ids):], recs[-len(hft_ids):], s['classes'])
 				for r in rows[-len(hft_ids):]:
 					if r.get('SelfFit_pct') is not None:
-						print(f"  HFT {r['hft']} in the study area: {r['StudySim_pct']:.0f} % of the study area similar "
-						      f"to it, {r['SelfFit_pct']:.0f} % of that is the HFT", flush=True)
+						print(f"  {class_label(r['hft'], s['classes'])} in the study area: {r['StudySim_pct']:.0f} % of the study area similar "
+						      f"to it, {r['SelfFit_pct']:.0f} % of that is the {'subclass' if s['classes'] == 'subclass' else 'HFT'}", flush=True)
 		hri = os.path.join(outdir, HRI_CSV)
-		write_hri(hri, rows, pairs, ctx['sim_label'])
-		write_fit(os.path.join(outdir, FIT_CSV), fit_rows)
+		write_hri(hri, rows, pairs, ctx['sim_label'], s['classes'])
+		write_fit(os.path.join(outdir, FIT_CSV), fit_rows, s['classes'])
 		thdi = os.path.join(outdir, THDI_CSV)
 		cmd = ['Rscript', THDI_R, f'--hri={hri}', f'--out={thdi}'] + [f"--hfts={t['id']}={t['shp']}" for t in ts]
 		if eco:
@@ -1421,6 +1474,8 @@ def run(s, cfg, plots=True):
 		if plots:
 			cmd = ['Rscript', PLOTS_R, f'--dir={outdir}'] + [f"--study={t['id']}={t['shp']}" for t in ts]
 			cmd += [f"--colours={t['id']}={t['colours']}" for t in ts if t['colours']]
+			if s['classes'] == 'subclass':
+				cmd += ['--classes=subclass']
 			outline = area['polygons'] if area['tag'] else (eco['file'] if eco else None)
 			if outline:
 				cmd += [f'--ecoregions={outline}']
@@ -1432,12 +1487,12 @@ def run(s, cfg, plots=True):
 			if _r(cmd, required=False):
 				plot_files = sorted(f for f in os.listdir(outdir) if f.lower().endswith('.png'))
 		record = {'version': 1, 'date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'study_area': s['study_area'],
-		          'scenario': s['scenario'], 'cut': ts[0]['cut'], 'ids': [t['id'] for t in ts], 'res': cg.res,
+		          'scenario': s['scenario'], 'classes': s['classes'], 'cut': ts[0]['cut'], 'ids': [t['id'] for t in ts], 'res': cg.res,
 		          'native_res': native.res, 'factor': cg.factor, 'crs': cg.crs_label(),
 		          'grid': {'width': cg.width, 'height': cg.height, 'geotransform': list(cg.gt)},
 		          'valid_cells': int(len(X)), 'area': _area_record(inp),
 		          'options': {'stat': s['stat'], 'neighbours': s['neighbours'], 'min_cover': s['min_cover'],
-		                      'covariance': s['covariance'],
+		                      'covariance': s['covariance'], 'classes': s['classes'],
 		                      'p_min': P_MIN, 'min_valid_fraction': MIN_VALID_FRACTION},
 		          'variables_from': source,
 		          'variables': [{'name': pr['name'], 'key': pr['key'], 'local': rel(pr['local']),
@@ -1488,13 +1543,16 @@ def _r(cmd, required=True):
 def write_metadata(path, rec, thdi):
 	lines = ['eHabitat+ similarity metadata: options and inputs of the files in this folder (similarity.py)',
 	         f"Date: {rec['date']}", f"Study area: {rec['study_area']}", f"Scenario: {rec['scenario']}",
-	         f"Cut: {rec['cut']}", f"IDs: {', '.join(rec['ids'])}", '',
+	         f"Cut: {rec['cut']}", f"IDs: {', '.join(rec['ids'])}",
+	         'Classes compared: ' + ('the subclasses of the pixels of the HFTs (column sub_code of the shapefiles: '
+	                                 'hft = 100 x HFT + subclass)' if rec.get('classes') == 'subclass' else 'the HFTs'), '',
 	         '## Options',
 	         f"ECOSIM_RESOLUTION = {fmt_res(rec['res'])} m ({rec['factor']} x {rec['factor']} pixels of "
 	         f"{fmt_res(rec['native_res'])} m)",
 	         f"ECOSIM_STAT = {rec['options']['stat']!r}", f"ECOSIM_NEIGHBOURS = {rec['options']['neighbours']}",
 	         f"ECOSIM_MIN_COVER = {rec['options']['min_cover']}",
 	         f"ECOSIM_COVARIANCE = {rec['options'].get('covariance', 'classic')!r}",
+	         f"ECOSIM_CLASSES = {rec['options'].get('classes', 'hft')!r}",
 	         f"Similarity set to 0 at or below p = {P_MIN}; a coarser pixel needs data in "
 	         f"{int(MIN_VALID_FRACTION * 100)} % of its area", '',
 	         '## Grid of the similarity',
@@ -1557,6 +1615,8 @@ def main():
 	ap.add_argument('--marine', help='polygons of the marine ecoregions for the THDI (ECOSIM_MARINE)')
 	ap.add_argument('--covariance', choices=COVARIANCES, help='covariance of the HFTs: mcd (robust) or classic '
 	                                                          '(default: ECOSIM_COVARIANCE)')
+	ap.add_argument('--classes', choices=tuple(CLASS_FIELDS), help='classes compared: the HFTs or the subclasses of '
+	                                                               'their pixels (default: ECOSIM_CLASSES)')
 	ap.add_argument('--no-plots', action='store_true', help='do not run similarity_plots.R')
 	ap.add_argument('--plan', action='store_true', help='only print what would be done (JSON)')
 	a = ap.parse_args()
@@ -1564,10 +1624,10 @@ def main():
 	try:
 		if a.plan:
 			print(json.dumps(plan(a.study_area, a.scenario, a.cut, a.ids, a.res, a.min_cover, a.ecoregions, cfg,
-			                      area=a.area), indent=1, ensure_ascii=False))
+			                      area=a.area, classes=a.classes), indent=1, ensure_ascii=False))
 			return
 		s = _settings(cfg, a.study_area, a.scenario, a.cut, a.ids, a.res, a.stat, a.neighbours, a.min_cover,
-		              a.ecoregions, a.marine, a.area, a.covariance)
+		              a.ecoregions, a.marine, a.area, a.covariance, a.classes)
 		folders = run(s, cfg, plots=not a.no_plots)
 	except (ValueError, RuntimeError) as e:  # RuntimeError: GDAL/OGR (e.g. a file that cannot be read)
 		sys.exit(f'ERROR: {e}')

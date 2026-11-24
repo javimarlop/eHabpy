@@ -124,7 +124,9 @@ PARAMS = [
 	         'k-means: a subclass is divided in two, again and again, while the division separates its pixels at least as much '
 	         'as the two most similar HFTs of the cut are separated, so the number of subclasses follows from the variability '
 	         'of the HFTs of each cut, without choosing it. Each cut gets a map of the subclasses (GeoTIFF '
-	         'hft_subclasses_<id>_<k>_<cut>.tif, code = 100 x HFT + subclass) and their table. The subclasses follow the '
+	         'hft_subclasses_<id>_<k>_<cut>.tif, code = 100 x HFT + subclass) and their table, and its shapefile of the HFTs '
+	         'has every segment split into the subclasses of its pixels (fields subclass, hft_<n>_sub_<y>, and sub_code), '
+	         'which the similarity can compare instead of the HFTs. The subclasses follow the '
 	         'pixels, not the segments, so their map has more isolated pixels than that of the HFTs.'},
 	{'name': 'STAT_AGG', 'group': 'class', 'type': 'select', 'default': 'mean', 'label': 'Statistic of the segments',
 	 'choices': [['mean', 'Mean'], ['median', 'Median']],

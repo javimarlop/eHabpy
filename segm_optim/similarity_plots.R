@@ -1,7 +1,8 @@
 #### eHabitat+ HFT module: maps and charts of the similarity of the HFTs in the ecoregion (run by similarity.py)
 #### License: CC BY-SA 3.0
 #### Rscript similarity_plots.R --dir=<similarity run folder> [--colours=<id>=<hft_colours csv> ...] [--ecoregions=<file>]
-####                            [--study=<id>=<class.shp> ...]
+####                            [--study=<id>=<class.shp> ...] [--classes=subclass]
+#### (--classes=subclass: the classes are the subclasses of the HFTs, ECOSIM_CLASSES of similarity.py)
 #### Reads hri_results.csv, the similarity maps sim_<id>_hft<h>.tif and thdi_res.csv (optional) of the folder and
 #### writes there, for each study area (wdpaid) of hri_results.csv:
 ####	sim_maps_<id>.png: one map of the similarity per HFT, with the ecoregion outline and the study area (red)
@@ -14,6 +15,7 @@
 usage <- paste(
 	'Usage: Rscript similarity_plots.R --dir=<similarity run folder> [--colours=<id>=<hft_colours csv> ...]',
 	'                                  [--ecoregions=<file>] [--study=<id>=<class.shp> ...] [--area=<name>]',
+	'                                  [--classes=subclass]',
 	'Writes sim_maps_<id>.png, sim_metrics_<id>.png and sim_fit_<id>.png in the folder of a run of similarity.py.',
 	sep='\n')
 
@@ -28,7 +30,7 @@ if (any(args %in% c('-h', '--help'))) {
 	cat(usage, '\n', sep='')
 	quit(save='no', status=0)
 }
-opt <- list(dir='', ecoregions='', area='the ecoregion')  # area: what was compared, for the titles
+opt <- list(dir='', ecoregions='', area='the ecoregion', classes='hft')  # area: what was compared, for the titles
 per_id <- list(colours=character(0), study=character(0))
 for (a in args) {
 	m <- regmatches(a, regexec('^--([A-Za-z-]+)=(.*)$', a))[[1]]
@@ -44,6 +46,12 @@ for (a in args) {
 	per_id[[m[2]]][substr(m[3], 1, p - 1)] <- substr(m[3], p + 1, nchar(m[3]))
 }
 if (opt$dir == '') stop(paste0('--dir is required\n', usage), call.=FALSE)
+# --classes=subclass: the classes compared are the subclasses of the HFTs (similarity.py, ECOSIM_CLASSES), whose
+# number h in the tables and file names is their code (100 x HFT + subclass), named hft_<HFT>_sub_<subclass>
+subclasses <- identical(opt$classes, 'subclass')
+cls_lab <- function(h) if (subclasses) sprintf('hft_%d_sub_%d', as.integer(h) %/% 100L, as.integer(h) %% 100L) else as.character(h)
+CLS <- if (subclasses) 'subclass' else 'HFT'
+CLSP <- if (subclasses) 'subclasses of the HFTs' else 'HFTs'
 if (!dir.exists(opt$dir)) stop(paste('folder not found:', opt$dir), call.=FALSE)
 
 suppressPackageStartupMessages({
@@ -120,7 +128,7 @@ status_label <- function(s, tab=status_text) {
 # HFT colours: the hft_colours csv (space-separated 'HFT colour', in the order of the legends), or else the
 # colours of moranvar_plots.R without one (RColorBrewer Set1, interpolated beyond 8 HFTs)
 hft_colours <- function(id, hfts) {
-	f <- if (id %in% names(per_id$colours)) per_id$colours[[id]] else find_one(paste0('^hft_colours_', id, '_.*\\.csv$'))
+	f <- if (id %in% names(per_id$colours)) per_id$colours[[id]] else find_one(paste0(if (subclasses) '^subclass_colours_' else '^hft_colours_', id, '_.*\\.csv$'))
 	tab <- NULL
 	if (f != '' && !file.exists(f)) warning(paste('HFT colours not found:', f), call.=FALSE)
 	if (f != '' && file.exists(f)) {
@@ -349,7 +357,7 @@ plot_maps <- function(id, df, hc, out) {
 		plot.new()
 		plot.window(xl, yl, asp=1, xaxs='i', yaxs='i')
 		box(col='grey70', lwd=0.6)
-		line1 <- paste0('HFT ', h)
+		line1 <- if (subclasses) cls_lab(h) else paste0('HFT ', h)
 		line2 <- ''
 		note <- ''
 		if (!is.null(mats[[k]])) {
@@ -385,7 +393,7 @@ plot_maps <- function(id, df, hc, out) {
 	map_legend(eco, study, marker)
 
 	unit <- if (isTRUE(linearUnits(r0) == 1)) ' m' else ''
-	mtext(paste0('Similarity of the HFTs of study area ', id, ' in ', opt$area), side=3, outer=TRUE, line=2.3,
+	mtext(paste0('Similarity of the ', CLSP, ' of study area ', id, ' in ', opt$area), side=3, outer=TRUE, line=2.3,
 	      cex=1.15, font=2)
 	mtext(paste0(title_run, SEP, 'pixel ', fmt(res(r0)[1], 6), unit, if (outside) paste0(SEP, 'study area outside the map')),
 	      side=3, outer=TRUE, line=1.15, cex=0.8, col='grey25')
@@ -471,21 +479,22 @@ plot_metrics <- function(id, df, hc, out) {
 		(if (nrow(blank) > 0) geom_blank(data=blank, aes(x=NULL, y=value))) +
 		facet_wrap(~ metric, ncol=nc, scales='free_y', labeller=as_labeller(wrapped)) +
 		scale_fill_manual(values=hc$colours[as.character(hfts)], guide='none', drop=FALSE) +
-		scale_x_discrete(drop=FALSE) +
+		scale_x_discrete(drop=FALSE, labels=cls_lab) +
 		scale_y_continuous(expand=expansion(mult=c(0.02, 0.14))) +
-		labs(title=paste0('Similarity metrics of the HFTs of study area ', id),
+		labs(title=paste0('Similarity metrics of the ', CLSP, ' of study area ', id),
 		     subtitle=paste0(title_run, if (any(!is.na(num(df, 'PixelSize_m'))))
 		                     paste0(SEP, 'pixel ', fmt(max(num(df, 'PixelSize_m'), na.rm=TRUE), 6), ' m')),
-		     x='HFT', y=NULL) +
+		     x=CLS, y=NULL) +
 		theme_bw(base_size=12) +
 		theme(strip.text=element_text(size=10), strip.background=element_rect(fill='grey95'),
 		      panel.grid.major.x=element_blank(), plot.caption=element_text(hjust=0, size=9, colour='grey25'),
-		      plot.title=element_text(face='bold'))
+		      plot.title=element_text(face='bold')) +
+		(if (subclasses) theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)))
 
 	# Caption: status of the HFTs that are not 'ok' and the THDI of the study area
 	cap <- character(0)
 	bad <- d[!is.na(d$Status) & d$Status != 'ok', ]
-	if (nrow(bad) > 0) cap <- c(cap, paste0('Status: ', paste0('HFT ', bad$hft, ' ', bad$Status, collapse='; ')))
+	if (nrow(bad) > 0) cap <- c(cap, paste0('Status: ', paste0(if (subclasses) '' else 'HFT ', cls_lab(bad$hft), ' ', bad$Status, collapse='; ')))
 	if (!is.null(thdi) && id %in% thdi$wdpaid) {
 		tr <- thdi[thdi$wdpaid == id, ][1, ]
 		v <- intersect(c('TerrEco', 'MarEco', 'NrHFT', 'SIH', 'THD', 'THR', 'THDI'), names(tr))
@@ -536,12 +545,13 @@ plot_fit <- function(id, df, hc, out) {
 		         colour='grey30') +
 		scale_fill_gradient(low='#f7fbff', high='#08306b', limits=c(0, 100), name='% of the HFT\nsimilar', na.value='white') +
 		scale_colour_manual(values=c('FALSE'='grey15', 'TRUE'='white'), guide='none', na.value='grey15') +
-		scale_x_discrete(drop=FALSE, expand=expansion(add=c(0.6, 1.6))) +
+		scale_x_discrete(drop=FALSE, expand=expansion(add=c(0.6, 1.6)), labels=cls_lab) +
+		scale_y_discrete(labels=cls_lab) +
 		coord_cartesian(clip='off') +
 		labs(title=paste0('Fit of the similarity in study area ', id),
 		     subtitle=wrap(paste0(title_run, SEP, '% of the pixels of each HFT (column) with a similarity to the HFT of ',
 		                          'the row ', GEQ, ' its threshold T'), 9.5),
-		     x='HFT of the study area', y='Similarity map of the HFT',
+		     x=paste(CLS, 'of the study area'), y=paste('Similarity map of the', CLS),
 		     caption=paste(c(wrap(paste0('Self-fit: % of the similar pixels of the study area that are the HFT itself; ',
 		                                 'a robust map has a high self-fit and little outside the diagonal. Diagonal ',
 		                                 '(grey): % of the HFT similar to itself, set by the threshold, not by the fit ',
@@ -552,7 +562,8 @@ plot_fit <- function(id, df, hc, out) {
 		theme_minimal(base_size=12) +
 		theme(panel.grid=element_blank(), plot.title=element_text(face='bold'), plot.title.position='plot',
 		      plot.caption.position='plot', plot.caption=element_text(hjust=0, size=9, colour='grey25'),
-		      plot.subtitle=element_text(size=9.5))
+		      plot.subtitle=element_text(size=9.5)) +
+		(if (subclasses) theme(axis.text.x=element_text(angle=90, vjust=0.5, hjust=1)))
 	ggsave(out, p, width=side + 2.4, height=side + 0.6, dpi=200, bg='white')
 	ff <- f[order(match(f$hft_ref, hfts), match(f$hft, hfts)), , drop=FALSE]
 	ff$SelfFit_pct <- self$SelfFit_pct[match(ff$hft_ref, self$hft)]
