@@ -559,5 +559,9 @@ class Api:
 		return ecosim.preview(tif, kind, bbox)
 
 	@exposed
+	def ecosim_patches(self, folder):
+		return ecosim.patches(folder)
+
+	@exposed
 	def ecosim_outline(self, path, field=None, ids=None, folder=None):
 		return ecosim.outline(path, field, ids, folder)

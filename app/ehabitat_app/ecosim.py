@@ -508,13 +508,9 @@ def run_results(folder):
 			if m:
 				label = lab + (f" · ID {m.group('id')}" if len(rec.get('ids') or []) > 1 else '')
 		plots.append({'label': label, 'file': f, 'url': results._url(os.path.join(d, f))})
-	# maps of each HFT, with the colours of the HFT map: the files of the HFTs next to the run first (a scenario moved
-	# to <scenario>_previous keeps its own files, while the recorded paths are those of the new scenario)
+	# maps of each HFT, with the colours of the HFT map
 	def local(path):
-		if not path:
-			return None
-		cand = os.path.join(os.path.dirname(d), os.path.basename(str(path)))
-		return cand if os.path.isfile(cand) else _abs(path)
+		return _local(d, path)
 
 	by_id = {}
 	for h in rec.get('hfts') or []:
@@ -530,7 +526,7 @@ def run_results(folder):
 		                           'ecoregion')}
 		m['id'] = i
 		m['colour'] = cmaps.get(i, {}).get(h.get('hft'), '#888888')
-		for kind in ('sim', 'similar'):
+		for kind in ('sim', 'similar', 'patches'):
 			p = os.path.join(d, h[kind]) if h.get(kind) else None
 			m[kind] = paths.rel(p) if p and os.path.isfile(p) else None
 		maps.append(m)
@@ -543,6 +539,163 @@ def run_results(folder):
 	        'thdi': _rows(tables['thdi']), 'plots': plots, 'maps': maps, 'ecoregions': eco,
 	        'area': _area_record(rec.get('area')),
 	        'metadata': open(meta, encoding='utf-8', errors='replace').read() if os.path.isfile(meta) else None}
+
+
+def _local(d, path):
+	"""A file of the HFTs recorded by the run in the folder D: the file with its name next to the run first (a scenario
+	moved to <scenario>_previous keeps its own files, while the recorded paths are those of the new scenario)."""
+	if not path:
+		return None
+	cand = os.path.join(os.path.dirname(d), os.path.basename(str(path)))
+	return cand if os.path.isfile(cand) else _abs(path)
+
+
+def _polygonize(tif, eight):
+	"""The similar patches (categories 1 and 2) of a map of the similar areas as polygons in memory, for the runs made
+	before similarity.py wrote them (similar_<id>_hft_<n>.gpkg): (dataset, layer)."""
+	from osgeo import gdal, ogr
+	import numpy as np
+	src = gdal.Open(tif)
+	a = src.GetRasterBand(1).ReadAsArray()
+	mem = gdal.GetDriverByName('MEM').Create('', src.RasterXSize, src.RasterYSize, 1, gdal.GDT_Byte)
+	mem.SetGeoTransform(src.GetGeoTransform())
+	mem.SetProjection(src.GetProjection())
+	band = mem.GetRasterBand(1)
+	band.WriteArray(np.where((a == 1) | (a == 2), a, 0).astype('uint8'))
+	drv = gdal.GetDriverByName('MEM')
+	ds = drv.Create('', 0, 0, 0, gdal.GDT_Unknown) if drv.GetMetadataItem(gdal.DCAP_VECTOR) == 'YES' else \
+		ogr.GetDriverByName('Memory').CreateDataSource('')
+	lyr = ds.CreateLayer('patches', srs=src.GetSpatialRef(), geom_type=ogr.wkbPolygon)
+	lyr.CreateField(ogr.FieldDefn('category', ogr.OFTInteger))
+	gdal.Polygonize(band, band, lyr, 0, ['8CONNECTED=8'] if eight else [])
+	return ds, lyr
+
+
+MAX_PATCHES = 60000  # polygons of the similar patches on the map of a run: the largest ones beyond them
+_PATCHES_CACHE = {}  # (run folder, date of the run): the last results of patches() (the polygons take seconds)
+
+
+def patches(folder):
+	"""All the results of a run on one map: the similar patches of every HFT or subclass (similar_<id>_hft_<n>.gpkg
+	of similarity.py, or the patches of its map of the similar areas, similar_<id>_hft<h>.tif, in the runs made before
+	them) and the HFTs of the study area, as GeoJSON in WGS 84. Each polygon has the key <id>_<class> of its HFT or
+	subclass (as the maps of run_results), the patches their category (1 similar, 2 at least as large as the HFT) and
+	area (ha). With more than MAX_PATCHES patches only the largest ones are drawn (truncated). A file that cannot be
+	read leaves out its class, with the error in its summary."""
+	import heapq
+	from osgeo import ogr, osr
+	d = _run_dir(folder)
+	if not os.path.isfile(os.path.join(d, RUN_JSON)):
+		raise ValueError(f'{paths.rel(d)} has no finished run ({RUN_JSON})')
+	rec = _read_run(d)
+	ck = (d, rec.get('date'), os.path.getmtime(os.path.join(d, RUN_JSON)))
+	if ck in _PATCHES_CACHE:
+		return _PATCHES_CACHE[ck]
+	classes = rec.get('classes') or 'hft'
+	eight = int((rec.get('options') or {}).get('neighbours') or 8) == 8
+	res = float(rec.get('res') or 0)
+	wgs = inputs._wgs84()
+
+	def transform(lyr):
+		srs = lyr.GetSpatialRef()
+		if srs is None:
+			raise ValueError('it has no coordinate reference system')
+		srs = srs.Clone()
+		srs.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+		return osr.CoordinateTransformation(srs, wgs), srs.IsProjected()
+
+	def inside_run(name):  # a file of the run, in its folder
+		p = os.path.normpath(os.path.join(d, os.path.basename(str(name)))) if name else None
+		return p if p and os.path.isfile(p) else None
+
+	heap, summary, seq = [], {}, 0  # heap: the MAX_PATCHES largest patches (area, order, ...)
+	total = 0
+	for h in rec.get('hfts') or []:
+		key = f"{h.get('id')}_{h.get('hft')}"
+		gp, tif = inside_run(h.get('patches')), inside_run(h.get('similar'))
+		if not gp and not tif:
+			continue
+		try:
+			if gp:
+				ds = ogr.Open(gp)
+				lyr = ds.GetLayer(0)
+			else:
+				ds, lyr = _polygonize(tif, eight)
+			ct, projected = transform(lyr)
+			has_ha = lyr.GetLayerDefn().GetFieldIndex('area_ha') >= 0
+			n = large = 0
+			ha = 0.0
+			items = []  # to the heap only when the whole file was read
+			for f in lyr:
+				g = f.GetGeometryRef()
+				if g is None:
+					continue
+				a = f.GetField('area_ha') if has_ha else (g.GetArea() / 1e4 if projected else None)
+				cat = f.GetField('category')
+				n += 1
+				large += cat == 2
+				ha += a or 0
+				seq += 1
+				items.append((a or 0, seq, key, cat, a, g.Clone(), ct))
+			for item in items:
+				if len(heap) < MAX_PATCHES:
+					heapq.heappush(heap, item)
+				elif item[0] > heap[0][0]:
+					heapq.heapreplace(heap, item)
+			total += n
+			summary[key] = {'patches': n, 'large': int(large), 'ha': round(ha, 2), 'source': 'gpkg' if gp else 'tif'}
+		except Exception as e:  # noqa: BLE001 - one unreadable file leaves out its class only
+			summary[key] = {'patches': 0, 'large': 0, 'ha': 0, 'source': None,
+			                'error': f'{os.path.basename(gp or tif)}: {e}'}
+		finally:
+			ds = lyr = None
+	feats = []
+	for _, _, key, cat, a, g, ct in sorted(heap, key=lambda x: x[1]):
+		if res:
+			g = g.SimplifyPreserveTopology(res / 2)  # the steps of the pixels, for the size of the map
+		g.Transform(ct)
+		feats.append({'type': 'Feature', 'properties': {'key': key, 'category': cat,
+		                                              'ha': round(a, 3) if a is not None else None},
+		              'geometry': inputs._json(g)})
+	# the HFTs (or subclasses) of the study area: the polygons of the shapefile of each ID
+	study, errors = [], []
+	for i, shp in (rec.get('shapefiles') or {}).items():
+		shp = _local(d, shp)
+		if not shp or not os.path.isfile(shp) or not paths.inside(shp, paths.RESULTS):
+			continue
+		try:
+			ds = ogr.Open(shp)
+			lyr = ds.GetLayer(0)
+			defn = lyr.GetLayerDefn()
+			fields = ('sub_code',) if classes == 'subclass' else ('hft', 'hclst_m')
+			field = next((x for x in fields if defn.GetFieldIndex(x) >= 0), None)
+			if not field:
+				continue
+			ct, projected = transform(lyr)
+			xmin, xmax, ymin, ymax = lyr.GetExtent()
+			tol = max(xmax - xmin, ymax - ymin) / 1500  # the segments follow the pixels: simplified for the map
+			for f in lyr:
+				g = f.GetGeometryRef()
+				# the segments without a subclass (sub_code NA) are not a class of the run
+				if g is None or not f.IsFieldSetAndNotNull(field):
+					continue
+				g = g.Clone()
+				a = g.GetArea() / 1e4 if projected else None
+				g = g.SimplifyPreserveTopology(tol)
+				g.Transform(ct)
+				study.append({'type': 'Feature', 'properties': {'key': f'{i}_{f.GetFieldAsInteger(field)}',
+				                                              'ha': round(a, 3) if a is not None else None},
+				              'geometry': inputs._json(g)})
+		except Exception as e:  # noqa: BLE001
+			errors.append(f'{os.path.basename(shp)}: {e}')
+		finally:
+			ds = lyr = None
+	out = {'patches': {'type': 'FeatureCollection', 'features': feats}, 'summary': summary,
+	       'study': {'type': 'FeatureCollection', 'features': study}, 'study_errors': errors,
+	       'truncated': total > MAX_PATCHES, 'max_patches': MAX_PATCHES}
+	_PATCHES_CACHE.clear()  # only the last run: its polygons can take tens of MB
+	_PATCHES_CACHE[ck] = out
+	return out
 
 
 def preview(tif, kind='sim', bbox=None, max_size=1200):
