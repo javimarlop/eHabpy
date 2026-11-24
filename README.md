@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6.6) · 2026-11-24
 
 - **Desktop app, Earth Engine variables**: The recipe of the Earth Engine variables can also remove the snow by its NDSI (Snow also by its NDSI ≥, e.g. 0.4, in Sentinel-2 and Landsat): the patches of snow that the quality band misses, which raise the standard deviation of the NDMI in mountains. The options of a loaded recipe that the form does not show (such as the topographic correction) are no longer lost when it is downloaded or saved.
 
