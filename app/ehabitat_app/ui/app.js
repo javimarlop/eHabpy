@@ -3088,7 +3088,9 @@ pages.similarity = (() => {
 	const S = {list: [], src: null, plan: null, planError: null, planSeq: 0, params: [], defaults: {}, cfg: {}, saved: null,
 		runs: [], res: null, map: null, overlay: null, eco: null, area: null, ecoFor: null, saLayer: null, saFor: null, previews: new Map(),
 		mapSeq: 0, fitted: null, defaultEco: null, defaultEcoPath: null, loaded: false, stale: false, full: null, fullKey: null,
-		detail: null, detailSeq: 0, detailTimer: null, resFollow: null, resNative: null, resKey: ''};
+		detail: null, detailSeq: 0, detailTimer: null, resFollow: null, resNative: null, resKey: '',
+		patchData: null, patchFor: null, patchCache: new Map(), colours: null, pLayer: null, stLayer: null, hidden: new Set(),
+		styleFrame: 0};
 	const TITLE = 'Similarity in the ecoregion';
 	const view = new JobView($('#s-log'), $('#s-bar'), {
 		onStart: () => { $('#s-stop').classList.remove('hidden'); $('#dot-ecosim').classList.remove('hidden'); canRun(); },
@@ -3807,6 +3809,38 @@ pages.similarity = (() => {
 			return;
 		}
 		sel.value = S.runs.some(r => r.folder === cur) ? cur : S.runs[0].folder;
+		fillMapAreas();
+		await loadResult();
+	}
+
+	// The areas the HFTs were compared with (the ecoregion of the set or a comparison area): one option per area with
+	// runs; choosing one shows its run with the same cut, pixel size and classes as the run shown, if it has one
+	const areaTag = r => r.tag || '';
+	function mapAreaLabel(r) {
+		const a = r.area || {};
+		if (!r.tag) return 'The ecoregion of the set';
+		return (a.kind === 'comparison area' ? 'Comparison area ' : '') + (a.name ? `${a.name} (${r.tag})` : r.tag);
+	}
+	function fillMapAreas() {
+		const sel = $('#s-map-area');
+		const run = S.runs.find(r => r.folder === $('#s-runs').value);
+		sel.textContent = '';
+		const seen = new Map();
+		for (const r of S.runs) if (!seen.has(areaTag(r))) seen.set(areaTag(r), mapAreaLabel(r));
+		for (const [tag, label] of seen) sel.append(el('option', {value: tag}, label));
+		if (run) sel.value = areaTag(run);
+		$('#s-map-area-lab').classList.toggle('hidden', seen.size < 2);
+	}
+	async function chooseArea() {
+		const tag = $('#s-map-area').value;
+		const cur = S.runs.find(r => r.folder === $('#s-runs').value) || {};
+		const same = r => areaTag(r) === tag;
+		const run = S.runs.find(r => same(r) && r.cut === cur.cut && r.res === cur.res && r.classes === cur.classes)
+			|| S.runs.find(r => same(r) && r.cut === cur.cut && r.classes === cur.classes)
+			|| S.runs.find(r => same(r) && r.classes === cur.classes) || S.runs.find(same);
+		if (!run || run.folder === cur.folder) return;
+		$('#s-runs').value = run.folder;
+		fillMapAreas();
 		await loadResult();
 	}
 
@@ -3840,6 +3874,7 @@ pages.similarity = (() => {
 		}
 		const first = R.maps.find(m => m.sim || m.similar) || R.maps[0];
 		hsel.value = R.maps.some(m => `${m.id}_${m.hft}` === cur) ? cur : first ? `${first.id}_${first.hft}` : '';
+		S.hidden = new Set([...S.hidden].filter(k => R.maps.some(m => `${m.id}_${m.hft}` === k)));
 		await drawMap();
 	}
 
@@ -3885,6 +3920,7 @@ pages.similarity = (() => {
 			tr.addEventListener('click', () => {
 				if (![...$('#s-map-hft').options].some(o => o.value === k)) return;
 				$('#s-map-hft').value = k;
+				if ($('#s-map-kind').value === 'all') $('#s-map-kind').value = 'similar';
 				drawMap();
 				$('#s-map-card').scrollIntoView({behavior: 'smooth', block: 'start'});
 			});
@@ -3949,6 +3985,10 @@ pages.similarity = (() => {
 	function front() {
 		if (S.eco && S.map.hasLayer(S.eco)) S.eco.bringToFront();
 		if (S.area && S.map.hasLayer(S.area)) S.area.bringToFront();
+		// the polygons of the map All above the outlines, whose polygons would take their tooltips (not the study area,
+		// which takes none)
+		if (S.stLayer && S.map.hasLayer(S.stLayer)) S.stLayer.bringToFront();
+		if (S.pLayer && S.map.hasLayer(S.pLayer)) S.pLayer.bringToFront();
 		if (S.saLayer && S.map.hasLayer(S.saLayer)) S.saLayer.bringToFront();
 	}
 
@@ -3956,8 +3996,11 @@ pages.similarity = (() => {
 		const R = S.res;
 		if (!R) return;
 		ensureMap();
-		const m = R.maps.find(x => `${x.id}_${x.hft}` === $('#s-map-hft').value);
 		const kind = $('#s-map-kind').value;
+		$('#s-map-hft-lab').classList.toggle('hidden', kind === 'all');
+		if (kind === 'all') return drawAll(R);
+		hideAll();
+		const m = R.maps.find(x => `${x.id}_${x.hft}` === $('#s-map-hft').value);
 		const tif = m ? m[kind] : null;
 		const multi = new Set(R.maps.map(x => x.id)).size > 1;
 		$('#s-map-title').textContent = !m ? 'Similarity map'
@@ -3991,12 +4034,141 @@ pages.similarity = (() => {
 			m.area_ha ? `${fmt(m.area_ha, 1)} ha` : null, m.ecoregion ? `ecoregion ${m.ecoregion}` : null].filter(Boolean).join(' · ') : '';
 		// the outlines of a run: again when the run was made again in the same folder (with other polygons, maybe)
 		const ek = outlineKey(R);
-		if (S.ecoFor !== ek) await ecoLayer(R, ek);
+		await outlines(R, ek);
+		if (seq !== S.mapSeq) return;
 		legend(m, kind, p);
 		await saLayer(S.src ? S.src.study_area : parts()[0]);
+		if (seq !== S.mapSeq) return;
 		front();
 		// fitted only when the map has a size (not while the page is hidden: a run that ends on another page)
 		if (S.fitted !== R.folder) { if (fitEco()) S.fitted = R.folder; } else detail();
+	}
+	// All the results on one map: the similar patches of every HFT or subclass (polygons, in its colour; those at
+	// least as large as the HFT with a dark outline) and the HFTs of the study area, each class shown or hidden. The
+	// hidden ones are left out of the layers (not only transparent: on the canvas they would still take the mouse).
+	const keyOf = m => `${m.id}_${m.hft}`;
+	const runKey = R => R.folder + '|' + ((R.run && R.run.date) || '');
+	const showStudy = () => S.showStudy !== undefined ? S.showStudy : (S.showStudy = store('ecosim.allHft') !== '0');
+	const colourOf = key => (S.colours && S.colours[key]) || '#888';
+	function patchStyle(f) {
+		const c = colourOf(f.properties.key), big = f.properties.category === 2;
+		return {fillColor: c, fillOpacity: opacity(), color: big ? '#111' : c, weight: big ? 1.4 : 0.8, opacity: 1};
+	}
+	function studyStyle(f) {
+		return {fillColor: colourOf(f.properties.key), fillOpacity: opacity() * 0.45, color: '#ffffff', weight: 0.8, opacity: 0.9};
+	}
+	const shown = f => S.colours && f.properties.key in S.colours && !S.hidden.has(f.properties.key);
+	function refill() { // the classes shown, again in the layers
+		const d = S.patchData;
+		if (!d || !S.pLayer) return;
+		S.pLayer.clearLayers(); S.stLayer.clearLayers();
+		S.pLayer.addData(d.patches);
+		if (showStudy()) S.stLayer.addData(d.study);
+		front();
+	}
+	function hideAll() { // off the map (the layers are kept for the run)
+		for (const k of ['pLayer', 'stLayer']) if (S[k] && S.map.hasLayer(S[k])) S.map.removeLayer(S[k]);
+	}
+	async function patchesOf(R) { // the polygons of a run, kept for the last runs seen (old runs take seconds)
+		const k = runKey(R);
+		if (!S.patchCache.has(k)) {
+			const d = await api('ecosim_patches', R.folder);
+			S.patchCache.set(k, d);
+			if (S.patchCache.size > 3) S.patchCache.delete(S.patchCache.keys().next().value);
+		}
+		return S.patchCache.get(k);
+	}
+	async function drawAll(R) {
+		const seq = ++S.mapSeq;
+		dropDetail();
+		if (S.overlay) { S.map.removeLayer(S.overlay); S.overlay = null; }
+		S.full = null; S.fullKey = null; S.fullTif = null;
+		const sub = (R.run || {}).classes === 'subclass';
+		const multi = new Set(R.maps.map(x => x.id)).size > 1;
+		const cls = sub ? 'subclass' : 'HFT';
+		$('#s-map-title').textContent = `Similar patches of all the ${sub ? 'subclasses' : 'HFTs'}`;
+		if (S.patchFor !== runKey(R)) {
+			hideAll(); // those of another run: not while the new ones load
+			S.pLayer = S.stLayer = S.patchData = S.patchFor = null;
+			$('#s-map-sub').textContent = 'loading…';
+			let d;
+			try { d = await patchesOf(R); } catch (e) {
+				if (seq === S.mapSeq) $('#s-map-sub').textContent = '';
+				return fail(e);
+			}
+			if (seq !== S.mapSeq) return;
+			S.patchData = d; S.patchFor = runKey(R);
+			S.colours = Object.fromEntries(R.maps.map(m => [keyOf(m), m.colour || '#888']));
+			const name = key => { const m = R.maps.find(x => keyOf(x) === key); return m ? clsName(m) + (multi ? ' · ' + areaName(m.id) : '') : key; };
+			S.pLayer = L.geoJSON(null, {style: patchStyle, filter: shown, onEachFeature: (f, layer) => {
+				const q = f.properties;
+				layer.bindTooltip(leafletText(`${name(q.key)} · ${q.category === 2 ? `similar patch at least as large as the ${cls}` : 'similar patch'}`
+					+ (q.ha !== null && q.ha !== undefined ? ` · ${fmt(q.ha, 2)} ha` : '')), {sticky: true});
+			}});
+			S.stLayer = L.geoJSON(null, {style: studyStyle, filter: shown, onEachFeature: (f, layer) => {
+				const q = f.properties;
+				layer.bindTooltip(leafletText(`${name(q.key)} in the study area${q.ha !== null && q.ha !== undefined ? ' · ' + fmt(q.ha, 2) + ' ha' : ''}`), {sticky: true});
+			}});
+		}
+		const d = S.patchData;
+		S.stLayer.addTo(S.map);
+		S.pLayer.addTo(S.map);
+		refill();
+		const tot = Object.values(d.summary).reduce((a, v) => [a[0] + v.patches, a[1] + v.ha], [0, 0]);
+		$('#s-map-sub').textContent = `${fmt(tot[0], 0)} similar patches · ${fmt(tot[1], 0)} ha`
+			+ (d.truncated ? ` · only the ${fmt(d.max_patches, 0)} largest drawn` : '');
+		const ek = outlineKey(R);
+		await outlines(R, ek);
+		if (seq !== S.mapSeq) return;
+		await saLayer(S.src ? S.src.study_area : parts()[0]);
+		if (seq !== S.mapSeq) return;
+		legendAll(R, d);
+		front();
+		if (S.fitted !== R.folder) { if (fitEco()) S.fitted = R.folder; }
+	}
+	function legendAll(R, d) {
+		const box = $('#s-legend');
+		box.textContent = '';
+		box.classList.remove('hidden');
+		const sub = (R.run || {}).classes === 'subclass';
+		const multi = new Set(R.maps.map(x => x.id)).size > 1;
+		box.append(el('h4', {}, `${sub ? 'Subclasses' : 'HFTs'} (click: hide/show)`));
+		for (const m of R.maps) {
+			const k = keyOf(m), v = d.summary[k];
+			const row = el('div', {class: 'legend-row' + (S.hidden.has(k) ? ' dim' : ''), style: {gridTemplateColumns: '16px auto 1fr'},
+				title: v && v.error ? `Not drawn: ${v.error}` : v ? `${v.patches} similar patches (${v.large} at least as large as the ${sub ? 'subclass' : 'HFT'}), ${fmt(v.ha, 1)} ha` : 'No similar patches'},
+				el('span', {class: 'sw', style: {background: m.colour}}), el('b', {}, (multi ? m.id + ' · ' : '') + clsName(m)),
+				el('span', {class: 'ha'}, v && v.error ? 'not drawn (error)' : v ? `${fmt(v.patches, 0)} patch${v.patches === 1 ? '' : 'es'} · ${fmt(v.ha, 0)} ha`
+					: `no map${m.status && m.status !== 'ok' ? ' (' + (STATUS[m.status] || [, m.status])[1] + ')' : ''}`));
+			row.addEventListener('click', () => {
+				S.hidden.has(k) ? S.hidden.delete(k) : S.hidden.add(k);
+				row.classList.toggle('dim'); refill();
+			});
+			box.append(row);
+		}
+		box.append(el('div', {class: 'row', style: {marginTop: '6px'}},
+			el('button', {class: 'btn small ghost', onclick: () => { S.hidden.clear(); legendAll(R, d); refill(); }}, 'All'),
+			el('button', {class: 'btn small ghost', onclick: () => { R.maps.forEach(m => S.hidden.add(keyOf(m))); legendAll(R, d); refill(); }}, 'None')));
+		const hft = el('input', {type: 'checkbox'});
+		hft.checked = showStudy();
+		hft.addEventListener('change', () => { S.showStudy = hft.checked; store('ecosim.allHft', hft.checked ? '1' : '0'); refill(); });
+		box.append(el('label', {class: 'check small', style: {marginTop: '6px', display: 'flex', gap: '6px'}}, hft,
+			`The ${sub ? 'subclasses' : 'HFTs'} in the study area`));
+		const line = (border, label, bg = 'transparent') => el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: bg, border}}),
+			el('span', {}, label));
+		box.append(line('1.4px solid #111', `Patch at least as large as the ${sub ? 'subclass' : 'HFT'}`, '#bbb'),
+			line('1px solid #bbb', 'Smaller similar patch', '#bbb'),
+			line('2px solid #ff3b30', 'Study area'));
+		if (S.area) box.append(line(`2px dashed ${AREA_COLOUR}`, 'Comparison area'));
+		if (S.eco) box.append(line('2px dashed #c99700', 'Ecoregion'));
+		if ((d.study_errors || []).length) {
+			box.append(el('div', {class: 'small faint', style: {maxWidth: '240px', marginTop: '4px'}},
+				'Not drawn: ' + d.study_errors.join('; ')));
+		}
+		if (Object.values(d.summary).some(v => v.source === 'tif')) {
+			box.append(el('div', {class: 'small faint', style: {maxWidth: '240px', marginTop: '4px'}},
+				'Patches taken from the maps of the similar areas (a run made before the GeoPackages of the patches).'));
+		}
 	}
 	function outlineKey(R) {
 		return [R.folder, (R.ecoregions && R.ecoregions.path) || '', (R.area && R.area.path) || '', (R.run && R.run.date) || ''].join('|');
@@ -4045,6 +4217,11 @@ pages.similarity = (() => {
 		layer.bindTooltip(leafletText(`${q.id ?? ''}${q.label ? ' · ' + q.label : ''}`), {sticky: true});
 	};
 	// the ecoregions of the run and, when the HFTs were compared with a comparison area, its polygons
+	// the outlines of a run, loaded once: a map drawn while they load waits for them (not only the first one)
+	function outlines(R, ek) {
+		if (S.ecoFor !== ek) S.ecoLoad = ecoLayer(R, ek);
+		return S.ecoLoad;
+	}
 	async function ecoLayer(R, ek) {
 		for (const k of ['eco', 'area']) if (S[k]) { S.map.removeLayer(S[k]); S[k] = null; }
 		S.ecoFor = ek;
@@ -4086,7 +4263,8 @@ pages.similarity = (() => {
 		S.map.invalidateSize();
 		const z = S.map.getSize();
 		if (!z.x || !z.y) return false;
-		const b = S.area ? S.area.getBounds() : S.eco ? S.eco.getBounds() : S.overlay ? S.overlay.getBounds() : null;
+		const b = S.area ? S.area.getBounds() : S.eco ? S.eco.getBounds() : S.overlay ? S.overlay.getBounds()
+			: S.pLayer && S.map.hasLayer(S.pLayer) && S.pLayer.getLayers().length ? S.pLayer.getBounds() : null;
 		if (b && b.isValid()) S.map.fitBounds(b, {padding: [12, 12]});
 		return true;
 	}
@@ -4096,11 +4274,22 @@ pages.similarity = (() => {
 		if (S.saLayer) S.map.fitBounds(S.saLayer.getBounds(), {padding: [30, 30], maxZoom: 14});
 	}
 
-	$('#s-runs').addEventListener('change', loadResult);
+	$('#s-runs').addEventListener('change', () => { fillMapAreas(); loadResult(); });
+	$('#s-map-area').addEventListener('change', chooseArea);
 	$('#s-open').addEventListener('click', () => S.res && api('open_folder', S.res.path).catch(fail));
 	$('#s-map-hft').addEventListener('change', drawMap);
 	$('#s-map-kind').addEventListener('change', drawMap);
-	$('#s-op').addEventListener('input', () => { (S.detail || S.overlay) && (S.detail || S.overlay).setOpacity(opacity()); });
+	$('#s-op').addEventListener('input', () => {
+		if ($('#s-map-kind').value === 'all') {
+			cancelAnimationFrame(S.styleFrame);
+			S.styleFrame = requestAnimationFrame(() => {
+				if (S.pLayer) S.pLayer.setStyle(patchStyle);
+				if (S.stLayer) S.stLayer.setStyle(studyStyle);
+			});
+			return;
+		}
+		(S.detail || S.overlay) && (S.detail || S.overlay).setOpacity(opacity());
+	});
 	const toggle = (box, layer) => { if (layer) box.checked ? layer.addTo(S.map) : S.map.removeLayer(layer); };
 	$('#s-eco-show').addEventListener('change', () => { toggle($('#s-eco-show'), S.eco); front(); });
 	$('#s-area-show').addEventListener('change', () => { toggle($('#s-area-show'), S.area); front(); });

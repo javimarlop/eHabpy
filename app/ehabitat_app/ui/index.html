@@ -540,7 +540,8 @@
 				<p class="small muted" style="margin:0">T: the similarity threshold of the HFT. Similar pixels: those of the
 					rest of the ecoregion with a similarity of at least T. HSR (Habitat Similarity Ratio): pixels of the similar
 					patches at least as large as the HFT (or else of the largest patch) / pixels of the HFT. Aggregation:
-					similar pixels per patch. Click an HFT to see its maps.</p>
+					similar pixels per patch. Click an HFT to see its maps; the map "All" shows the similar patches of every HFT
+					at once (the polygons of <code>similar_&lt;id&gt;_hft_&lt;n&gt;.gpkg</code>).</p>
 			</div>
 			<details class="more"><summary>All the columns (hri_results.csv)</summary><div class="table-wrap"><table class="t" id="s-hri-all"></table></div></details>
 			<details class="more"><summary>Options, inputs and notes of the run (similarity_metadata.txt)</summary><pre id="s-meta"></pre></details>
@@ -549,8 +550,9 @@
 	<div class="card" id="s-map-card">
 		<div class="card-head"><h2 id="s-map-title">Similarity map</h2><span class="sub" id="s-map-sub"></span>
 			<div class="map-tools right">
-				<label>HFT <select id="s-map-hft"></select></label>
-				<label>Map <select id="s-map-kind"><option value="sim">Similarity (0–1)</option><option value="similar">Similar areas</option></select></label>
+				<label id="s-map-area-lab" title="The area the HFTs were compared with: each area has its own runs">Compared with <select id="s-map-area"></select></label>
+				<label>Map <select id="s-map-kind"><option value="all">All: similar patches of every HFT</option><option value="sim">Similarity (0–1) of an HFT</option><option value="similar">Similar areas of an HFT</option></select></label>
+				<label id="s-map-hft-lab">HFT <select id="s-map-hft"></select></label>
 				<label>Basemap <select id="s-base"></select></label>
 				<label>Opacity <input type="range" id="s-op" min="0" max="100" value="85"></label>
 				<label class="check"><input type="checkbox" id="s-eco-show" checked> Ecoregions</label>
