@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.5](https://github.com/javimarlop/eHabpy/releases/tag/1.6.5) · 2026-11-24
 
 - **Desktop app**: The catalog of MonitorEO shows apart what is for choosing areas rather than for characterising the HFTs: the burn severity (RBR, RdNBR, and a search for dNBR, severity or fire) offers its burned area as the study area, and the RESOLVE ecoregions and biomes (ECOREGION, BIOME) are regions for the comparison area, no longer added to a recipe or its conditions (a recipe that has them asks to remove them).
 
