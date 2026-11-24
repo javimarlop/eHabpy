@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.8](https://github.com/javimarlop/eHabpy/releases/tag/1.6.8) · 2026-11-24
 
 - **Similarity**: The patches similar to each HFT or subclass are also saved as polygons, one per patch, in a GeoPackage named after the HFT and the subclass (`similar_<id>_hft_<n>.gpkg`, `similar_<id>_hft_<n>_sub_<y>.gpkg`), with their category (similar, or at least as large as the HFT), number of pixels and area in ha, ready to use in a GIS.
 
