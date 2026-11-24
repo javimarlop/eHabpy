@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Similarity**: The patches similar to each HFT or subclass are also saved as polygons, one per patch, in a GeoPackage named after the HFT and the subclass (`similar_<id>_hft_<n>.gpkg`, `similar_<id>_hft_<n>_sub_<y>.gpkg`), with their category (similar, or at least as large as the HFT), number of pixels and area in ha, ready to use in a GIS.
+
 ### [1.6.7](https://github.com/javimarlop/eHabpy/releases/tag/1.6.7) · 2026-11-24
 
 - **HFT model, Similarity, Desktop app**: With the subclasses of the pixels of the HFTs, the shapefile of the HFTs of each cut has every segment split into its subclasses, with their label `hft_<n>_sub_<y>` (field `subclass`) and code (`sub_code`), so they can be used as polygons in a GIS; the similarity can compare the subclasses with the ecoregion instead of the HFTs (Classes compared, `ECOSIM_CLASSES = 'subclass'`), with their own results. The fields of the shapefile have clearer names (`hft`, `segm_cat`, `area_id`, `area_ha`, and the variables by the part of their name that differs, e.g. `NDVI_S2_p9`), explained in `park_segm_*_class_fields.csv` next to it; the shapefiles of earlier versions can still be used.

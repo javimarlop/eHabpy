@@ -33,7 +33,10 @@ study_area when it has one (the study area at the pixel of the area, which get_v
 does not contain the study area), else from the area itself.
 
 The results go to results/<STUDY_AREA>/<SCENARIO>/<cut>/similarity_<pixel size>m (similarity_<pixel size>m_<area>
-for another area; see the wiki, Similarity and landscape metrics): sim_<id>_hft<h>.tif, similar_<id>_hft<h>.tif, hri_results.csv, fit_matrix.csv, thdi_res.csv, the plots,
+for another area; see the wiki, Similarity and landscape metrics): sim_<id>_hft<h>.tif, similar_<id>_hft<h>.tif, the similar patches as
+polygons (similar_<id>_hft_<n>.gpkg, or similar_<id>_hft_<n>_sub_<y>.gpkg for the subclass hft_<n>_sub_<y>: one
+multipolygon per patch, with its category, 1 similar or 2 a patch at least as large as the HFT, large, pixels,
+area_ha, id, hft and subclass), hri_results.csv, fit_matrix.csv, thdi_res.csv, the plots,
 similarity_metadata.txt and similarity_run.json (written last). With ECOSIM_CLASSES = 'subclass' the classes compared
 are the subclasses of the pixels of the HFTs (the column sub_code of the shapefile, 100 x HFT + subclass, written by
 moranvar_plots.R with HFT_SUBCLASSES), in the same way, to similarity_<pixel size>m[_<area>]_subclasses: their files
@@ -868,6 +871,66 @@ def write_raster(path, arr, cg, dtype, nodata, resampling):
 	ds = None
 
 
+def patches_name(hid, h, classes):
+	"""File of the similar patches of the class H of the ID HID: similar_<id>_hft_10.gpkg, or
+	similar_<id>_hft_10_sub_4.gpkg for the subclass hft_10_sub_4 (code 1004)."""
+	return f'similar_{hid}_{subclass_name(h) if classes == "subclass" else f"hft_{h}"}.gpkg'
+
+
+def write_patches(outdir, cat, cg, ctx, hid, h):
+	"""The similar patches of the map of the similar areas CAT (categories 1 and 2, rows x columns of CG) as polygons, one
+	per patch (with the neighbours of the patches, ECOSIM_NEIGHBOURS), in a GeoPackage of OUTDIR. Returns its name."""
+	classes = ctx['classes']
+	name = patches_name(hid, h, classes)
+	src = gdal.GetDriverByName('MEM').Create('', cg.width, cg.height, 1, gdal.GDT_Byte)
+	src.SetGeoTransform(cg.gt)
+	src.SetProjection(cg.wkt)
+	band = src.GetRasterBand(1)
+	band.WriteArray(np.where((cat == 1) | (cat == 2), cat, 0).astype(np.uint8))
+	mem = _mem_vector()
+	tmp = mem.CreateLayer('t', srs=cg.srs(), geom_type=ogr.wkbPolygon)
+	tmp.CreateField(ogr.FieldDefn('category', ogr.OFTInteger))
+	opts = ['8CONNECTED=8'] if ctx['structure'].all() else []
+	gdal.Polygonize(band, band, tmp, 0, opts)  # the band is its own mask: 0 (not similar) is left out
+	ds = gdal.GetDriverByName('GPKG').Create(os.path.join(outdir, name), 0, 0, 0, gdal.GDT_Unknown)
+	# multipolygons: with 8 neighbours a patch can join pixels that only touch at a corner, a ring that touches
+	# itself, which is not valid in a GIS; MakeValid splits it at that corner, still one feature per patch
+	lyr = ds.CreateLayer(os.path.splitext(name)[0], srs=cg.srs(), geom_type=ogr.wkbMultiPolygon)
+	for f, t in (('category', ogr.OFTInteger), ('id', ogr.OFTString), ('hft', ogr.OFTInteger),
+	             ('subclass', ogr.OFTString), ('large', ogr.OFTInteger), ('pixels', ogr.OFTInteger64),
+	             ('area_ha', ogr.OFTReal)):
+		if f != 'subclass' or classes == 'subclass':
+			lyr.CreateField(ogr.FieldDefn(f, t))
+	px = cg.res * cg.res
+	lyr.StartTransaction()
+	gdal.PushErrorHandler('CPLQuietErrorHandler')  # IsValid() warns about every invalid ring
+	try:
+		for src_f in tmp:
+			g = src_f.GetGeometryRef()
+			if not g.IsValid():
+				g = g.MakeValid()
+			g = ogr.ForceToMultiPolygon(g)
+			a = g.GetArea()
+			feat = ogr.Feature(lyr.GetLayerDefn())
+			feat.SetGeometry(g)
+			cat_v = src_f.GetField('category')
+			feat.SetField('category', cat_v)
+			feat.SetField('id', str(hid))
+			feat.SetField('hft', int(h // 100 if classes == 'subclass' else h))
+			if classes == 'subclass':
+				feat.SetField('subclass', subclass_name(h))
+			feat.SetField('large', int(cat_v == 2))
+			feat.SetField('pixels', int(round(a / px)))
+			feat.SetField('area_ha', round(a / 1e4, 4))
+			lyr.CreateFeature(feat)
+	finally:
+		gdal.PopErrorHandler()
+	lyr.CommitTransaction()
+	tmp = mem = None
+	ds = src = None
+	return name
+
+
 def landscape(similar, structure, n_hft):
 	"""Patches of the similar pixels (boolean rows x columns): their labels and the size (pixels) of every patch."""
 	from scipy import ndimage
@@ -888,7 +951,7 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	name = class_label(h, ctx['classes'])
 	rec = {'id': hid, 'hft': int(h), 'ecoregion': eco_of_hft, 'status': 'ok', 'ref_pixels': int(n), 'vars_used': None,
 	       'vars_dropped': [], 'ridge': None, 'area_ha': round(ctx['areas'][h], 2) if h in ctx['areas'] else None,
-	       'threshold': None, 'sim': None, 'similar': None, 'covariance': None, 'covariance_note': None,
+	       'threshold': None, 'sim': None, 'similar': None, 'patches': None, 'covariance': None, 'covariance_note': None,
 	       'mcd_kept': None}
 	row = {'ecoregion': eco_of_hft, 'wdpaid': hid, 'wdpaid_hft': f'{hid}_{h}', 'hft': int(h),
 	       'HFTArea_ha': rec['area_ha'], 'PixelSize_m': cg.res, 'NrPixHFT': n}
@@ -975,6 +1038,7 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	write_raster(os.path.join(outdir, sim_cat), cat.reshape(cg.height, cg.width), cg, gdal.GDT_Byte, CAT_NODATA,
 	             'NEAREST')
 	rec['similar'] = sim_cat
+	rec['patches'] = write_patches(outdir, cat.reshape(cg.height, cg.width), cg, ctx, target['id'], h)
 	msg = (f"threshold {rec['threshold']:.3f}, {row.get('NrSimPixEco') or 0} similar pixels in "
 	       f"{row.get('NrSimLcpPatEco') or 0} patches, HSR {_num(row.get('HSR'))}" if rec['threshold'] is not None
 	       else 'no pixel of the HFT has a similarity above 0')
