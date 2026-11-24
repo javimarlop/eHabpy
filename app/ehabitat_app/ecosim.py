@@ -21,8 +21,9 @@ from . import inputs, jobs, model, paths, results
 import hft_state  # segm_optim (paths puts it in sys.path)
 
 RUN_JSON = 'similarity_run.json'
-# _ for the decimal point (12_5m); _<tag>: compared with another area than the ecoregion of the set (similarity.py)
-RUN_RE = re.compile(r'^similarity_(?P<res>\d+(?:[._]\d+)?)m(?:_(?P<tag>[A-Za-z0-9_-]+))?$')
+# _ for the decimal point (12_5m); _<tag>: compared with another area than the ecoregion of the set; _subclasses: the
+# subclasses of the HFTs instead of the HFTs (similarity.py)
+RUN_RE = re.compile(r'^similarity_(?P<res>\d+(?:[._]\d+)?)m(?:_(?!subclasses$)(?P<tag>[A-Za-z0-9_-]+?))?(?P<sub>_subclasses)?$')
 CUT_VALUE_RE = re.compile(r'^(p\d+|results)?$')
 # the warning of similarity.py when it does not use the study_area folder of the area
 STUDY_AT_AREA_RE = re.compile(r'(?:^|[/\\])study_area is not used: (.+)$', re.S)
@@ -56,6 +57,12 @@ PARAMS = [
 	 'help': 'Pixel size of the similarity. 0 = the pixel of the ecoregion variables; otherwise a whole multiple of it '
 	         '(e.g. 200, 500 or 1000 m with 100 m variables): each coarse pixel is the mean of its pixels with data, and '
 	         'needs data in at least half of its area. The pixels of the HFTs are taken on this same grid.'},
+	{'name': 'ECOSIM_CLASSES', 'type': 'select', 'default': 'hft', 'label': 'Classes compared',
+	 'choices': [['hft', 'The HFTs'], ['subclass', 'The subclasses of the HFTs (hft_<n>_sub_<y>)']],
+	 'help': 'The column of the shapefile of the cut whose classes are compared with the area: the HFTs (hft), or the '
+	         'subclasses of the pixels of each HFT (subclass; the HFT model must have been run with Subclasses of the '
+	         'pixels of the HFTs). The results of the subclasses go to their own folder (..._subclasses). A small or '
+	         'scattered subclass may cover too few pixels of the similarity to be compared.'},
 	{'name': 'ECOSIM_STAT', 'type': 'select', 'default': 'mean', 'label': 'Similarity threshold',
 	 'choices': [['mean', 'Mean similarity of the HFT pixels (AveHFTSim)'],
 	             ['median', 'Median similarity of the HFT pixels (MedianHFTSim)']],
@@ -230,17 +237,19 @@ def _res_name(res):
 	return f'similarity_{res:.0f}m' if abs(res - round(res)) < 1e-6 else f"similarity_{res:g}m".replace('.', '_')
 
 
-def colours(shp, hfts, colours_csv=None):
+def colours(shp, hfts, colours_csv=None, classes='hft'):
 	"""{HFT: colour} of the HFTs of a shapefile of the results: those of the plots (hft_colours_<stem>.csv of
-	moranvar_plots.R) or, without it, Set1 as the plots without the colours of the tree (as results.hft_layer)."""
+	moranvar_plots.R; subclass_colours_<stem>.csv for the subclasses, by their code) or, without it, Set1 as the plots
+	without the colours of the tree (as results.hft_layer)."""
 	if not colours_csv and shp:
 		stem = os.path.basename(shp)[:-len('_class.shp')].replace('park_segm_', '', 1)
-		colours_csv = os.path.join(os.path.dirname(shp), f'hft_colours_{stem}.csv')
+		kind = 'subclass_colours' if classes == 'subclass' else 'hft_colours'
+		colours_csv = os.path.join(os.path.dirname(shp), f'{kind}_{stem}.csv')
 	cmap = {}
 	if colours_csv and os.path.isfile(colours_csv):
 		with open(colours_csv, newline='') as f:
 			rows = [r for r in csv.reader(f, delimiter=' ') if r]
-		if rows and rows[0][:2] == ['HFT', 'colour']:
+		if rows and rows[0][:2] in (['HFT', 'colour'], ['code', 'colour']):
 			cmap = {int(r[0]): results._hex(r[1]) for r in rows[1:] if len(r) > 1}
 	hfts = [int(h) for h in hfts if h is not None]
 	if hfts and any(h not in cmap for h in hfts):
@@ -288,7 +297,7 @@ def _reference_rejected(p):
 	return None
 
 
-def plan(study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=None, area=None):
+def plan(study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=None, area=None, classes=None):
 	"""What similarity.py would do (similarity.plan): the variables of both scales, the grid of the similarity and the
 	pixels of each HFT on it, with the colours of the HFTs and the folder of the run of each study area. None = the
 	option of config.py; AREA '' = the ecoregion of the set of variables, or a folder of ecoregion variables."""
@@ -303,6 +312,8 @@ def plan(study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=No
 		elif area:
 			raise ValueError('this copy of similarity.py cannot compare the HFTs with another area: update eHabpy '
 			                 '(Check for updates)')
+	if classes is not None and 'classes' in inspect.signature(sim.plan).parameters:
+		kw['classes'] = str(classes)
 	p = _plain(sim.plan(study_area=study_area, scenario=scenario, cut=cut, res=_num(res), min_cover=_num(min_cover),
 	                    ecoregions=ecoregions, **kw))
 	p['area'] = _area_record(p.get('area'))
@@ -316,11 +327,12 @@ def plan(study_area, scenario, cut=None, res=None, min_cover=None, ecoregions=No
 	for t in targets:
 		shp = _abs(t.get('shp'))
 		hfts = t.get('hfts') or []
-		cmap = colours(shp, [h.get('hft') for h in hfts])
+		cmap = colours(shp, [h.get('hft') for h in hfts], classes=p.get('classes') or 'hft')
 		for h in hfts:
 			h['colour'] = cmap.get(h.get('hft'), '#888888')
 		run_dir = _abs(t['folder']) if t.get('folder') else \
-			os.path.join(os.path.dirname(shp), _res_name(p['res'])) if shp and p.get('res') else None
+			os.path.join(os.path.dirname(shp), _res_name(p['res']) + ('_subclasses' if p.get('classes') == 'subclass'
+			                                                           else '')) if shp and p.get('res') else None
 		t['run_folder'] = paths.rel(run_dir) if run_dir else None
 		t['run_exists'] = bool(run_dir and os.path.isdir(run_dir) and os.listdir(run_dir))
 	eco = p.get('ecoregions')
@@ -393,6 +405,9 @@ def run(values, study_area, scenario, cut=''):
 		area = str(model.read_config().get('ECOSIM_AREA', '') or '')
 		if area:
 			cmd += ['--area', area]
+	classes = str((values or {}).get('ECOSIM_CLASSES') or 'hft')
+	if classes != 'hft':
+		cmd += ['--classes', classes]
 	started = time.time()
 
 	def after(job):
@@ -446,6 +461,7 @@ def runs(study_area, scenario):
 			out.append({'cut': cut, 'res': res, 'date': rec.get('date'), 'ids': [str(i) for i in rec.get('ids') or []],
 			            'folder': paths.rel(folder), 'hfts': len(hfts),
 			            'counts': counts, 'stat': (rec.get('options') or {}).get('stat'), 'seconds': rec.get('seconds'),
+			            'classes': rec.get('classes') or ('subclass' if m.group('sub') else 'hft'),
 			            'tag': area.get('tag') or m.group('tag'), 'area': {k: area.get(k) for k in
 			                                                                ('folder', 'tag', 'kind', 'name')} if area else None,
 			            'mtime': os.path.getmtime(os.path.join(folder, RUN_JSON))})
@@ -506,11 +522,12 @@ def run_results(folder):
 	cmaps = {}
 	for i, hfts in by_id.items():
 		shp = local((rec.get('shapefiles') or {}).get(i))
-		cmaps[i] = colours(shp, hfts, local((rec.get('colours') or {}).get(i)))
+		cmaps[i] = colours(shp, hfts, local((rec.get('colours') or {}).get(i)), rec.get('classes') or 'hft')
 	maps = []
 	for h in rec.get('hfts') or []:
 		i = str(h.get('id'))
-		m = {k: h.get(k) for k in ('hft', 'status', 'threshold', 'area_ha', 'ref_pixels', 'vars_used', 'ecoregion')}
+		m = {k: h.get(k) for k in ('hft', 'subclass', 'status', 'threshold', 'area_ha', 'ref_pixels', 'vars_used',
+		                           'ecoregion')}
 		m['id'] = i
 		m['colour'] = cmaps.get(i, {}).get(h.get('hft'), '#888888')
 		for kind in ('sim', 'similar'):

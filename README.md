@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **HFT model, Similarity, Desktop app**: With the subclasses of the pixels of the HFTs, the shapefile of the HFTs of each cut has every segment split into its subclasses, with their label `hft_<n>_sub_<y>` (field `subclass`) and code (`sub_code`), so they can be used as polygons in a GIS; the similarity can compare the subclasses with the ecoregion instead of the HFTs (Classes compared, `ECOSIM_CLASSES = 'subclass'`), with their own results. The fields of the shapefile have clearer names (`hft`, `segm_cat`, `area_id`, `area_ha`, and the variables by the part of their name that differs, e.g. `NDVI_S2_p9`), explained in `park_segm_*_class_fields.csv` next to it; the shapefiles of earlier versions can still be used.
+
 ### [1.6.6](https://github.com/javimarlop/eHabpy/releases/tag/1.6.6) · 2026-11-24
 
 - **Desktop app, Earth Engine variables**: The recipe of the Earth Engine variables can also remove the snow by its NDSI (Snow also by its NDSI ≥, e.g. 0.4, in Sentinel-2 and Landsat): the patches of snow that the quality band misses, which raise the standard deviation of the NDMI in mountains. The options of a loaded recipe that the form does not show (such as the topographic correction) are no longer lost when it is downloaded or saved.

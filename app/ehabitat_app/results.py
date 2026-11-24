@@ -234,9 +234,12 @@ def hft_layer(shp, colours=None, metadata=None):
 	if not paths.inside(shp, paths.RESULTS):
 		raise ValueError('file outside the results')
 	g = gpd.read_file(shp)
-	if 'hclst_m' not in g.columns:
-		raise ValueError(f'{os.path.basename(shp)} has no column of the HFTs (hclst_m)')
-	g['hft'] = g['hclst_m'].astype(int)
+	if 'hft' not in g.columns and 'hclst_m' not in g.columns:
+		raise ValueError(f'{os.path.basename(shp)} has no column of the HFTs (hft)')
+	g['hft'] = g['hft' if 'hft' in g.columns else 'hclst_m'].astype(int)  # hclst_m up to eHabpy 1.6.6
+	if 'sub_code' in g.columns:
+		# with HFT_SUBCLASSES the segments are split into the subclasses of their pixels: the map shows the segments
+		g = g.dissolve(by='segm_id', as_index=False, aggfunc='first')
 	area = g.geometry.area if g.crs is not None and g.crs.is_projected else None
 	if area is not None:
 		g['ha'] = (area * (g.crs.axis_info[0].unit_conversion_factor ** 2) / 1e4).round(2)
@@ -253,13 +256,15 @@ def hft_layer(shp, colours=None, metadata=None):
 		cmap = {h: pal[h - 1] for h in hfts}
 	order = [h for h in (order or []) if h in hfts]
 	order += [h for h in hfts if h not in order]
-	# the variables: the columns between cat_pa and wdpaid (as moranvar_plots.R writes them)
+	# the variables: the columns after silhouette (as moranvar_plots.R writes them), or between cat_pa and wdpaid in
+	# the shapefiles of eHabpy 1.6.6 and before
 	cols = list(g.columns)
 	try:
 		var_cols = cols[cols.index('cat_pa') + 1:cols.index('wdpaid')]
 	except ValueError:
 		var_cols = [c for c in cols if c not in ('hclst_m', 'segm_id', 'cat', 'label', 'cat_pa', 'wdpaid', 'silhouette',
-		                                         'geometry', 'hft', 'ha')]
+		                                         'geometry', 'hft', 'ha', 'segm_cat', 'area_id', 'subclass', 'sub_code',
+		                                         'area_ha')]
 	names = _variable_names(metadata, len(var_cols)) or var_cols
 	total = float(g['ha'].sum()) if 'ha' in g else None
 	legend = []
