@@ -487,6 +487,7 @@ def _normal(rec):
 		q.setdefault(k, True)
 	q.setdefault('cloud_score', 0.6)
 	q.setdefault('scene_clouds', None)
+	q.setdefault('snow_ndsi', None)  # the snow also by its NDSI (MonitorEO 0.3.80), e.g. 0.4
 	rec.setdefault('exclude_landcover', [])  # the old mask of ESA WorldCover 2021 classes (the app now uses where)
 	rec.setdefault('where', None)  # e.g. the land cover mask {landcover: CORINE, year: 2018, exclude: [water, built]}
 	rec.setdefault('rgb', None)  # the true colour of a variable on the study grid, e.g. {index: NDVI, sensor: Sentinel-2}
@@ -523,6 +524,8 @@ def clean_recipe(rec):
 	for k in ('cloud_score', 'scene_clouds'):
 		if q.get(k) in ('', None) and k == 'scene_clouds':
 			q.pop(k, None)
+	if q.get('snow_ndsi') in ('', None):  # off: not written (a version of monitoreo without it would refuse it)
+		q.pop('snow_ndsi', None)
 	vars_ = []
 	for v in rec.get('variables') or []:
 		v = {k: x for k, x in v.items() if x not in (None, '', [])}
@@ -568,9 +571,14 @@ def check_recipe(rec):
 		# several bands combined into one (band_reducer); before it, a list of bands was taken as one band
 		elif m and re.search(r'\bunknown keys?\b.*\bband_reducer\b', msg, re.I) and not _band_reducers():
 			msg += f'. Combining several bands needs monitoreo {BANDS_VERSION} or later: press "Update MonitorEO".'
+		# an option of the pixel filters of a newer monitoreo (snow_ndsi, topographic): of the recipe, not a variable
+		quality_option = bool(re.search(r'\bunknown quality options?\b', msg, re.I))
+		if quality_option:
+			msg = re.sub(r'^variable \d+ of the recipe: ', '', msg)
+			msg += '. It needs a newer version of monitoreo: press "Update MonitorEO".'
 		out['error'] = msg
 		# the conditions of where of the recipe are checked with each variable: not an error of the first one
-		out['variable'] = int(m.group(1)) if m and ' of where' not in msg else None
+		out['variable'] = int(m.group(1)) if m and ' of where' not in msg and not quality_option else None
 	except Exception as e:  # noqa: BLE001 (an older monitoreo that cannot check it: not an error of the recipe)
 		out['unchecked'] = f'{type(e).__name__}: {e}'
 	return out

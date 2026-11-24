@@ -238,6 +238,7 @@
 			<div class="form-grid">
 				<label>Minimum Cloud Score+</label><div class="row"><label class="check"><input type="checkbox" id="r-cs-on"></label><input type="number" id="r-cs" min="0" max="1" step="0.05"><span class="small muted">Sentinel-2</span></div>
 				<label>Max. % of scene clouds</label><input type="number" id="r-scene" min="0" max="100" step="5" placeholder="all">
+				<label>Snow also by its NDSI ≥</label><div class="row"><label class="check"><input type="checkbox" id="r-ndsi-on"></label><input type="number" id="r-ndsi" min="0.01" max="1" step="0.05"><span class="small muted" id="r-ndsi-note">Sentinel-2 and Landsat, with Snow on: also the patches of snow that the quality band misses (NDSI of green and SWIR1), which raise e.g. the standard deviation of the NDMI in mountains</span></div>
 			</div>
 			<div class="section-title">Land cover mask</div>
 			<div class="form-grid">

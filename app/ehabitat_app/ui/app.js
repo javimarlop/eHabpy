@@ -742,6 +742,14 @@ pages.gee = (() => {
 			el('option', {value: 'true'}, 'Remove'), el('option', {value: 'false'}, 'Keep'),
 			el('option', {value: 'auto'}, 'Auto (except in the variable that measures it)')));
 	}
+	// the snow by its NDSI: only with the snow filter on (Remove), as it removes nothing without it
+	function syncNdsi() {
+		const on = $('#r-q-snow').value === 'true';
+		$('#r-ndsi-on').disabled = !on;
+		$('#r-ndsi').disabled = !on || !$('#r-ndsi-on').checked;
+	}
+	$('#r-q-snow').addEventListener('change', syncNdsi);
+	$('#r-ndsi-on').addEventListener('change', syncNdsi);
 
 	function account() { return $('input[name=ee-acc]:checked').value; }
 	function syncAccount() {
@@ -818,6 +826,9 @@ pages.gee = (() => {
 		$('#r-cs-on').checked = q.cloud_score !== null && q.cloud_score !== undefined;
 		$('#r-cs').value = q.cloud_score ?? 0.6;
 		$('#r-scene').value = q.scene_clouds ?? '';
+		$('#r-ndsi-on').checked = q.snow_ndsi !== null && q.snow_ndsi !== undefined;
+		$('#r-ndsi').value = q.snow_ndsi ?? 0.4;
+		syncNdsi();
 		lcShow(rec);
 		C.list = conditions(rec.where).filter(c => !isLc(c));
 		renderConds();
@@ -844,11 +855,16 @@ pages.gee = (() => {
 		rec.drive_dir = $('#r-drive-dir').value.trim() || null;
 		rec.period = [$('#r-p0').value, $('#r-p1').value];
 		rec.season = $('#r-season-on').checked ? [$('#r-s0').value.trim(), $('#r-s1').value.trim()] : null;
-		rec.quality = {};
+		// the options of the recipe that the form does not show (e.g. topographic) stay as they were
+		rec.quality = Object.assign({}, (S.recipe || {}).quality || {});
+		delete rec.quality.scene_clouds;
 		for (const [k] of QUALITY) rec.quality[k] = qv($('#r-q-' + k).value);
 		rec.quality.cloud_score = $('#r-cs-on').checked ? num('#r-cs') : null;
 		const sc = num('#r-scene');
 		if (sc !== null) rec.quality.scene_clouds = sc;
+		// only with the snow filter on (it removes nothing without it)
+		rec.quality.snow_ndsi = $('#r-ndsi-on').checked && $('#r-q-snow').value === 'true' ? num('#r-ndsi') : null;
+		if (rec.quality.snow_ndsi !== null && !(rec.quality.snow_ndsi > 0 && rec.quality.snow_ndsi <= 1)) throw new Error('The NDSI of the snow is a number greater than 0 and at most 1, e.g. 0.4.');
 		lcRead(rec);
 		// the land cover mask (that of the form, or that of the recipe without the land cover maps) and the conditions
 		const lc = conditions(rec.where).filter(isLc);

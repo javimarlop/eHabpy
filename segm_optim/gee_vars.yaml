@@ -63,6 +63,9 @@ quality:
   cloud_score: 0.6      # nubes de Sentinel-2: Cloud Score+ (cs_cdf) mínimo de un píxel despejado; null = clases de
                         # SCL, como MonitorEO (en Guajares, Cloud Score+ dio un NDVI p5 más parecido al de referencia)
   scene_clouds: null    # Sentinel-2 y Landsat: % máximo de nubes de una escena; null = todas
+  # snow_ndsi: 0.4      # Sentinel-2 y Landsat, con snow: true: quita también los píxeles con NDSI (verde, SWIR1) de
+                        # este valor o más, restos de nieve que no marca su banda de calidad (disparan la desviación
+                        # típica del NDMI en montaña); sin él, solo la banda de calidad (MonitorEO 0.3.80 o posterior)
 # Máscara de usos del suelo de MonitorEO: quedan sin datos los píxeles de algunos usos del suelo según un mapa de un
 # año, p. ej. {landcover: CORINE, year: 2018, exclude: [water, built]}. landcover: WorldCover (2020, 2021),
 # DynamicWorld (desde 2016), CORINE (1990, 2000, 2006, 2012, 2018; solo Europa) o MODIS (MCD12Q1, 2001-2025); year: su
