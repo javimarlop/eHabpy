@@ -1,0 +1,95 @@
+
+=== Threshold 0.3: 198 segments, 951906 pixels ===
+HFTs of the cuts of ward_area: {'p10': np.int64(36), 'p25': np.int64(10), 'p50': np.int64(4), 'p75': np.int64(2), 'p90': np.int64(2)}
+fixed-k methods: 3 s
+dbscan: 0 s
+hdbscan: 0 s
+fuzzy_art: 3 s
+dual_vigilance: 8 s
+gng: 13 s
+k-means: mean ARI between seeds, k = 2..20: [0.92 1.   0.94 0.73 0.91 0.95 0.81 0.79 0.76 0.78 0.66 0.75 0.66 0.66
+ 0.64 0.66 0.68 0.69 0.69]
+
+=== Threshold 0.4: 166 segments, 951906 pixels ===
+HFTs of the cuts of ward_area: {'p10': np.int64(31), 'p25': np.int64(9), 'p50': np.int64(3), 'p75': np.int64(2), 'p90': np.int64(2)}
+fixed-k methods: 3 s
+dbscan: 0 s
+hdbscan: 0 s
+fuzzy_art: 2 s
+dual_vigilance: 5 s
+gng: 12 s
+k-means: mean ARI between seeds, k = 2..20: [1.   1.   0.98 0.85 0.99 0.97 0.9  0.87 0.75 0.78 0.75 0.71 0.79 0.72
+ 0.73 0.72 0.69 0.68 0.67]
+
+=== Threshold 0.5: 144 segments, 951906 pixels ===
+HFTs of the cuts of ward_area: {'p10': np.int64(29), 'p25': np.int64(9), 'p50': np.int64(3), 'p75': np.int64(2), 'p90': np.int64(2)}
+fixed-k methods: 3 s
+dbscan: 0 s
+hdbscan: 0 s
+fuzzy_art: 1 s
+dual_vigilance: 4 s
+gng: 13 s
+k-means: mean ARI between seeds, k = 2..20: [1.   1.   1.   0.97 0.95 0.83 0.93 0.84 0.88 0.71 0.72 0.72 0.7  0.7
+ 0.76 0.69 0.67 0.77 0.72]
+
+=== Threshold 0.6: 106 segments, 951906 pixels ===
+HFTs of the cuts of ward_area: {'p10': np.int64(29), 'p25': np.int64(8), 'p50': np.int64(4), 'p75': np.int64(3), 'p90': np.int64(2)}
+fixed-k methods: 3 s
+dbscan: 0 s
+hdbscan: 0 s
+fuzzy_art: 1 s
+dual_vigilance: 2 s
+gng: 12 s
+k-means: mean ARI between seeds, k = 2..20: [1.   1.   0.97 0.92 0.76 0.79 0.82 0.89 0.83 0.89 0.84 0.85 0.9  0.91
+ 0.9  0.86 0.88 0.87 0.9 ]
+
+=== Threshold 0.7: 84 segments, 951906 pixels ===
+HFTs of the cuts of ward_area: {'p10': np.int64(25), 'p25': np.int64(8), 'p50': np.int64(4), 'p75': np.int64(3), 'p90': np.int64(2)}
+fixed-k methods: 2 s
+dbscan: 0 s
+hdbscan: 0 s
+fuzzy_art: 1 s
+dual_vigilance: 1 s
+gng: 12 s
+k-means: mean ARI between seeds, k = 2..20: [1.   1.   1.   0.99 0.81 0.93 0.9  0.88 0.85 0.86 0.87 0.91 0.89 0.91
+ 0.89 0.88 0.89 0.88 0.94]
+
+Median difference with ward_area at the same number of HFTs and share of cases better than it,
+thresholds [3, 4, 5, 6, 7], 2 to 20 HFTs:
+          method  runs k_range  ari_ref   d_r2  d_jm_mean  d_jm_min  d_sil  d_n_eff  better_r2  better_jm_mean  better_jm_min  better_sil  better_all4
+ward_area_kmeans    95    2-20    0.891  0.005     -0.006    -0.014  0.017    0.093      1.000           0.347          0.337       0.916        0.116
+          kmeans    95    2-20    0.692  0.007     -0.010    -0.028  0.017    0.172      1.000           0.389          0.411       0.716        0.147
+             som    95    2-20    0.620 -0.002     -0.064    -0.005 -0.029    0.206      0.368           0.105          0.463       0.242        0.021
+   agnes_average    95    2-20    0.503 -0.044      0.189     0.272 -0.011   -3.751      0.000           1.000          0.863       0.400        0.000
+  agnes_complete    95    2-20    0.490 -0.024      0.038     0.039 -0.034   -1.674      0.021           0.674          0.600       0.105        0.000
+    agnes_single    95    2-20    0.007 -0.324      0.350     0.988 -0.381   -8.523      0.000           1.000          1.000       0.042        0.000
+bisecting_kmeans    95    2-20    0.644 -0.003     -0.043    -0.006 -0.026    0.112      0.295           0.200          0.484       0.126        0.011
+            hsom    95    2-20    0.611 -0.009     -0.115    -0.056 -0.086    0.034      0.211           0.095          0.358       0.137        0.021
+          dbscan    62    2-15    0.026 -0.124      0.192     0.307 -0.040   -0.828      0.113           0.806          0.839       0.339        0.032
+         hdbscan   205    2-19    0.445 -0.007     -0.000     0.007 -0.015   -0.057      0.283           0.493          0.541       0.302        0.132
+       fuzzy_art   421    2-20    0.265 -0.138     -0.286    -0.234 -0.224   -1.395      0.000           0.062          0.138       0.000        0.000
+  dual_vigilance   288     2-8    0.047 -0.064     -0.038    -0.132 -0.026   -0.556      0.135           0.469          0.410       0.184        0.003
+             gng    38    2-19    0.200 -0.110      0.132     0.253 -0.174   -1.634      0.000           0.868          0.789       0.000        0.000
+
+Threshold 0.5, cuts p50 and p25 of ward_area (3 and 9 HFTs):
+          method  k    r2  jm_mean  jm_min    sil  n_eff  ari_ref
+       ward_area  3 0.254    1.097   0.659  0.249  2.988    1.000
+       ward_area  9 0.377    1.586   0.784  0.211  8.310    1.000
+ward_area_kmeans  3 0.264    1.141   0.676  0.269  2.987    0.783
+          kmeans  3 0.264    1.151   0.687  0.268  2.976    0.757
+             som  3 0.264    1.182   0.665  0.267  2.962    0.737
+ward_area_kmeans  9 0.382    1.595   0.753  0.224  8.447    0.882
+          kmeans  9 0.388    1.603   0.821  0.258  8.534    0.659
+             som  9 0.381    1.486   0.461  0.209  8.797    0.717
+   agnes_average  9 0.323    1.808   0.679  0.230  4.629    0.426
+   agnes_average  3 0.009    1.847   1.594  0.194  1.044    0.000
+  agnes_complete  9 0.337    1.535   0.698  0.149  6.262    0.457
+  agnes_complete  3 0.213    1.083   0.559  0.220  2.581    0.292
+    agnes_single  9 0.039    1.982   1.805 -0.053  1.194    0.003
+    agnes_single  3 0.007    1.938   1.886  0.130  1.039    0.000
+bisecting_kmeans  3 0.250    0.998   0.604  0.239  2.941    0.567
+bisecting_kmeans  9 0.375    1.504   0.370  0.189  8.523    0.731
+            hsom  9 0.379    1.506   0.448  0.205  8.697    0.630
+            hsom  3 0.255    1.143   0.672  0.248  2.952    0.753
+
+Figuras y tablas en /Users/javier/Downloads/Claude/eHabpy/algorithm_comparison

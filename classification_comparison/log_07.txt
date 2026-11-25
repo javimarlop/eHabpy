@@ -1,0 +1,28 @@
+84 segments, 951906 pixels with data in all the variables
+
+p50 cut of the current method at threshold 0.7: 7 HFTs
+HFTs of the cuts p25, p50, p75 of tree A: 22, 7, 4
+HFTs of the cuts p25, p50, p75 of tree C: 8, 4, 3
+ method  k hfts    r2 jm_mean jm_min     sil
+      A  3    3 0.104    1.42  0.828  0.1343
+      B  3    3 0.219    1.05  0.706  0.2677
+      C  3    3 0.227    1.12  0.650  0.2632
+      D  3    3 0.242    1.09  0.686  0.3094
+      A  7    7 0.232    1.37  0.321  0.0226
+      B  7    7 0.297    1.51  0.759  0.2129
+      C  7    7 0.340    1.60  0.853  0.2133
+      D  7    7 0.344    1.57  0.903  0.2437
+      A 12   12 0.279    1.63  0.261 -0.0589
+      B 12   12 0.347    1.67  0.781  0.2502
+      C 12   12 0.378    1.64  0.323  0.3061
+      D 12   12 0.380    1.65  0.351  0.2714
+
+Agreement (adjusted Rand index, by area) with A at k = 7 :
+  B 0.246 
+  C 0.242 
+  D 0.237 
+
+Spearman correlation of the segment variances with their number of pixels:
+[1] 0.22 0.08 0.09 0.37 0.77 0.72 0.19
+
+Figuras y tablas en /Users/javier/Downloads/Claude/eHabpy/classification_comparison 

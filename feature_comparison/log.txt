@@ -1,0 +1,144 @@
+Pixels read: (1156, 1732) variables: ['NDVImax', 'NDVImin', 'NDWI', 'Pendiente', 'TempMediaAnual', 'PrecipAnual', 'TWI']
+
+=== Threshold 0.3: 198 segments, 951906 pixels ===
+mean: cuts p25/p50 = 10/4, disp/loc weight 0.00
+median: cuts p25/p50 = 9/3, disp/loc weight 0.00
+mean+sd: cuts p25/p50 = 17/5, disp/loc weight 1.88
+median+mad: cuts p25/p50 = 18/6, disp/loc weight 1.73
+mean+cv: cuts p25/p50 = 16/6, disp/loc weight 1.88
+mean+sd_half: cuts p25/p50 = 13/4, disp/loc weight 0.50
+mean+sd_pix: cuts p25/p50 = 10/3, disp/loc weight 0.06
+61 s
+
+=== Threshold 0.4: 166 segments, 951906 pixels ===
+mean: cuts p25/p50 = 9/3, disp/loc weight 0.00
+median: cuts p25/p50 = 9/3, disp/loc weight 0.00
+mean+sd: cuts p25/p50 = 18/5, disp/loc weight 1.93
+median+mad: cuts p25/p50 = 20/6, disp/loc weight 1.77
+mean+cv: cuts p25/p50 = 15/6, disp/loc weight 1.93
+mean+sd_half: cuts p25/p50 = 14/4, disp/loc weight 0.50
+mean+sd_pix: cuts p25/p50 = 9/3, disp/loc weight 0.06
+122 s
+
+=== Threshold 0.5: 144 segments, 951906 pixels ===
+mean: cuts p25/p50 = 9/3, disp/loc weight 0.00
+median: cuts p25/p50 = 9/3, disp/loc weight 0.00
+mean+sd: cuts p25/p50 = 17/5, disp/loc weight 1.99
+median+mad: cuts p25/p50 = 18/5, disp/loc weight 1.83
+mean+cv: cuts p25/p50 = 17/6, disp/loc weight 1.99
+mean+sd_half: cuts p25/p50 = 12/4, disp/loc weight 0.50
+mean+sd_pix: cuts p25/p50 = 10/3, disp/loc weight 0.06
+181 s
+
+=== Threshold 0.6: 106 segments, 951906 pixels ===
+mean: cuts p25/p50 = 8/4, disp/loc weight 0.00
+median: cuts p25/p50 = 8/3, disp/loc weight 0.00
+mean+sd: cuts p25/p50 = 18/6, disp/loc weight 2.14
+median+mad: cuts p25/p50 = 18/5, disp/loc weight 1.97
+mean+cv: cuts p25/p50 = 14/5, disp/loc weight 2.14
+mean+sd_half: cuts p25/p50 = 13/4, disp/loc weight 0.50
+mean+sd_pix: cuts p25/p50 = 8/4, disp/loc weight 0.06
+241 s
+
+=== Threshold 0.7: 84 segments, 951906 pixels ===
+mean: cuts p25/p50 = 8/4, disp/loc weight 0.00
+median: cuts p25/p50 = 7/3, disp/loc weight 0.00
+mean+sd: cuts p25/p50 = 17/6, disp/loc weight 2.28
+median+mad: cuts p25/p50 = 20/5, disp/loc weight 2.09
+mean+cv: cuts p25/p50 = 18/6, disp/loc weight 2.28
+mean+sd_half: cuts p25/p50 = 17/5, disp/loc weight 0.50
+mean+sd_pix: cuts p25/p50 = 9/4, disp/loc weight 0.06
+300 s
+
+Median difference with mean at the same k and share of cases better, thresholds [3, 4, 5, 6, 7], k 2-20:
+         set  cases  ari_ref   d_r2  d_jm_mean  d_jm_min  d_sil  d_n_eff  d_r2_rob  d_sd_eta2  d_sil_own  d_boot  better_r2  better_jm_mean  better_jm_min  better_sil  better_r2_rob  better_sd_eta2  better_sil_own  better_boot  d_ari_thr  better_ari_thr
+      median     95    0.746 -0.000     -0.022    -0.000 -0.004    0.086     0.001     -0.007     -0.007   0.013      0.495           0.337          0.484       0.379          0.642           0.400           0.379        0.726      0.052           0.684
+     mean+sd     95    0.313 -0.089     -0.233    -0.161 -0.240   -0.016    -0.070      0.347     -0.103  -0.085      0.000           0.011          0.158       0.000          0.000           1.000           0.032        0.074     -0.153           0.000
+  median+mad     95    0.301 -0.077     -0.237    -0.226 -0.225   -0.249    -0.061      0.246     -0.108  -0.074      0.000           0.000          0.137       0.000          0.021           1.000           0.000        0.116     -0.153           0.053
+     mean+cv     95    0.352 -0.080     -0.193    -0.081 -0.290   -0.627    -0.062      0.198     -0.100  -0.079      0.000           0.000          0.232       0.000          0.011           1.000           0.000        0.053     -0.160           0.000
+mean+sd_half     95    0.492 -0.025     -0.059     0.008 -0.108    0.057    -0.021      0.225     -0.098  -0.062      0.011           0.116          0.516       0.000          0.011           0.989           0.000        0.126     -0.020           0.316
+ mean+sd_pix     95    0.779 -0.001     -0.009     0.021 -0.005    0.046    -0.001      0.026     -0.030  -0.017      0.421           0.358          0.621       0.379          0.337           0.884           0.053        0.263     -0.038           0.211
+
+Cross-threshold pixel ARI (median over k):
+              ari_thr  ari_thr_min
+set                               
+mean            0.554        0.412
+median          0.618        0.476
+mean+sd         0.390        0.274
+median+mad      0.400        0.241
+mean+cv         0.384        0.250
+mean+sd_half    0.530        0.365
+mean+sd_pix     0.511        0.353
+
+Cuts (HFTs) per set and threshold, bootstrap share giving the same k, ARI vs mean at its own cut:
+ threshold          set  p10  p25  p50  p75  p25_boot_same  p50_boot_same  p25_boot_iqr  p50_boot_iqr  p25_ari_mean  p50_ari_mean
+         3         mean   36   10    4    2           0.33           0.43          2.75          1.00          1.00          1.00
+         3       median   32    9    3    3           0.23           0.47          2.00          1.00          0.58          0.61
+         3      mean+sd   76   17    5    3           0.10           0.37          3.00          1.00          0.27          0.21
+         3   median+mad   87   18    6    3           0.10           0.40          2.75          1.75          0.26          0.29
+         3      mean+cv   62   16    6    2           0.07           0.20          4.00          1.00          0.25          0.23
+         3 mean+sd_half   64   13    4    2           0.20           0.37          3.75          1.00          0.45          0.38
+         3  mean+sd_pix   31   10    3    2           0.40           0.47          1.00          1.00          0.53          0.38
+         4         mean   31    9    3    2           0.40           0.63          1.75          1.00          1.00          1.00
+         4       median   33    9    3    3           0.43           0.50          1.75          1.00          0.60          0.85
+         4      mean+sd   72   18    5    3           0.03           0.43          3.00          1.00          0.24          0.23
+         4   median+mad   78   20    6    3           0.07           0.30          5.00          2.00          0.22          0.25
+         4      mean+cv   62   15    6    3           0.23           0.23          2.00          1.75          0.31          0.32
+         4 mean+sd_half   63   14    4    3           0.23           0.47          3.00          1.00          0.49          0.45
+         4  mean+sd_pix   32    9    3    2           0.50           0.50          1.00          1.00          0.65          0.91
+         5         mean   29    9    3    2           0.33           0.40          2.00          1.00          1.00          1.00
+         5       median   28    9    3    3           0.43           0.43          1.00          1.00          0.82          0.81
+         5      mean+sd   66   17    5    3           0.07           0.27          4.75          2.00          0.33          0.36
+         5   median+mad   72   18    5    3           0.10           0.40          3.75          1.00          0.24          0.28
+         5      mean+cv   63   17    6    2           0.23           0.10          2.75          2.00          0.38          0.24
+         5 mean+sd_half   55   12    4    2           0.17           0.53          2.50          1.00          0.53          0.37
+         5  mean+sd_pix   32   10    3    2           0.23           0.30          2.00          1.00          0.71          0.47
+         6         mean   29    8    4    3           0.37           0.60          2.75          1.00          1.00          1.00
+         6       median   27    8    3    3           0.33           0.43          2.00          1.00          0.88          0.83
+         6      mean+sd   57   18    6    3           0.00           0.17          4.50          2.75          0.33          0.37
+         6   median+mad   58   18    5    3           0.17           0.27          3.00          1.00          0.33          0.44
+         6      mean+cv   49   14    5    2           0.10           0.50          3.50          1.00          0.38          0.43
+         6 mean+sd_half   52   13    4    3           0.23           0.13          2.75          1.00          0.53          0.37
+         6  mean+sd_pix   31    8    4    2           0.20           0.60          2.00          1.00          0.97          0.59
+         7         mean   25    8    4    3           0.30           0.40          1.75          1.00          1.00          1.00
+         7       median   24    7    3    2           0.33           0.47          2.50          1.00          0.75          0.58
+         7      mean+sd   51   17    6    3           0.13           0.40          2.00          1.00          0.42          0.21
+         7   median+mad   51   20    5    3           0.03           0.43          3.75          1.00          0.40          0.48
+         7      mean+cv   42   18    6    3           0.00           0.20          3.00          1.00          0.47          0.37
+         7 mean+sd_half   43   17    5    3           0.03           0.33          2.00          1.00          0.52          0.56
+         7  mean+sd_pix   30    9    4    3           0.10           0.47          1.75          1.00          0.87          0.63
+
+Weights (sum of area-weighted variances) of the blocks:
+              w_loc  w_disp  ratio
+set                               
+mean          3.509   0.000  0.000
+mean+cv       3.509   7.000  1.995
+mean+sd       3.509   7.000  1.995
+mean+sd_half  3.509   1.754  0.500
+mean+sd_pix   3.509   0.199  0.057
+median        3.821   0.000  0.000
+median+mad    3.821   7.000  1.832
+
+Mean vs median of the segments (median over thresholds):
+                r_mean_median  mean_abs_diff_pixsd  between_sd_mean  between_sd_median  within_skew_median  within_skew_p90abs
+var                                                                                                                           
+NDVImax                 0.996                0.078            0.638              0.716              -0.114               1.098
+NDVImin                 0.997                0.082            0.666              0.749               0.097               1.181
+NDWI                    0.996                0.082            0.713              0.753               0.514               1.310
+Pendiente               0.993                0.067            0.527              0.583              -0.158               0.915
+PrecipAnual             0.999                0.033            0.952              0.945               0.022               0.736
+TWI                     0.907                0.241            0.307              0.273               1.268               2.455
+TempMediaAnual          0.999                0.034            0.958              0.962               0.062               0.731
+
+CV per variable:
+                pix_min  pix_max  seg_mean_min  seg_mean_max  area_mean_pos  min_abs_mean  cv_p50  cv_p95   cv_max  cv_max_over_p50  cv_sd_w_over_iqr  segments_cv_gt_1
+var                                                                                                                                                                    
+NDVImax          -0.004    1.000         0.301         0.872           1.00         0.301   0.217   0.315    0.457            2.108             0.690               0.0
+NDVImin          -0.102    0.796         0.110         0.521           1.00         0.110   0.273   0.421    0.805            2.946             0.699               0.0
+NDWI             -0.198    0.500        -0.093         0.232           0.75         0.001   1.046   7.761  100.414           95.983             5.349              72.0
+Pendiente         0.025   64.850         8.519        35.040           1.00         8.519   0.324   0.530    0.701            2.160             0.744               0.0
+PrecipAnual     444.962  618.511       467.904       604.709           1.00       467.904   0.015   0.027    0.040            2.781             0.822               0.0
+TWI               2.369   29.641         4.030        10.318           1.00         4.030   0.285   0.471    0.532            1.865             0.622               0.0
+TempMediaAnual   11.407   18.856        11.775        18.436           1.00        11.775   0.022   0.043    0.058            2.589             0.710               0.0
+
+Done in 359 s. Outputs in /Users/javier/Downloads/Claude/eHabpy/feature_comparison

@@ -1,0 +1,58 @@
+
+=== Threshold 0.3: 198 segments | HFTs of the cuts p10, p25, p50, p75, p90 of each tree:
+  ward_area   [36, 10, 4, 2, 2]
+  pca3        [25, 8, 3, 3, 2]
+  pca3_equal  [24, 9, 3, 2, 2]
+  pca3_range  [25, 7, 3, 2, 2]
+
+=== Threshold 0.4: 166 segments | HFTs of the cuts p10, p25, p50, p75, p90 of each tree:
+  ward_area   [31, 9, 3, 2, 2]
+  pca3        [23, 7, 3, 2, 2]
+  pca3_equal  [23, 8, 3, 2, 2]
+  pca3_range  [17, 6, 2, 2, 2]
+
+=== Threshold 0.5: 144 segments | HFTs of the cuts p10, p25, p50, p75, p90 of each tree:
+  ward_area   [29, 9, 3, 2, 2]
+  pca3        [24, 8, 3, 2, 2]
+  pca3_equal  [22, 8, 3, 2, 2]
+  pca3_range  [21, 8, 4, 3, 2]
+
+=== Threshold 0.6: 106 segments | HFTs of the cuts p10, p25, p50, p75, p90 of each tree:
+  ward_area   [29, 8, 4, 3, 2]
+  pca3        [21, 6, 4, 3, 2]
+  pca3_equal  [22, 7, 3, 2, 2]
+  pca3_range  [19, 7, 4, 2, 2]
+
+=== Threshold 0.7: 84 segments | HFTs of the cuts p10, p25, p50, p75, p90 of each tree:
+  ward_area   [25, 8, 4, 3, 2]
+  pca3        [19, 6, 4, 3, 2]
+  pca3_equal  [21, 7, 4, 2, 2]
+  pca3_range  [17, 5, 4, 2, 2]
+
+Median difference with ward_area at the same number of HFTs (thresholds [3, 4, 5, 6, 7], 2 to 20 HFTs)
+    method  ari_ref   d_r2  d_r2_pc  d_jm_mean  d_jm_min  d_n_eff  better_r2  better_r2_pc  better_jm_mean  better_jm_min
+      pca3    0.583 -0.011    0.012     -0.136    -0.040    0.001      0.095         0.937           0.063          0.368
+pca3_equal    0.577 -0.012    0.016     -0.122     0.009   -0.170      0.105         0.958           0.095          0.505
+pca3_range    0.565 -0.013    0.008     -0.153    -0.084   -0.022      0.063         0.853           0.053          0.295
+
+Median difference of the eta2 of each variable:
+    method  d_eta2_NDVImax  d_eta2_NDVImin  d_eta2_NDWI  d_eta2_Pendiente  d_eta2_TempMediaAnual  d_eta2_PrecipAnual  d_eta2_TWI
+      pca3           0.007           0.014        0.012             0.013                 -0.051              -0.085       0.004
+pca3_equal          -0.009          -0.006       -0.006             0.027                 -0.051              -0.065       0.012
+pca3_range           0.011           0.019        0.019             0.010                 -0.055              -0.101       0.002
+
+Threshold 0.5, 3 HFTs:
+    method   r2  r2_pc  jm_mean  jm_min  n_eff  ari_ref  eta2_NDVImax  eta2_NDVImin  eta2_NDWI  eta2_Pendiente  eta2_TempMediaAnual  eta2_PrecipAnual  eta2_TWI
+ ward_area 0.25   0.27     1.10    0.66   2.99     1.00          0.24          0.27       0.28            0.02                 0.45              0.50      0.00
+      pca3 0.25   0.27     1.16    0.65   2.98     0.57          0.22          0.25       0.24            0.01                 0.55              0.44      0.01
+pca3_equal 0.25   0.26     1.24    0.69   2.87     0.56          0.19          0.24       0.26            0.00                 0.56              0.47      0.01
+pca3_range 0.23   0.23     1.04    0.67   2.95     0.57          0.25          0.29       0.32            0.01                 0.44              0.27      0.02
+
+Threshold 0.5, 9 HFTs:
+    method   r2  r2_pc  jm_mean  jm_min  n_eff  ari_ref  eta2_NDVImax  eta2_NDVImin  eta2_NDWI  eta2_Pendiente  eta2_TempMediaAnual  eta2_PrecipAnual  eta2_TWI
+ ward_area 0.38   0.38     1.59    0.78   8.31     1.00          0.28          0.34       0.38            0.11                 0.75              0.74      0.02
+      pca3 0.37   0.39     1.40    0.37   8.50     0.58          0.32          0.37       0.41            0.10                 0.71              0.65      0.03
+pca3_equal 0.36   0.40     1.49    0.61   7.77     0.53          0.27          0.33       0.36            0.13                 0.71              0.69      0.04
+pca3_range 0.36   0.39     1.39    0.54   7.65     0.58          0.32          0.37       0.42            0.10                 0.72              0.57      0.04
+
+Figuras y tablas en /Users/javier/Downloads/Claude/eHabpy/algorithm_comparison
