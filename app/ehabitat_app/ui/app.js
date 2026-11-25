@@ -2298,6 +2298,8 @@ pages.gee = (() => {
 			view.start(job.id, job.title);
 		},
 		onShow() { loadPaBuffer().then(sizeNote); scheduleCheck(); }, // PA_BUFFER may have changed in HFT mapping
+		// a parameters file was loaded (HFT mapping): its recipe is the last one of the app
+		async reloadRecipe() { try { const r = await api('gee_recipe'); fill(r.recipe, r.source); scheduleCheck(); } catch (e) { fail(e); } },
 		// a vector file as the comparison area of the ecoregion grid (an area from MonitorEO): FILE relative to segm_optim
 		async useComparison(file) {
 			$('#r-eco-on').checked = true;
@@ -2943,6 +2945,58 @@ pages.model = (() => {
 	});
 	$('#m-stop').addEventListener('click', async () => {
 		if (await confirmBox('Stop the model', 'The running step stops. The segmentation can resume later where it stopped.', 'Stop')) stopJob(view);
+	});
+
+	// Parameters files: the options of the model and of the similarity, the recipe and the order of the variables,
+	// without the study area (segm_optim/parameters.py)
+	const unsavedModel = () => {
+		const v = values();
+		return S.params.some(p => JSON.stringify(v[p.name]) !== JSON.stringify(S.saved[p.name]))
+			|| (v.THRESHOLD_METHOD === 'fixed' && v.THRESHOLD_FIXED !== S.saved.THRESHOLD_FIXED);
+	};
+	const unsavedSimilarity = () => !!(pages.similarity.unsaved && pages.similarity.unsaved());
+	$('#m-export').addEventListener('click', async () => {
+		if (unsavedModel()) return toast('The file takes the parameters of config.py: press Save parameters first.', 'warn');
+		if (unsavedSimilarity()) return toast('The file takes the options of config.py: save those of "Similarity & landscape" first.', 'warn');
+		try {
+			const f = await pickSave('params', 'parameters.yaml');
+			if (!f) return;
+			const r = await api('params_export', f);
+			toast(`Parameters saved in ${r.path}: ${r.model} options of the model, ${r.similarity} of the similarity, `
+				+ (r.recipe ? `the recipe (${r.recipe})` : 'no recipe of MonitorEO') + ` and the order of ${r.variables} variables.`, 'ok');
+			if (r.problems && r.problems.length) toast('A load of this file would refuse it: ' + r.problems.join('; '), 'warn');
+		} catch (e) { fail(e); }
+	});
+	$('#m-import').addEventListener('click', async () => {
+		if (view.running()) return toast('Wait until the model finishes.', 'warn');
+		try {
+			const f = await pickFiles('params', false, 'Parameters file');
+			if (!f.length) return;
+			const pv = await api('params_preview', f[0]);
+			const fr = pv.from || {};
+			const items = pv.options.map(o => el('li', {}, el('b', {}, o.label), `: ${o.old} → ${o.new} `, el('code', {class: 'faint'}, o.name)));
+			const body = el('div', {class: 'stack', style: {gap: '8px'}},
+				el('div', {}, `${pv.file}` + (pv.saved ? `, saved on ${pv.saved}` : '') + (fr.study_area ? ` from the study area ${fr.study_area} (scenario ${fr.scenario}).` : '.')),
+				pv.options.length ? el('div', {}, `Options of config.py that change (${pv.options.length}):`) : el('div', {}, 'No option of config.py changes.'),
+				pv.options.length ? el('ul', {class: 'small'}, ...items) : '',
+				pv.recipe ? el('div', {}, `The recipe of MonitorEO (${pv.recipe.variables} variables) replaces that of "Download from MonitorEO", to download into inVars/${pv.recipe.folder} (nothing is downloaded yet).`) : '',
+				pv.recipe && pv.recipe.crs ? el('div', {class: 'notice warn'}, `The recipe fixes the CRS ${pv.recipe.crs}: check that it suits this study area.`) : '',
+				pv.order && pv.order.files.length ? el('div', {}, `The order of the variables of ${pv.order.folder}: ${pv.order.files.join(', ')}.`) : '',
+				pv.order && !pv.order.files.length ? el('div', {class: 'muted'}, `The order of the variables is not used now: ${pv.order.folder} has none of its variables. Load the file again after downloading them to apply it.`) : '',
+				unsavedModel() || unsavedSimilarity() ? el('div', {class: 'notice warn'}, 'The changes not saved in "HFT mapping" or "Similarity & landscape" are lost.') : '',
+				pv.ignored.length ? el('div', {class: 'muted small'}, 'Left out: ' + pv.ignored.join(', ') + '.') : '',
+				pv.errors.length ? el('div', {class: 'notice err'}, 'Not valid, nothing can be loaded: ' + pv.errors.join('; ')) : '',
+				el('div', {class: 'muted small'}, 'The study area, its IDs, the variables imported, the scenario and the comparison area do not change.'));
+			if (pv.errors.length) return void await modal({title: 'Load parameters', body, buttons: [{label: 'Close', result: null}]});
+			if (!await confirmBox('Load parameters', body, 'Load')) return;
+			const r = await api('params_import', f[0]);
+			render(await api('params'));
+			refresh();
+			if (pages.similarity.reloadOptions) pages.similarity.reloadOptions();
+			if (r.recipe && pages.gee.reloadRecipe) pages.gee.reloadRecipe();
+			if (r.order && r.order.files.length && pages.inputs.refresh) pages.inputs.refresh(); // its list of the variables in the new order
+			toast(r.changed.length ? `Loaded: ${r.changed.join(', ')}.` : 'Loaded: no option of config.py changed.', 'ok');
+		} catch (e) { fail(e); }
 	});
 	$('#m-see').addEventListener('click', () => show('results'));
 
@@ -4482,6 +4536,19 @@ pages.similarity = (() => {
 			if (S.map) setTimeout(() => S.map.invalidateSize(), 60);
 		},
 		attach(job) { view.start(job.id, job.title); },
+		// whether the form has options not saved in config.py (before a parameters file is saved or loaded)
+		unsaved() { return !!(S.loaded && S.saved && JSON.stringify(values()) !== JSON.stringify(S.saved)); },
+		// a parameters file was loaded (HFT mapping): the options of config.py (before the page is opened, init reads them)
+		async reloadOptions() {
+			if (!S.loaded) return;
+			try {
+				const o = await api('ecosim_options');
+				S.cfg = Object.fromEntries(o.params.map(p => [p.name, p.value]));
+				setValues(S.cfg);
+				S.saved = values();
+				markChanged();
+			} catch (e) { fail(e); }
+		},
 		// the HFTs or the areas changed (a model run, a download): read them again now if the page is shown, else when
 		// it is shown
 		reload() {

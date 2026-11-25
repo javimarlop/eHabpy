@@ -11,7 +11,7 @@ import time
 import traceback
 import webbrowser
 
-from . import __version__, areas, ecosim, envsetup, gee, hftcomp, inputs, jobs, model, paths, results, updater
+from . import __version__, areas, ecosim, envsetup, gee, hftcomp, inputs, jobs, model, paths, presets, results, updater
 
 import hft_state
 
@@ -34,6 +34,7 @@ FILE_TYPES = {
 	'tif': ('GeoTIFF (*.tif;*.tiff)', 'All files (*.*)'),
 	'vector': ('Vector files (*.gpkg;*.shp;*.geojson;*.json)', 'All files (*.*)'),
 	'yaml': ('YAML recipe (*.yaml;*.yml)', 'All files (*.*)'),
+	'params': ('Parameters of eHabitat+ (*.yaml;*.yml)', 'All files (*.*)'),
 }
 
 
@@ -323,6 +324,19 @@ class Api:
 	@exposed
 	def save_params(self, values, nproc=None):
 		return model.save_params(values, nproc)
+
+	@exposed
+	def params_export(self, path):
+		"""The parameters of config.py, the recipe and the order of the variables to a file (parameters.py)."""
+		return presets.export(path)
+
+	@exposed
+	def params_preview(self, path):
+		return presets.preview(path)
+
+	@exposed
+	def params_import(self, path):
+		return presets.load(path)
 
 	@exposed
 	def status(self):

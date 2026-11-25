@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Desktop app, HFT model**: The parameters can be saved to a file and loaded by another user, or by you in another study area: "Save to a file…" and "Load from a file…" in "HFT mapping" keep the options of the HFT model and of the similarity, the recipe of MonitorEO and the order of the variables, without what belongs to the study area or the computer (the study area, its IDs and variables, the scenario, the GRASS database, the comparison area). Before loading, the app shows what changes, and it refuses a file with a value that is not valid without changing anything; the recipe downloads into a folder of its own for the new study area (`gee_<study area>`). Every run of the model also leaves its `parameters.yaml` in the folder of its results, and on the command line `python3 parameters.py save|show|load <file>` does the same.
+
 ### [1.6.10](https://github.com/javimarlop/eHabpy/releases/tag/1.6.10) · 2026-11-25
 
 - **Desktop app, HFT model**: "Input variables" lists the variables of the study area numbered in the order of the model, with the first one (it defines the pixels analysed) marked, and ↑ ↓ (or ⤒, to make it the first one) change that order without renaming the files: it is kept in `variables_order.txt` of the set, which `setup.py` follows (run again by itself, without importing the maps again). The names are shorter (without their common start) and the columns with the same value in all the variables are shown once above the table.

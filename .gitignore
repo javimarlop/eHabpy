@@ -41,6 +41,10 @@ variables_order.txt.tmp
 segm_optim/app_settings.json
 segm_optim/app_settings.json.tmp
 segm_optim/app_recipe.yaml
+segm_optim/app_recipe.yaml.tmp
+# parameters files (segm_optim/parameters.py): of each run of the model, and those saved in segm_optim by the app
+segm_optim/results/**/parameters.yaml
+segm_optim/parameters*.yaml
 !app/ehabitat_app/ui/icon.png
 # record of the version installed by the updates of the app
 .ehabitat_version.json
