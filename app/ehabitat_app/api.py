@@ -437,6 +437,11 @@ class Api:
 		return areas.find_admin(text, level, country)
 
 	@exposed
+	def area_outlines(self, ids):
+		"""The outlines of protected areas of WDPA (their WDPA IDs), before making their file."""
+		return areas.outlines(ids)
+
+	@exposed
 	def area_make(self, kind, params):
 		return areas.make(kind, params or {})
 

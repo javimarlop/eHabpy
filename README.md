@@ -33,6 +33,7 @@ time it opens, so it has each release as soon as it is made.
 
 ### Unreleased
 
+- **Desktop app**: In "From MonitorEO… > Protected areas (WDPA)", a protected area without a reported area no longer shows 0 km²: it shows the area of its polygons (marked with *) or —; "Show them on the map" (or "Map" in a row, which highlights it) draws the outlines of all those found on a map of the dialog, without making any file, to tell apart protected areas with similar names; and the file made of protected areas or administrative units gives its area in km², as the search (a burned area, in ha).
 - **Earth Engine variables, Desktop app**: The plan of a download ("Show the plan", `get_vars_gee.py --dry-run`) gives the number of images of each variable with its unit and period ("2,027 images (2018-01-01 to 2021-12-31)"), warns when a variable has no images in its period and season (or, for those of the catalog of MonitorEO, very few), and ends with the size of all its files, uncompressed, by grid and in all (e.g. "about 887 MB in 18 files"); the same size is shown before a download.
 - **Desktop app, HFT model**: "Input variables" and `setup.py` warn when the variables do not cover a study area to process, with the part of it they cover (inside all the variables and with data in the first one): a study area only partly covered gets HFTs only where the variables have data, and one without any data gets none.
 
