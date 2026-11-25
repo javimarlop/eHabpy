@@ -143,7 +143,8 @@ def check_scale(rasters, scale):
 			out.append({'level': 'info', 'text': f"{r['file']} covers another extent than {first['file']} "
 			                                     '(the region of the study area is used).'})
 	if scale == 'study' and len(good) < 3:
-		out.append({'level': 'warning', 'text': 'With fewer than 3 variables the segmentation cannot use the PCA (SEGM_PCA).'})
+		out.append({'level': 'warning', 'text': 'With fewer than 3 variables there is no PCA of 3 axes to segment: untick '
+		                                              '"Segment the first 3 axes of a PCA" in HFT mapping.'})
 	if not any(o['level'] == 'error' for o in out):
 		out.insert(0, {'level': 'ok', 'text': f"{len(good)} variables, {first['crs']}, {_fmt(first['res'][0])} m pixels."})
 	# the extent notes only once

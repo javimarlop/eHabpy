@@ -527,7 +527,7 @@ pages.inputs = (() => {
 			box.append(el('button', {class: 'btn small', disabled: true, title: why}, 'Use this set in the model'));
 			note.append(el('div', {}, el('b', {}, 'Not a set for the HFT model. '), why));
 		} else if (S.folder === S.active) {
-			box.append(el('span', {class: 'badge ok'}, 'Used by the model (INVARS_FOLDER)'));
+			box.append(el('span', {class: 'badge ok', title: 'Saved as INVARS_FOLDER in config.py'}, 'Used by the model'));
 		} else {
 			box.append(el('button', {class: 'btn small primary', onclick: async () => {
 				try {
@@ -713,7 +713,8 @@ pages.inputs = (() => {
 
 // 2. Download from MonitorEO =========================================================================================
 pages.gee = (() => {
-	const S = {recipe: null, catalog: null, community: undefined, mo: null, areaInfo: null, areaLayer: null, check: null, checkSeq: 0};
+	const S = {recipe: null, catalog: null, community: undefined, mo: null, areaInfo: null, areaLayer: null, check: null, checkSeq: 0,
+		paBuffer: null};
 	const view = new JobView($('#g-log'), $('#g-bar'), {
 		onStart: () => { $('#g-stop').classList.remove('hidden'); $('#dot-gee').classList.remove('hidden'); },
 		onEnd: s => {
@@ -804,6 +805,7 @@ pages.gee = (() => {
 		$('#r-crs').classList.toggle('hidden', $('#r-crs-mode').value === 'auto');
 		$('#r-st-res').value = rec.study.resolution ?? '';
 		$('#r-st-buf').value = rec.study.buffer ?? '';
+		bufferHelp();
 		$('#r-st-drive').checked = !!rec.study.drive;
 		const eco = rec.ecoregion || {};
 		$('#r-eco-on').checked = !!eco.resolution;
@@ -985,8 +987,27 @@ pages.gee = (() => {
 	$('#g-only').addEventListener('change', syncOnly);
 	$('#r-crs-mode').addEventListener('change', () => $('#r-crs').classList.toggle('hidden', $('#r-crs-mode').value === 'auto'));
 	$('#r-st-res').addEventListener('input', sizeNote);
-	$('#r-st-buf').addEventListener('input', sizeNote);
+	$('#r-st-buf').addEventListener('input', () => { sizeNote(); bufferHelp(); });
 	$('#r-drive-pick').addEventListener('click', async () => { const f = await pickFolder().catch(fail); if (f) $('#r-drive-dir').value = f; });
+
+	// the buffer of the study grid: that of the recipe or, empty, that of the model (PA_BUFFER, set in HFT mapping),
+	// read again each time the page is shown; a smaller one than that of the model leaves the model a border without data
+	async function loadPaBuffer() {
+		try { S.paBuffer = await api('pa_buffer'); } catch (e) { S.paBuffer = null; }
+		bufferHelp();
+	}
+	function bufferHelp() {
+		const help = $('#r-st-buf-help'), input = $('#r-st-buf');
+		const pa = S.paBuffer;
+		input.placeholder = pa === null || pa === undefined ? '' : String(pa);
+		const v = input.value.trim() === '' ? null : parseFloat(input.value);
+		const small = v !== null && pa !== null && pa !== undefined && v < pa;
+		help.textContent = pa === null || pa === undefined ? 'm (empty = the buffer of HFT mapping)'
+			: small ? `m: smaller than the buffer of HFT mapping (${fmt(pa)} m), the model would work on a border without data`
+			: `m (empty = ${fmt(pa)} m, the buffer of the study area in HFT mapping, as saved)`;
+		help.className = 'small' + (small ? '' : ' muted');
+		help.style.color = small ? 'var(--warn)' : '';
+	}
 
 	function sizeNote() {
 		const sa = pages.inputs.studyArea();
@@ -995,7 +1016,7 @@ pages.gee = (() => {
 		if (!sa || !sa.info || !sa.info.bbox || !res) { note.textContent = ''; return; }
 		const [w, s, e, n] = sa.info.bbox;
 		const lat = (s + n) / 2 * Math.PI / 180;
-		const buf = parseFloat($('#r-st-buf').value) || 0;
+		const buf = $('#r-st-buf').value.trim() === '' ? (S.paBuffer || 0) : parseFloat($('#r-st-buf').value) || 0;
 		const wx = (e - w) * 111320 * Math.cos(lat) + 2 * buf, hy = (n - s) * 110540 + 2 * buf;
 		const px = Math.ceil(wx / res) * Math.ceil(hy / res);
 		note.textContent = `Grid of the study area: about ${fmt(Math.ceil(wx / res), 0)} × ${fmt(Math.ceil(hy / res), 0)} pixels, `
@@ -1626,7 +1647,7 @@ pages.gee = (() => {
 				syncCv();
 			};
 			const caveats = ' With a season in the recipe, it is that of the season. Only for variables with a true zero and positive values. CV layers have '
-				+ 'long tails: a CLIP_PERCENTILE above 0 in the HFT model helps, and the "Correlation between the variables" of the results shows how it '
+				+ 'long tails: a "Clipping of extreme values" above 0 in HFT mapping helps, and the "Correlation between the variables" of the results shows how it '
 				+ 'correlates with the mean (often negatively: unproductive ecosystems vary more, relative to their mean).';
 			const shortcuts = (cat.metrics || []).includes('cv') ? el('div', {class: 'row'},
 				el('button', {class: 'btn small', disabled: !!only, onclick: () => preset('cv', 'mean'),
@@ -2192,6 +2213,7 @@ pages.gee = (() => {
 	return {
 		async init() {
 			await status();
+			await loadPaBuffer();
 			try { const r = await api('gee_recipe'); fill(r.recipe, r.source); } catch (e) { fail(e); }
 			syncOnly();
 			// the land cover maps of the mask come with the catalog of MonitorEO
@@ -2203,7 +2225,7 @@ pages.gee = (() => {
 			view.kind = kinds[job.kind] || job.kind;
 			view.start(job.id, job.title);
 		},
-		onShow() { sizeNote(); scheduleCheck(); },
+		onShow() { loadPaBuffer().then(sizeNote); scheduleCheck(); }, // PA_BUFFER may have changed in HFT mapping
 		// a vector file as the comparison area of the ecoregion grid (an area from MonitorEO): FILE relative to segm_optim
 		async useComparison(file) {
 			$('#r-eco-on').checked = true;

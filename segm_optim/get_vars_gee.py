@@ -221,6 +221,24 @@ def size_text(pixels):
 	return f'{pixels:,} pixels, {mb:,.0f} MB per variable' if mb >= 1 else f'{pixels:,} pixels, {mb:.2f} MB per variable'
 
 
+def buffer_warning(rec, pa_buffer):
+	"""A warning when the buffer of the study grid of the recipe REC (study: buffer) is smaller than that of the model
+	(PA_BUFFER): the model would work on a border without data. None when it is not given (PA_BUFFER is used) or not
+	smaller."""
+	b = (rec.get('study') or {}).get('buffer')
+	if isinstance(b, bool) or isinstance(pa_buffer, bool):
+		return None
+	try:
+		b, pa_buffer = float(b), float(pa_buffer or 0)
+	except (TypeError, ValueError):
+		return None
+	if b < pa_buffer:
+		return (f'WARNING: the buffer of the study grid ({b:g} m) is smaller than that of the model (PA_BUFFER = '
+		        f'{pa_buffer:g} m in config.py, "Buffer around the study area" in HFT mapping): the model would work on '
+		        'a border without data')
+	return None
+
+
 def where(path):
 	"""PATH as shown to the user: inVars/<path relative to inVars>."""
 	return hft_state.where(os.path.relpath(path, hft_state.INVARS).replace(os.sep, '/'))
@@ -921,6 +939,9 @@ def main():
 	rel = where
 	summary = plan.summary()
 	print(f'Study area: {study_file}')
+	warning = buffer_warning(rec, cfg.get('PA_BUFFER', 0)) if 'study' in plan.grids else None
+	if warning:
+		print(warning)
 	for name, g in plan.grids.items():
 		label = 'Study area' if name == 'study' else 'Comparison area' if area else 'Ecoregions'
 		print(f'{label} grid: {grid_text(g)} -> {rel(dirs[name])}')

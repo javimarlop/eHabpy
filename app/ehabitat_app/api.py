@@ -440,6 +440,12 @@ class Api:
 		return gee.last_recipe()
 
 	@exposed
+	def pa_buffer(self):
+		"""The buffer of the study area of the model (PA_BUFFER of config.py, set in HFT mapping), in m: that of the
+		study grid of a download when its recipe gives none."""
+		return model.pa_buffer()
+
+	@exposed
 	def gee_default_recipe(self):
 		return {'recipe': gee.default_recipe(), 'source': paths.rel(gee.RECIPE)}
 

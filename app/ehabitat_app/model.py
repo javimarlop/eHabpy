@@ -157,6 +157,12 @@ def read_config():
 	return hft_state.read_config()
 
 
+def pa_buffer():
+	"""PA_BUFFER of config.py as the model uses it (0 when it is not there), in m."""
+	v = read_config().get('PA_BUFFER', 0)
+	return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+
 def default_nproc():
 	return max(1, multiprocessing.cpu_count() - 1)
 
