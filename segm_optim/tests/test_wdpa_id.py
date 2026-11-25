@@ -2,7 +2,8 @@
 #### License: CC BY-SA 3.0
 """
 Checks which texts of the search of protected areas of the app are WDPA IDs (only numbers, separated by commas,
-semicolons or spaces) and which are names, and that a name of one letter is refused while an ID of one digit is not.
+semicolons or spaces) and which are names, and that a name of one letter is refused while an ID of one digit is not;
+and the area of each one found: the reported one (REP_AREA), else that of its polygons (GIS_AREA), never 0.
 With EE_PROJECT set, it also finds in Earth Engine the Sierra Nevada National Park (WDPA ID 389011) and Doñana
 (389012) by their IDs.
 
@@ -40,16 +41,55 @@ def test_wdpa_ids():
 			calls.append(('name', text, designation))
 			return [{'SITE_ID': 1, 'NAME': 'Sierra'}]
 
-	real = areas._connected, areas._protected_by_id
+	real = areas._connected, areas._protected_by_id, areas._gis_areas
 	areas._connected = Services
-	areas._protected_by_id = lambda ids: calls.append(('id', ids)) or [{'SITE_ID': i, 'NAME': f'site {i}'} for i in ids]
+	areas._protected_by_id = lambda ids: calls.append(('id', ids)) or [{'SITE_ID': i, 'NAME': f'site {i}', 'REP_AREA': 1}
+	                                                                   for i in ids]
+	areas._gis_areas = lambda ids: calls.append(('gis', ids)) or {1: 1723.7}
 	try:
 		assert [r['id'] for r in areas.find_protected('7', ramsar=True)] == [7]
-		assert areas.find_protected('Sierra', ramsar=True)[0]['name'] == 'Sierra'
+		row = areas.find_protected('Sierra', ramsar=True)[0]
+		assert row['name'] == 'Sierra' and row['km2'] == 1723.7 and row['km2_from'] == 'polygons', row
 	finally:
-		areas._connected, areas._protected_by_id = real
-	assert calls == [('id', [7]), ('name', 'Sierra', 'ramsar')], calls
+		areas._connected, areas._protected_by_id, areas._gis_areas = real
+	# the area of the polygons is asked only for the rows without a reported area
+	assert calls == [('id', [7]), ('name', 'Sierra', 'ramsar'), ('gis', [1])], calls
 	print('test_wdpa_ids: OK')
+
+
+def test_area_km2():
+	"""The area of a protected area in the search: the reported one (REP_AREA), else that of its polygons (GIS_AREA, in
+	the row or asked for), else none (not 0, which WDPA gives when it was not reported)."""
+	assert areas.km2(858.83) == 858.83 and areas.km2('12.5') == 12.5
+	for v in (0, 0.0, '0', None, '', 'n/a', -3, float('nan'), float('inf')):
+		assert areas.km2(v) is None, v
+	rows = [{'SITE_ID': 389011, 'NAME': 'Sierra Nevada', 'REP_AREA': 858.8289465, 'GIS_AREA': 859.1},
+	        {'SITE_ID': 555722086, 'NAME': 'Sierra Nevada', 'REP_AREA': 0},
+	        {'WDPAID': 12, 'NAME_ENG': 'Old', 'REP_AREA': 0, 'GIS_AREA': 3.2},
+	        {'SITE_ID': 99, 'NAME': 'Nothing', 'REP_AREA': 0}]
+	got = areas._protected_rows(rows, {555722086: 1723.73})
+	assert [(r['id'], r['km2'], r['km2_from']) for r in got] == [
+		(389011, 858.8289465, 'reported'), (555722086, 1723.73, 'polygons'), (12, 3.2, 'polygons'), (99, None, None)], got
+	assert got[2]['name'] == 'Old'
+	print('test_area_km2: OK')
+
+
+def test_preview_geometry():
+	"""The outlines of the preview: coordinates rounded to 5 decimals, and none when a geometry is empty (a small polygon
+	simplified away), also inside a GeometryCollection."""
+	poly = {'type': 'Polygon', 'coordinates': [[[-3.123456789, 37.1], [-3.2, 37.123456789], [-3.1, 37.2], [-3.123456789, 37.1]]]}
+	g = areas.preview_geometry(poly)
+	assert g['coordinates'][0][0] == [-3.12346, 37.1] and g['coordinates'][0][1] == [-3.2, 37.12346], g
+	for empty in (None, {}, {'type': 'Polygon', 'coordinates': []}, {'type': 'Polygon', 'coordinates': [[]]},
+	              {'type': 'GeometryCollection', 'geometries': []},
+	              {'type': 'GeometryCollection', 'geometries': [{'type': 'Polygon', 'coordinates': []}]}):
+		assert areas.preview_geometry(empty) is None, empty
+	gc = areas.preview_geometry({'type': 'GeometryCollection', 'geometries': [poly, {'type': 'Polygon', 'coordinates': []},
+	                                                                         {'type': 'Point', 'coordinates': [1.0, 2.0]}]})
+	assert [x['type'] for x in gc['geometries']] == ['Polygon', 'Point'], gc
+	multi = {'type': 'MultiPolygon', 'coordinates': [poly['coordinates']]}
+	assert areas.preview_geometry(multi)['coordinates'][0][0][0] == [-3.12346, 37.1]
+	print('test_preview_geometry: OK')
 
 
 def test_find_by_id():
@@ -69,5 +109,7 @@ def test_find_by_id():
 
 if __name__ == '__main__':
 	test_wdpa_ids()
+	test_area_km2()
+	test_preview_geometry()
 	test_find_by_id()
 	print('All the tests passed')

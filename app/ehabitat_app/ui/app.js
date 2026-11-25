@@ -2238,6 +2238,7 @@ async function areaDialog(purpose = 'study', preset = {}) {
 	const num = (value, attrs = {}) => el('input', {type: 'number', step: 'any', value: value ?? '', style: {width: '96px'}, ...attrs});
 	const date = value => el('input', {type: 'date', value: value || ''});
 	const closeDialog = () => { const b = body.closest('.modal'); if (b) b.querySelector('header .btn').click(); };
+	const cleanups = []; // run when the dialog is closed (the maps of the previews)
 
 	// what to do with a file of an area: the study areas or the comparison area
 	async function useArea(f, as) {
@@ -2260,7 +2261,9 @@ async function areaDialog(purpose = 'study', preset = {}) {
 			el('div', {class: 'row', style: {gap: '8px'}}, el('span', {class: 'badge ' + (f.role === 'ring' ? 'info' : 'brand')}, f.role === 'ring' ? 'Unburned ring'
 				: f.role === 'burned' ? 'Burned area' : f.role === 'protected' ? 'Protected areas' : 'Administrative units'),
 				el('span', {class: 'mono small', style: {wordBreak: 'break-all'}}, f.file)),
-			el('div', {class: 'small muted'}, `${f.label} · ${fmt(f.features, 0)} ${f.features === 1 ? 'area' : 'areas'} · ${fmt(f.ha, 1)} ha`)),
+			// protected areas and administrative units in km² (as the search of protected areas); a burned area in ha
+			el('div', {class: 'small muted'}, `${f.label} · ${fmt(f.features, 0)} ${f.features === 1 ? 'area' : 'areas'} · `
+				+ (f.role === 'protected' || f.role === 'admin' ? `${fmt(f.ha / 100, f.ha < 1000 ? 2 : 1)} km²` : `${fmt(f.ha, 1)} ha`))),
 		el('div', {class: 'btns'},
 			el('button', {class: 'btn small' + (purpose === 'study' && f.role !== 'ring' ? ' primary' : ''), onclick: () => useArea(f, 'study')}, 'Use as study areas'),
 			el('button', {class: 'btn small' + (purpose === 'comparison' || f.role === 'ring' ? ' primary' : ''), onclick: () => useArea(f, 'comparison')}, 'Use as comparison area')));
@@ -2394,19 +2397,75 @@ async function areaDialog(purpose = 'study', preset = {}) {
 		const name = el('input', {type: 'text', class: 'grow', placeholder: 'the name of the first one chosen'});
 		let rows = [];
 		const chosen = new Map();
+		// the outlines of the protected areas found, on a map of the dialog, before making their file: all those of a
+		// search in one request to Earth Engine (it takes about as long for one as for all of them)
+		const mapDiv = el('div', {class: 'hidden', style: {height: '300px', borderRadius: '8px'}});
+		const mapNote = el('span', {class: 'small faint'});
+		const outlines = new Map(); // WDPA ID -> Leaflet layer
+		const tried = new Set(); // WDPA IDs asked to Earth Engine in this search (with or without polygons)
+		let amap = null, focus = null, gen = 0, loading = null; // gen: the search; loading: the request going on
+		cleanups.push(() => { if (amap) amap.remove(); });
+		const styleOf = id => id === focus ? {color: '#ffcc00', weight: 3, fillOpacity: 0.15}
+			: chosen.has(id) ? {color: '#c2187a', weight: 2, fillOpacity: 0.1} : {color: '#3388ff', weight: 1.5, fillOpacity: 0.05};
+		const restyle = () => { for (const [id, l] of outlines) l.setStyle(styleOf(id)); if (focus !== null && outlines.has(focus)) outlines.get(focus).bringToFront(); };
+		async function showOutlines(zoomTo) {
+			const first = mapDiv.classList.contains('hidden');
+			mapDiv.classList.remove('hidden');
+			if (!amap) { amap = makeMap(mapDiv, 'areas', 'osm'); amap.scrollWheelZoom.disable(); } // the wheel scrolls the dialog
+			setTimeout(() => { amap.invalidateSize(); if (first) mapDiv.scrollIntoView({block: 'nearest', behavior: 'smooth'}); }, 50);
+			if (loading) { await loading.catch(() => {}); } // one request at a time: the next one asks only what is missing
+			const mine = gen;
+			const want = rows.map(r => Number(r.id)).filter(id => !outlines.has(id) && !tried.has(id));
+			if (want.length) {
+				want.forEach(id => tried.add(id));
+				mapNote.textContent = `Drawing ${want.length} outline${want.length > 1 ? 's' : ''} from Earth Engine…`;
+				let got;
+				try {
+					loading = pages.gee.saveAccount().then(() => api('area_outlines', want));
+					got = await loading;
+				} catch (e) { want.forEach(id => tried.delete(id)); mapNote.textContent = ''; fail(e); return; } finally { loading = null; }
+				if (mine !== gen) return; // a new search meanwhile: these outlines are not listed any more
+				{
+					const byId = new Map(rows.map(r => [Number(r.id), r]));
+					for (const o of got) {
+						const id = Number(o.id), r = byId.get(id) || {};
+						const layer = L.geoJSON(o.geojson, {style: styleOf(id)});
+						layer.bindTooltip(leafletText(`${id} · ${r.name || ''}${r.desig ? ' · ' + r.desig : ''}`), {sticky: true});
+						layer.on('click', () => { focus = id; restyle(); });
+						if (outlines.has(id)) outlines.get(id).addLayer(layer); // several features of WDPA with the same ID
+						else outlines.set(id, L.featureGroup([layer]).addTo(amap));
+					}
+					const none = rows.map(r => Number(r.id)).filter(id => tried.has(id) && !outlines.has(id));
+					mapNote.textContent = none.length ? `No polygons in Earth Engine for ${none.join(', ')}.` : '';
+				}
+			}
+			focus = zoomTo ?? null;
+			restyle();
+			const shown = zoomTo !== undefined && outlines.has(zoomTo) ? [outlines.get(zoomTo)]
+				: rows.map(r => outlines.get(Number(r.id))).filter(Boolean);
+			const b = shown.length ? L.featureGroup(shown).getBounds() : null;
+			if (b && b.isValid()) amap.fitBounds(b, {padding: [10, 10]});
+		}
+		const mapAll = el('button', {class: 'btn small hidden', title: 'The outlines of all the protected areas found (simplified by 200 m), without making any file',
+			onclick: () => showOutlines()}, 'Show them on the map');
 		const draw = () => {
 			tbl.textContent = '';
-			const head = kind === 'protected' ? ['', 'WDPA ID', 'Name', 'Designation', 'IUCN', 'Country', 'km²', 'Year'] : ['', 'Code', 'Name', 'Full name', 'Country'];
-			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', {}, h)))));
+			const head = kind === 'protected' ? ['', 'WDPA ID', 'Name', 'Designation', 'IUCN', 'Country', 'km²', 'Year', ''] : ['', 'Code', 'Name', 'Full name', 'Country'];
+			tbl.append(el('thead', {}, el('tr', {}, ...head.map(h => el('th', h === 'km²' ? {title: 'The area reported to WDPA or, when it has none, that of its polygons'} : {}, h)))));
 			const body = el('tbody');
 			if (!rows.length) body.append(el('tr', {}, el('td', {colspan: head.length, class: 'empty'}, kind === 'protected' ? 'Search by name or WDPA ID.' : 'Search by name.')));
 			for (const r of rows) {
 				const cb = el('input', {type: 'checkbox'});
 				cb.checked = chosen.has(r.id);
-				cb.addEventListener('change', () => { if (cb.checked) chosen.set(r.id, r); else chosen.delete(r.id); name.placeholder = chosen.size ? [...chosen.values()][0].name : 'the name of the first one chosen'; });
+				cb.addEventListener('change', () => { if (cb.checked) chosen.set(r.id, r); else chosen.delete(r.id); name.placeholder = chosen.size ? [...chosen.values()][0].name : 'the name of the first one chosen'; if (amap) restyle(); });
 				body.append(el('tr', {}, el('td', {}, cb), ...(kind === 'protected'
 					? [el('td', {class: 'num'}, String(r.id)), el('td', {}, el('b', {}, r.name)), el('td', {class: 'small'}, r.desig || ''), el('td', {}, r.iucn || ''),
-						el('td', {}, r.iso3 || ''), el('td', {class: 'num'}, fmt(r.km2, 1)), el('td', {class: 'num'}, r.year ? String(r.year) : '')]
+						el('td', {}, r.iso3 || ''),
+						el('td', {class: 'num', title: r.km2_from === 'polygons' ? 'WDPA has no reported area: the area of its polygons (GIS_AREA)'
+							: r.km2_from === 'reported' ? 'Reported area (REP_AREA)' : 'No area in WDPA (or it could not be read): see its outline on the map'},
+							r.km2 ? fmt(r.km2, 1) + (r.km2_from === 'polygons' ? '*' : '') : '—'),
+						el('td', {class: 'num'}, r.year ? String(r.year) : ''),
+						el('td', {}, el('button', {class: 'btn small ghost', title: 'Show its outline on the map (with those of the others found)', onclick: () => showOutlines(Number(r.id))}, 'Map'))]
 					: [el('td', {class: 'num'}, String(r.id)), el('td', {}, el('b', {}, r.name)), el('td', {class: 'small'}, r.full || ''), el('td', {}, r.iso3 || '')])));
 			}
 			tbl.append(body);
@@ -2421,7 +2480,11 @@ async function areaDialog(purpose = 'study', preset = {}) {
 				rows = kind === 'protected' ? await api('area_find_protected', text.value, ramsar.checked)
 					: await api('area_find_admin', text.value, Number(level.value), country.value.trim() || null);
 				const missing = ids ? ids.filter(i => !rows.some(r => Number(r.id) === i)) : [];
+				mapAll.classList.toggle('hidden', !(kind === 'protected' && rows.length));
+				gen++; tried.clear(); mapNote.textContent = '';
+				if (amap) { for (const [id, l] of outlines) if (!rows.some(r => Number(r.id) === id)) { amap.removeLayer(l); outlines.delete(id); } restyle(); }
 				found.textContent = `${rows.length}${rows.length === 50 ? ' (the first 50)' : ''} found.`
+					+ (kind === 'protected' && rows.some(r => r.km2_from === 'polygons') ? ' *: area of its polygons (no area reported to WDPA).' : '')
 					+ (ids && ramsar.checked ? ' By WDPA ID, "only Ramsar sites" does not apply.' : '')
 					+ (missing.length ? ` No protected area with the WDPA ID ${missing.join(', ')}.` : '')
 					+ (chosen.size ? ` ${chosen.size} chosen (they stay chosen in other searches).` : '');
@@ -2443,7 +2506,7 @@ async function areaDialog(purpose = 'study', preset = {}) {
 				: 'The administrative units of FAO GAUL 2025 in Earth Engine, by their name: each one chosen is an area (a study area, or a polygon of the comparison area), or all of them joined into one.'),
 			el('div', {class: 'row'}, text, kind === 'protected' ? el('label', {class: 'check small'}, ramsar, 'only Ramsar sites') : level,
 				kind === 'admin' ? country : null, search),
-			el('div', {class: 'table-wrap cat-table'}, tbl), found,
+			el('div', {class: 'table-wrap cat-table'}, tbl), el('div', {class: 'row'}, found, mapAll, mapNote), mapDiv,
 			el('div', {class: 'form-grid'},
 				el('label', {}), el('label', {class: 'check small'}, join, 'Join them into one area'),
 				...field('Name', name)),
@@ -2489,6 +2552,7 @@ async function areaDialog(purpose = 'study', preset = {}) {
 	AREAS.open = true;
 	await modal({title: 'Areas from MonitorEO', wide: true, body, buttons: [{label: 'Close', result: null}]});
 	AREAS.open = false;
+	cleanups.forEach(f => f());
 	view.pre = null; view.bar = null;
 }
 

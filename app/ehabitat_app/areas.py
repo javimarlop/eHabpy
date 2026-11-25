@@ -121,19 +121,125 @@ def _protected_by_id(ids):
 	return [x['properties'] for x in feats]
 
 
+def km2(value):
+	"""An area of WDPA in km² (REP_AREA, the reported one, or GIS_AREA, that of its polygons), or None when it is
+	missing, not a number or not above 0 (WDPA gives 0 when it was not reported)."""
+	try:
+		value = float(value)
+	except (TypeError, ValueError):
+		return None
+	return value if math.isfinite(value) and value > 0 else None
+
+
+def _gis_areas(ids):
+	"""{WDPA ID: GIS_AREA (km², the area of its polygons, summed over its features)} of these protected areas: the
+	search by name (monitoreo) does not give it."""
+	import ee
+	from monitoreo import areas as mo_areas
+	f = ee.Filter.Or(ee.Filter.inList('SITE_ID', ids), ee.Filter.inList('WDPAID', ids))
+	fc = ee.FeatureCollection(mo_areas.WDPA).filter(f).limit(500)
+	try:
+		feats = fc.map(lambda x: ee.Feature(None, x.toDictionary())).getInfo()['features']
+	except Exception:  # only the area of the polygons: the search goes on without it
+		return {}
+	out = {}
+	for x in feats:
+		p = x['properties']
+		key, a = p.get('SITE_ID') or p.get('WDPAID'), km2(p.get('GIS_AREA'))
+		if key is not None and a:
+			out[key] = out.get(key, 0) + a
+	return out
+
+
+def _protected_rows(rows, gis=None):
+	"""The rows of the search of protected areas from those of WDPA: [{id, name, desig, iucn, iso3, km2, km2_from
+	('reported': REP_AREA; 'polygons': GIS_AREA, from the rows or from GIS (_gis_areas); None: unknown), year}]."""
+	out = []
+	for r in rows:
+		key = r.get('SITE_ID') or r.get('WDPAID')
+		rep_, poly = km2(r.get('REP_AREA')), km2(r.get('GIS_AREA')) or (gis or {}).get(key)
+		out.append({'id': key, 'name': r.get('NAME') or r.get('NAME_ENG'),
+		            'desig': r.get('DESIG_ENG') or r.get('DESIG'), 'iucn': r.get('IUCN_CAT'), 'iso3': r.get('ISO3'),
+		            'km2': rep_ or poly, 'km2_from': 'reported' if rep_ else 'polygons' if poly else None,
+		            'year': r.get('STATUS_YR')})
+	return out
+
+
 def find_protected(text, ramsar=False):
 	"""Protected areas of WDPA whose name (or English name) contains TEXT (with RAMSAR, only the Ramsar sites), or,
 	when TEXT is only numbers, those with these WDPA IDs (whatever RAMSAR: the IDs say which ones):
-	[{id (WDPA ID), name, desig, iucn, iso3, km2, year}]."""
+	[{id (WDPA ID), name, desig, iucn, iso3, km2, km2_from, year}]. The area is the reported one (REP_AREA) or, when
+	WDPA has none (0), that of its polygons (GIS_AREA)."""
 	text = str(text or '').strip()
 	ids = wdpa_ids(text)
 	if ids is None and len(text) < 2:
 		raise ValueError('write at least two letters of the name of the protected area, or its WDPA ID')
 	services = _connected()
 	rows = _protected_by_id(ids) if ids else services.find_protected_areas(text, 50, 'ramsar' if ramsar else None)
-	return [{'id': r.get('SITE_ID') or r.get('WDPAID'), 'name': r.get('NAME') or r.get('NAME_ENG'),
-	         'desig': r.get('DESIG_ENG') or r.get('DESIG'), 'iucn': r.get('IUCN_CAT'), 'iso3': r.get('ISO3'),
-	         'km2': r.get('REP_AREA'), 'year': r.get('STATUS_YR')} for r in rows]
+	missing = [r.get('SITE_ID') or r.get('WDPAID') for r in rows if not km2(r.get('REP_AREA')) and not km2(r.get('GIS_AREA'))]
+	missing = [k for k in missing if k is not None]
+	return _protected_rows(rows, _gis_areas(missing) if missing else None)
+
+
+PREVIEW_M = 200  # m: the outlines of the preview of the protected areas are simplified by this
+PREVIEW_MAX = 50  # protected areas in one preview (those of a search)
+
+
+def _coords(c, digits=5):
+	"""The coordinates C of GeoJSON rounded to DIGITS decimals (about 1 m), for a lighter preview."""
+	return [_coords(x, digits) for x in c] if isinstance(c, list) and c and isinstance(c[0], list) else \
+		[round(x, digits) for x in c] if isinstance(c, list) else c
+
+
+def preview_geometry(g):
+	"""A GeoJSON geometry for the preview: its coordinates rounded, and None when it has none (a small polygon may
+	vanish when simplified)."""
+	if not isinstance(g, dict):
+		return None
+	if g.get('type') == 'GeometryCollection':
+		parts = [x for x in (preview_geometry(y) for y in g.get('geometries') or []) if x]
+		return {'type': 'GeometryCollection', 'geometries': parts} if parts else None
+	c = g.get('coordinates')
+	if not _has_position(c):
+		return None
+	return {'type': g.get('type'), 'coordinates': _coords(c)}
+
+
+def _has_position(c):
+	"""Whether the coordinates C of GeoJSON have at least one position ([x, y])."""
+	if not isinstance(c, list) or not c:
+		return False
+	if all(isinstance(x, (int, float)) for x in c):
+		return True
+	return any(_has_position(x) for x in c)
+
+
+def outlines(ids):
+	"""The outlines of the protected areas of WDPA with these WDPA IDs, to see them on a map before making their file
+	(nothing is written): [{id, geojson (geometry in WGS 84, simplified by PREVIEW_M m)}], one per feature of WDPA. All
+	of them in one request: Earth Engine takes about as long for one as for the 50 of a search."""
+	import ee
+	from monitoreo import areas as mo_areas
+	ids = sorted({int(x) for x in ids or []})
+	if not ids:
+		return []
+	if len(ids) > PREVIEW_MAX:
+		raise ValueError(f'at most {PREVIEW_MAX} protected areas at once')
+	_connected()
+	fc = ee.FeatureCollection(mo_areas.WDPA).filter(ee.Filter.Or(ee.Filter.inList('SITE_ID', ids),
+	                                                            ee.Filter.inList('WDPAID', ids)))
+	fc = fc.map(lambda f: ee.Feature(f.geometry().simplify(PREVIEW_M), {'SITE_ID': f.get('SITE_ID'),
+	                                                                    'WDPAID': f.get('WDPAID')}))
+	try:
+		feats = fc.getInfo()['features']
+	except ee.EEException as e:
+		raise ValueError(f'Earth Engine: {e}') from e
+	out = []
+	for x in feats:
+		g = preview_geometry(x.get('geometry'))
+		if g:
+			out.append({'id': x['properties'].get('SITE_ID') or x['properties'].get('WDPAID'), 'geojson': g})
+	return out
 
 
 def find_admin(text, level=2, country=None):
