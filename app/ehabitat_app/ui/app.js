@@ -543,12 +543,61 @@ pages.inputs = (() => {
 
 	function short(crs) { return crs ? crs.replace(/ \(.*\)$/, '') : '—'; }
 
+	// the common start of the names of the variables (cut after a _, - or space), shown once above the table
+	function commonStart(names) {
+		if (names.length < 2) return '';
+		let p = names[0];
+		for (const n of names) while (!n.startsWith(p)) p = p.slice(0, -1);
+		const cut = Math.max(p.lastIndexOf('_'), p.lastIndexOf('-'), p.lastIndexOf(' '));
+		p = cut >= 0 ? p.slice(0, cut + 1) : '';
+		return p.length >= 4 && names.every(n => n.length > p.length) ? p : '';
+	}
+
+	// the variables of a scale; those of the study area in the order of the model (as setup.py takes them: the first
+	// one defines the pixels analysed), with ↑ ↓ to change it (variables_order.txt of the set, the files keep their names)
 	function table(tbl, list, scale) { // scale: study, ecoregion or null (ecoregion/study_area: no left out files)
 		tbl.textContent = '';
-		tbl.append(el('thead', {}, el('tr', {}, el('th', {}, ''), el('th', {}, 'Variable'), el('th', {class: 'num'}, 'Pixel'),
-			el('th', {}, 'Size'), el('th', {}, 'NoData'), el('th', {}, 'CRS'), el('th', {}, ''))));
+		const ordered = scale === 'study';
+		const prefix = commonStart(list.map(r => r.name));
+		const cols = [
+			{head: 'Pixel', cls: 'num nowrap', text: r => r.res ? fmt(r.res[0]) + ' m' : '—'},
+			{head: 'Size', cls: 'nowrap', text: r => r.width ? `${fmt(r.width, 0)} × ${fmt(r.height, 0)}` : '—'},
+			{head: 'NoData', cls: 'nowrap', text: r => r.nodata === null || r.nodata === undefined ? 'none' : fmt(r.nodata),
+				cell: r => r.nodata === null || r.nodata === undefined ? el('span', {class: 'badge warn'}, 'none') : fmt(r.nodata)},
+			{head: 'CRS', cls: 'nowrap', text: r => short(r.crs), title: r => r.crs || ''}];
+		// a column with the same value in all the variables: once, above the table
+		const good = list.filter(r => !r.error);
+		const same = good.length > 1 ? cols.filter(c => new Set(good.map(c.text)).size === 1) : [];
+		const shown = cols.filter(c => !same.includes(c));
+		const notes = [];
+		if (ordered && list.some(r => r.included)) notes.push('In the order of the model: the first one defines the pixels analysed.');
+		if (prefix) notes.push(el('span', {}, 'Names starting with ', el('span', {class: 'mono'}, prefix), '.'));
+		const all = {Pixel: v => `${v} pixels`, Size: v => `${v} pixels`, NoData: v => v === 'none' ? 'no NoData value' : `NoData ${v}`, CRS: v => v};
+		if (same.length) notes.push('All: ' + same.map(c => all[c.head](c.text(good[0]))).join(' · ') + '.');
+		if (notes.length) tbl.append(el('caption', {class: 'small muted', style: {textAlign: 'left', captionSide: 'top', padding: '0 0 6px'}},
+			...notes.flatMap((n, k) => k ? [' ', n] : [n])));
+		tbl.append(el('thead', {}, el('tr', {}, el('th', {}, ''), ordered ? el('th', {class: 'num', title: 'Order of the variables in the model'}, '#') : null,
+			el('th', {}, 'Variable'), ...shown.map(c => el('th', {class: c.cls.includes('num') ? 'num' : ''}, c.head)), el('th', {}, ''),
+			ordered ? el('th', {}, '') : null)));
 		const body = el('tbody');
-		if (!list.length) body.append(el('tr', {}, el('td', {colspan: 7, class: 'empty'}, 'No variables.')));
+		const span = 3 + shown.length + (ordered ? 2 : 0);
+		if (!list.length) body.append(el('tr', {}, el('td', {colspan: span, class: 'empty'}, 'No variables.')));
+		const inc = list.filter(r => r.included).map(r => r.file); // as setup.py, also a file that cannot be read
+		async function move(r, to) { // to: the new position of r among the included ones (0 = first)
+			if (S.moving) return; // one move at a time: the next one starts from the new order
+			S.moving = true;
+			tbl.querySelectorAll('tbody button[data-move]').forEach(b => { b.disabled = true; });
+			const files = inc.filter(f => f !== r.file);
+			files.splice(Math.max(0, Math.min(to, files.length)), 0, r.file);
+			try {
+				await api('set_order', S.folder, files);
+				if (S.folder === S.active) toast('Order saved. HFT mapping will run setup.py again (without importing the maps) and the steps from the segmentation.', 'warn', 8000);
+				else toast('Order saved.', 'ok');
+			} catch (e) { fail(e); } finally {
+				S.moving = false;
+				await loadSet(S.folder);
+			}
+		}
 		for (const r of list) {
 			const cb = scale ? el('input', {type: 'checkbox', title: r.included ? 'Leave out of the set' : 'Include again'}) : '';
 			if (scale) cb.checked = r.included;
@@ -559,14 +608,21 @@ pages.inputs = (() => {
 					refreshSets();
 				} catch (e) { fail(e); cb.checked = !cb.checked; }
 			});
+			const k = inc.indexOf(r.file);
+			const name = prefix && r.name.startsWith(prefix) ? r.name.slice(prefix.length) : r.name;
+			const arrows = ordered && k >= 0 && inc.length > 1 ? el('div', {class: 'row nowrap', style: {gap: '2px'}},
+				el('button', {class: 'btn small ghost', 'data-move': '1', title: 'Up', disabled: k === 0, onclick: () => move(r, k - 1)}, '↑'),
+				el('button', {class: 'btn small ghost', 'data-move': '1', title: 'Down', disabled: k === inc.length - 1, onclick: () => move(r, k + 1)}, '↓'),
+				el('button', {class: 'btn small ghost', 'data-move': '1', title: 'Make it the first one (it defines the pixels analysed)', disabled: k === 0, onclick: () => move(r, 0)}, '⤒')) : '';
 			body.append(el('tr', {class: r.included ? '' : 'off'},
 				el('td', {}, cb),
-				el('td', {}, el('div', {class: 'vname'}, r.name), r.error ? el('div', {class: 'small', style: {color: 'var(--err)'}}, r.error) : null),
-				el('td', {class: 'num nowrap'}, r.res ? fmt(r.res[0]) + ' m' : '—'),
-				el('td', {class: 'nowrap'}, r.width ? `${fmt(r.width, 0)} × ${fmt(r.height, 0)}` : '—'),
-				el('td', {class: 'nowrap'}, r.nodata === null || r.nodata === undefined ? el('span', {class: 'badge warn'}, 'none') : fmt(r.nodata)),
-				el('td', {class: 'nowrap', title: r.crs || ''}, short(r.crs)),
-				el('td', {}, r.error ? '' : el('button', {class: 'btn small ghost', title: 'Show on the map', onclick: () => preview(r)}, 'Show'))));
+				ordered ? el('td', {class: 'num'}, k >= 0 ? String(k + 1) : '') : null,
+				el('td', {}, el('div', {class: 'vname', title: r.file}, name),
+					ordered && k === 0 && inc.length > 1 ? el('span', {class: 'badge brand', title: 'Its pixels with data are those analysed (and the region of the model aligns with them)'}, 'first: defines the pixels analysed') : null,
+					r.error ? el('div', {class: 'small', style: {color: 'var(--err)'}}, r.error) : null),
+				...shown.map(c => el('td', {class: c.cls, title: c.title ? c.title(r) : ''}, r.error ? '—' : c.cell ? c.cell(r) : c.text(r))),
+				el('td', {}, r.error ? '' : el('button', {class: 'btn small ghost', title: 'Show on the map', onclick: () => preview(r)}, 'Show')),
+				ordered ? el('td', {}, arrows) : null));
 		}
 		tbl.append(body);
 	}

@@ -9,6 +9,7 @@ import multiprocessing
 from . import inputs, jobs, paths
 
 import hft_state  # segm_optim (paths puts it in sys.path)
+import var_order  # segm_optim
 
 THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
 
@@ -477,6 +478,7 @@ def run(values=None, nproc=None, first=None, scenario=None):
 		job.say(f"\nResults in segm_optim/{hft_state.results_dir(cfg2)}".replace(os.sep, '/'))
 		return {'study_area': cfg2.get('STUDY_AREA'), 'scenario': hft_state.scenario_name(cfg2)}
 
-	intro = ('The data have to be imported into GRASS (setup.py): ' + '; '.join(need)) if need else None
+	intro = (('setup.py writes the new order of the variables in config.py: ' if var_order.only_order(need) else
+	          'The data have to be imported into GRASS (setup.py): ') + '; '.join(need)) if need else None
 	job = jobs.start_commands('model', title, commands, env=env, after=after, intro=intro)
 	return job.id

@@ -185,6 +185,13 @@ class Api:
 		return inputs.coverage(folder, model.study_area())
 
 	@exposed
+	def set_order(self, folder, files):
+		"""The order of the variables of the study area of a set (the first one defines the pixels analysed)."""
+		if jobs.running('model') and inputs.set_dir(folder) == inputs.set_dir(hft_state.invars_folder(model.read_config())):
+			raise ValueError('the model is running with this set: change the order when it finishes')
+		return inputs.set_order(folder, files)
+
+	@exposed
 	def create_set(self, name):
 		return inputs.create_set(name)
 
