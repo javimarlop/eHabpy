@@ -12,7 +12,9 @@ With INVARS_FOLDER in config.py it takes the variables of that subfolder of
 
 It
   1. reads the CRS, resolution and NoData value of every ../inVars/*.tif
-     (../inVars/<INVARS_FOLDER>/*.tif),
+     (../inVars/<INVARS_FOLDER>/*.tif), in the order of the model: that of
+     the variables_order.txt of the folder (written by the app), then that
+     of ENV_VARS in config.py, then by name (see var_order.py),
   2. creates the GRASS project GRASSDB/<study area> with the CRS of the
      variables (if it does not exist yet): the project and the map of the
      study area are both named after the study area file,
@@ -43,6 +45,7 @@ import sys
 from osgeo import gdal, ogr, osr
 
 import hft_state
+import var_order
 
 gdal.UseExceptions()
 ogr.UseExceptions()
@@ -84,10 +87,13 @@ def same_crs(a, b):
 	return bool(a.IsSame(b, SAME_CRS)) or a.ExportToProj4() == b.ExportToProj4()
 
 
-def read_variables(folder):
-	"""CRS, resolution and NoData value of every GeoTIFF in ../inVars/FOLDER."""
+def read_variables(folder, previous=None):
+	"""CRS, resolution and NoData value of every GeoTIFF in ../inVars/FOLDER, in the order of the model (var_order.py:
+	that of its variables_order.txt, then PREVIOUS, the names of the files in the order of the last setup.py, then the
+	others by name)."""
 	indir = os.path.join(INVARS, folder)
-	files = sorted(f for f in glob.glob(os.path.join(indir, '*')) if f.lower().endswith(RASTER_EXT) and os.path.isfile(f))
+	files = var_order.ordered([f for f in glob.glob(os.path.join(indir, '*')) if f.lower().endswith(RASTER_EXT) and
+	                           os.path.isfile(f)], indir, previous)
 	if not files:
 		fail(f'no GeoTIFF files (.tif) found in {indir}')
 
@@ -205,9 +211,9 @@ def main():
 	if not os.path.isdir(indir) or os.path.commonpath([os.path.realpath(indir), os.path.realpath(INVARS)]) != os.path.realpath(INVARS):
 		fail(f'INVARS_FOLDER = {folder!r} in config.py: folder {indir} not found; it must be a subfolder of {INVARS} '
 		     "('' for the files directly in it)")
-	variables, res = read_variables(folder)
-	old_order = list(getattr(config, 'ENV_VARS', {}))
-	order = [n for n in old_order if n in variables] + [n for n in variables if n not in old_order]
+	# the order of the model: that of variables_order.txt of the folder, then that of the last setup.py, then by name
+	variables, res = read_variables(folder, var_order.previous_order(getattr(config, 'ENV_VARS', {}), folder))
+	order = list(variables)
 	ref = variables[order[0]]
 	print(f'Variables in {indir}: {", ".join(order)}')
 	print(f'Resolution: {fmt_num(res)} | CRS: {ref["srs"].GetName()}')

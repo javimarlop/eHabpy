@@ -23,6 +23,9 @@ from osgeo import gdal, ogr, osr
 
 from . import paths
 
+import hft_state  # segm_optim (paths puts it in sys.path)
+import var_order  # segm_optim
+
 gdal.UseExceptions()
 ogr.UseExceptions()
 osr.UseExceptions()
@@ -280,6 +283,30 @@ def list_sets():
 	return out
 
 
+def model_order(d):
+	"""The GeoTIFFs of the set in the folder D in the order of the model, as setup.py takes them (var_order.py): that
+	of its variables_order.txt, then that of its files in ENV_VARS of config.py (the last setup.py), then by name."""
+	files = _tifs(d)
+	folder = os.path.relpath(d, paths.INVARS).replace(os.sep, '/')
+	try:  # a config.py that cannot be read must not hide the sets (this page is where they are fixed)
+		prev = var_order.previous_order(hft_state.read_config().get('ENV_VARS', {}), '' if folder == '.' else folder)
+	except Exception:
+		prev = None
+	return var_order.ordered(files, d, prev)
+
+
+def set_order(folder, files):
+	"""Move the variables of the study area of the set FOLDER to the order of FILES (their names, all those included):
+	written to its variables_order.txt, which setup.py follows (the files keep their names). Returns the new order."""
+	d = set_dir(folder)
+	have = [os.path.basename(f) for f in _tifs(d)]
+	files = [os.path.basename(str(f)) for f in files or []]
+	if sorted(files) != sorted(have) or len(set(files)) != len(files):
+		raise ValueError('the list of the variables changed: refresh the set and try again')
+	var_order.write_order(d, files)
+	return [os.path.basename(f) for f in model_order(d)]
+
+
 def get_set(folder):
 	"""The variables of a set at both scales, with the left out ones and the checks."""
 	d = set_dir(folder)
@@ -287,7 +314,7 @@ def get_set(folder):
 		os.makedirs(d, exist_ok=True)  # a new copy of eHabpy (installer, zip of GitHub) has no inVars: it starts empty
 	if not os.path.isdir(d):
 		raise ValueError(f'folder {paths.rel(d)} not found')
-	study = [raster_info(f) for f in _tifs(d)]
+	study = [raster_info(f) for f in model_order(d)]  # in the order of the model
 	eco = [raster_info(f) for f in _tifs(os.path.join(d, paths.ECO_FOLDER))]
 	for r in study + eco:
 		r['included'] = True

@@ -33,6 +33,8 @@ run_state.json
 run_state.json.tmp
 gee_vars.json
 gee_vars.json.tmp
+variables_order.txt
+variables_order.txt.tmp
 # example figures of the README (all other graphs stay ignored)
 !docs/img/*.png
 # app (app/): its settings and last recipe of MonitorEO, and its icon (all other images stay ignored)

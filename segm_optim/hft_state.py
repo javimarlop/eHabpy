@@ -31,6 +31,8 @@ import re
 import runpy
 import sys
 
+import var_order
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE = os.path.join(HERE, 'run_state.json')
 CONFIG = os.path.join(HERE, 'config.py')
@@ -237,6 +239,14 @@ def setup_changes(cfg=None, state=None):
 			out.append(f'inVars/{f} changed')
 	if rec.get('study_area_file') and vector_sigs(rec['study_area_file']) != rec.get('study_area'):
 		out.append(f"{os.path.relpath(rec['study_area_file'], HERE)} changed")
+	# the order of the variables chosen in the app (variables_order.txt of the folder), not yet in config.py
+	indir = os.path.join(INVARS, folder)
+	prev = var_order.previous_order(cfg.get('ENV_VARS', {}), folder)
+	if prev and var_order.read_order(indir):
+		want = [os.path.basename(p) for p in var_order.ordered([os.path.join(indir, posixpath.basename(f))
+		                                                        for f in now], indir, prev)]
+		if [n for n in want if n in prev] != prev:
+			out.append(f'{var_order.ORDER_CHANGED} ({where(folder)}/{var_order.ORDER_FILE})')
 	return out
 
 
@@ -568,7 +578,8 @@ def plan(cfg=None, state=None, setup=None):
 	for name in NAMES:
 		r = reasons(name, cfg, state)
 		if setup and name == NAMES[0] and r == []:
-			r = ['setup.py will import the input data again']
+			r = ['setup.py will write the new order of the variables in config.py' if var_order.only_order(setup)
+			     else 'setup.py will import the input data again']
 		if needed and not r:
 			r = ['a step before it has to run']
 		needed = needed or bool(r)
