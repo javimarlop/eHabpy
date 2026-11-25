@@ -1,6 +1,7 @@
 """Parameters of the HFT model (config.py), the IDs to process (palist.csv) and the steps of the model: setup.py
 imports the variables and the study area into GRASS, run_hft.py runs the steps that are out of date (hft_state.py)."""
 
+import math
 import os
 import re
 import sys
@@ -231,6 +232,8 @@ def _literal(p, value, fixed=None, thresholds=None):
 		try:
 			v = float(value)
 		except (TypeError, ValueError):
+			raise ValueError(f"{p['label']}: {value!r} is not a number")
+		if not math.isfinite(v):
 			raise ValueError(f"{p['label']}: {value!r} is not a number")
 		if 'min' in p and v < p['min']:
 			raise ValueError(f"{p['label']}: must be at least {p['min']}")

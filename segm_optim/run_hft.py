@@ -13,7 +13,9 @@ The results are written to results/<STUDY_AREA>/<SCENARIO> (SCENARIO in
 config.py or, if empty, the name of INVARS_FOLDER). When run in a terminal, it
 shows the scenario and asks whether to change it before starting, and it warns
 when the scenario already has results made with other options (they would be
-moved to <SCENARIO>_previous).
+moved to <SCENARIO>_previous). At the end it writes parameters.yaml there: the
+parameters of the run, without the study area, to run the same method in another
+study area (python3 parameters.py load ..., or Load from a file... in the app).
 
 A step is needed when it was never run, did not finish, or when something it
 depends on changed since it ran: its options in config.py, palist.csv, the
@@ -171,7 +173,25 @@ def main():
 		run([sys.executable] + cmd[1:] if cmd[0] == 'python3' else cmd, env)
 
 	print(f'\nDone: the results are in {hft_state.results_dir(cfg)}')
+	write_parameters(cfg)
 	hft_state.print_status()
+
+
+def write_parameters(cfg):
+	"""parameters.yaml in the folder of the results of the scenario: the parameters of this run (parameters.py; CFG,
+	config.py as the run started, and the recipe of its set of variables), to run the same method in another study
+	area. A failure only warns: the results are done."""
+	try:
+		import parameters
+		folder = hft_state.results_dir(cfg)
+		if os.path.isdir(folder):
+			data = parameters.collect(cfg, app_recipe=False)
+			path = parameters.save(os.path.join(folder, parameters.FILE), data)
+			for w in parameters.problems(data):
+				print(f'WARNING: {parameters.FILE} could not be loaded as it is: {w}')
+			print(f'The parameters of this run, to use them in another study area: {path}')
+	except Exception as e:  # noqa: BLE001
+		print(f'WARNING: the parameters of this run could not be saved: {e}')
 
 
 if __name__ == '__main__':
