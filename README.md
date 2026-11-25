@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.10](https://github.com/javimarlop/eHabpy/releases/tag/1.6.10) · 2026-11-25
 
 - **Desktop app, HFT model**: "Input variables" lists the variables of the study area numbered in the order of the model, with the first one (it defines the pixels analysed) marked, and ↑ ↓ (or ⤒, to make it the first one) change that order without renaming the files: it is kept in `variables_order.txt` of the set, which `setup.py` follows (run again by itself, without importing the maps again). The names are shorter (without their common start) and the columns with the same value in all the variables are shown once above the table.
 - **Desktop app, Earth Engine variables**: In "Download from MonitorEO", the help of the buffer of the study grid says how much it is when left empty (the buffer of the study area in "HFT mapping", e.g. "empty = 500 m"), and the field, the plan and the download warn when the buffer written is smaller than that of the model, which would work on a border without data. "Input variables" and "Download from MonitorEO" no longer show names of `config.py` (INVARS_FOLDER, SEGM_PCA, CLIP_PERCENTILE) in their labels and notes, but those of the options in "HFT mapping".
