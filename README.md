@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Earth Engine variables, Desktop app**: The plan of a download ("Show the plan", `get_vars_gee.py --dry-run`) gives the number of images of each variable with its unit and period ("2,027 images (2018-01-01 to 2021-12-31)"), warns when a variable has no images in its period and season (or, for those of the catalog of MonitorEO, very few), and ends with the size of all its files, uncompressed, by grid and in all (e.g. "about 887 MB in 18 files"); the same size is shown before a download.
+
 ### [1.6.9](https://github.com/javimarlop/eHabpy/releases/tag/1.6.9) · 2026-11-24
 
 - **Desktop app, Similarity**: The map of the page Similarity shows all the results of a run at once (Map: All, the default): the similar patches of every HFT or subclass in its colour, those at least as large as the HFT outlined, over the HFTs of the study area, each one shown or hidden from its legend, with the number of patches and hectares of each one and the HFT, kind and area of a patch when the mouse is over it. Compared with chooses the area whose results are shown (the ecoregion of the set or each comparison area), keeping the cut, pixel size and classes of the run shown when that area has them. Runs made before the GeoPackages of the patches are shown too, from their maps of the similar areas.

@@ -216,9 +216,71 @@ def print_catalog(catalog):
 	      'of Earth Engine.')
 
 
+def mb_text(mb):
+	"""MB as read best: TB, GB (one decimal), whole MB from 1 MB, else two decimals (at least 0.01 MB)."""
+	if round(mb) >= 1024 ** 2:
+		return f'{mb / 1024 ** 2:,.1f} TB'
+	if round(mb) >= 1024:
+		return f'{mb / 1024:,.1f} GB'
+	if round(mb, 2) >= 1:
+		return f'{mb:,.0f} MB'
+	return f'{max(mb, 0.01):.2f} MB' if mb > 0 else '0 MB'
+
+
 def size_text(pixels):
-	mb = pixels * 4 / 2 ** 20
-	return f'{pixels:,} pixels, {mb:,.0f} MB per variable' if mb >= 1 else f'{pixels:,} pixels, {mb:.2f} MB per variable'
+	return f'{pixels:,} pixels, {mb_text(pixels * 4 / 2 ** 20)} per variable'
+
+
+FEW_IMAGES = 5  # fewer images of a variable than these in its period: a warning in the plan
+
+
+def period_text(spec):
+	"""The period (and season) of SPEC: '2018-01-01 to 2021-12-31', ', season 06-01 to 09-30'."""
+	def span(v):
+		return f'{v[0]} to {v[1]}' if isinstance(v, (list, tuple)) and len(v) == 2 else str(v)
+	p, season = spec.get('period'), spec.get('season')
+	return (span(p) if p else '') + (f', season {span(season)}' if p and season else '')
+
+
+def images_text(spec, n, catalog=False):
+	"""The number N of images of the variable SPEC over the study area (recipe.n_images: None for a fixed image, a
+	text for an error), with its unit and period, and a warning when there are none or, for a variable of the CATALOG
+	of MonitorEO (images of a satellite, with clouds), very few (a collection of the user may have one image a
+	year)."""
+	if n is None:
+		return 'fixed image'
+	if not isinstance(n, int):
+		return str(n)
+	when = period_text(spec)
+	out = f"{n:,} image{'' if n == 1 else 's'}" + (f' ({when})' if when else '')
+	if n == 0:
+		out += f"  WARNING: no images in the period{' and season' if spec.get('season') else ''}: the variable would " \
+		       'have no data'
+	elif catalog and n < FEW_IMAGES:
+		out += '  WARNING: very few images: the variable may have gaps (clouds, snow)'
+	return out
+
+
+def total_text(plan, study_eco=None, rgb=None, area=False):
+	"""Lines with the size of all the files of the plan (uncompressed, 4 bytes a pixel, as size_text): by grid and in
+	all, with the study area at the pixel of the ecoregion grid (STUDY_ECO, a Grid) and the true colour (RGB, three
+	bands on the study grid) when they are downloaded; AREA: the ecoregion grid is that of a comparison area."""
+	n = len(plan.specs)
+	grids = []
+	for name, g in plan.grids.items():
+		label = 'study grid' if name == 'study' else 'comparison area grid' if area else 'ecoregion grid'
+		grids.append((label, n, g.pixels * n))
+	if study_eco is not None:
+		grids.append(('study area at the pixel of the ecoregion grid', n, study_eco.pixels * n))
+	if rgb and 'study' in plan.grids:
+		grids.append(('true colour', 1, plan.grids['study'].pixels * 3))
+	lines = [f"  {label}: {files} file{'' if files == 1 else 's'}, about {mb_text(px * 4 / 2 ** 20)}"
+	         for label, files, px in grids]
+	files = sum(x[1] for x in grids)
+	total = mb_text(sum(x[2] for x in grids) * 4 / 2 ** 20)
+	return ['Size of all the files of the plan (uncompressed; those already up to date are not downloaded again):'] + \
+		lines + \
+		[f"  in all: about {total} in {files} file{'' if files == 1 else 's'}"]
 
 
 def where(path):
@@ -948,11 +1010,17 @@ def main():
 		print(f"True colour of {rgb['index']} ({rgb['sensor']}, {rgb['metric']}) on the study grid -> "
 		      f"{rel(os.path.join(outdir, RGB_FOLDER))}/{rgb['name']}_RGB.tif")
 
+	totals = total_text(plan, study_eco[0] if study_eco else None, rgb if 'study' in plan.grids else None, bool(area))
 	if args.dry_run:
 		print(f"\nImages of each variable over the {'study area' if 'study' in plan.grids else 'ecoregion grid'}:")
+		specs = {s['file']: s for s in plan.specs}
+		kind = recipe.variables.kind  # 'catalog' for a variable of the catalog of MonitorEO
 		for f, n in recipe.n_images(plan).items():
-			print(f"  {f}: {'fixed image' if n is None else n}")
+			spec = specs.get(f, {})
+			print(f"  {f}: {images_text(spec, n, kind(spec) == 'catalog')}")
+		print('\n' + '\n'.join(totals))
 		return
+	print('\n'.join(totals))
 
 	# Downloads, a grid after the other: directly, in tiles, or by export tasks to Google Drive for the grids with
 	# drive: true (or --drive)
