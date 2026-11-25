@@ -12,7 +12,8 @@ With INVARS_FOLDER in config.py it takes the variables of that subfolder of
 
 It
   1. reads the CRS, resolution and NoData value of every ../inVars/*.tif
-     (../inVars/<INVARS_FOLDER>/*.tif),
+     (../inVars/<INVARS_FOLDER>/*.tif), and warns about the study areas that
+     they do not fully cover (area_coverage.py),
   2. creates the GRASS project GRASSDB/<study area> with the CRS of the
      variables (if it does not exist yet): the project and the map of the
      study area are both named after the study area file,
@@ -42,6 +43,7 @@ import sys
 
 from osgeo import gdal, ogr, osr
 
+import area_coverage
 import hft_state
 
 gdal.UseExceptions()
@@ -216,6 +218,19 @@ def main():
 	layer = check_layer(sa_file, args.layer) if sa_file else None
 	# The GRASS project and the map of the study area take the name of the study area
 	study_area = grass_name(sa_file) if sa_file else getattr(config, 'STUDY_AREA', '')
+
+	# The part of the study areas that the variables cover: only there will they have HFTs
+	if sa_file:
+		try:
+			ids = None
+			if os.path.isfile(PALIST):
+				with open(PALIST) as f:
+					ids = [int(x) for x in f.read().split() if x.lstrip('-').isdigit()] or None
+			cov = area_coverage.study_coverage([variables[n]['path'] for n in order], sa_file, layer, args.col_id, ids)
+			for c in area_coverage.coverage_checks(cov):
+				print('WARNING: ' + c['text'])
+		except Exception as e:  # only a warning: never stops setup.py
+			print(f'WARNING: the part of the study areas that the variables cover could not be checked ({e})')
 
 	grassdb = os.path.expanduser(args.grassdb)
 	project = os.path.join(grassdb, study_area)

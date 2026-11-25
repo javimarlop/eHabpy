@@ -180,6 +180,11 @@ class Api:
 		return inputs.get_set(folder)
 
 	@exposed
+	def set_coverage(self, folder):
+		"""Notes on the part of the study areas to process that the variables of the set FOLDER cover."""
+		return inputs.coverage(folder, model.study_area())
+
+	@exposed
 	def create_set(self, name):
 		return inputs.create_set(name)
 
