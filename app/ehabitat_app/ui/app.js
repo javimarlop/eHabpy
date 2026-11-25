@@ -490,6 +490,7 @@ pages.inputs = (() => {
 			await api('set_study_area', d.file, d.layer || null, d.col_id, d.label_col || null);
 			toast('Study areas applied (copied to segm_optim/pa). Choose which ones to process in "HFT mapping".', 'ok');
 			await loadStudyArea();
+			loadCoverage();
 			pages.model.refresh();
 		} catch (e) { fail(e); }
 	});
@@ -601,6 +602,21 @@ pages.inputs = (() => {
 		renderArea(st);
 		renderRgb(st);
 		renderActive();
+		loadCoverage();
+	}
+
+	// the part of the study areas to process that the variables of the set cover (area_coverage.py): after the set,
+	// as it reads the first variable, and again when the study areas or the IDs to process change
+	let coverageSeq = 0;
+	async function loadCoverage() {
+		const st = S.set, seq = ++coverageSeq;
+		if (!st || st.area_only) return;
+		let notes;
+		try { notes = await api('set_coverage', st.folder); } catch (e) { notes = []; }
+		if (seq !== coverageSeq || S.set !== st) return;
+		st.checks.study = st.checks.study.filter(c => !c.coverage).concat(notes.map(c => ({...c, coverage: true})));
+		checks($('#chk-study'), st.checks.study);
+		badge($('#badge-study'), st.study, st.checks.study);
 	}
 
 	// the true colour of the images of a variable on the study grid (folder rgb, downloaded with the variables): only to
@@ -703,7 +719,7 @@ pages.inputs = (() => {
 			await loadStudyArea();
 			await loadSet(await refreshSets());
 		},
-		onShow() { if (S.map) setTimeout(() => S.map.invalidateSize(), 50); },
+		onShow() { if (S.map) setTimeout(() => S.map.invalidateSize(), 50); loadCoverage(); }, // the IDs may have changed in HFT mapping
 		async refresh() { await loadSet(await refreshSets(S.folder)); },
 		studyArea: () => S.sa,
 		// a file of study areas made elsewhere (an area from MonitorEO): shown to be applied with "Use these study areas"

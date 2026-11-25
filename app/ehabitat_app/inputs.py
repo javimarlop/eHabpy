@@ -23,6 +23,8 @@ from osgeo import gdal, ogr, osr
 
 from . import paths
 
+from area_coverage import coverage_checks, study_coverage  # segm_optim (paths puts it in sys.path)
+
 gdal.UseExceptions()
 ogr.UseExceptions()
 osr.UseExceptions()
@@ -320,6 +322,25 @@ def get_set(folder):
 		'eco_study': eco_study, 'eco_study_rel': paths.rel(sa_dir) if eco_study else None,
 		'rgb': rgb,  # the true colour of the images of a variable on the study grid (not a variable of the model)
 	}
+
+
+def coverage(folder, sa):
+	"""Notes ({level, text}) on how much of the study areas to process SA (model.study_area()) the variables of the set
+	FOLDER cover: in the extent of all of them and with data in the first one (area_coverage.py, as setup.py). Nothing
+	when they cannot be checked (no study areas, no variables, or variables that setup.py would refuse anyway)."""
+	if not sa or not sa.get('file'):
+		return []
+	study = [raster_info(f) for f in _tifs(set_dir(folder))]
+	if not study or any(c['level'] == 'error' for c in check_scale(study, 'study')):
+		return []
+	try:
+		label_col = sa['label_col'] if 'label_col' in sa else \
+			guess_label_col(vector_info(sa['file'], sa.get('layer'))['fields'])
+		cov = study_coverage([r['path'] for r in study], sa['file'], sa.get('layer'), sa.get('col_id') or 'cat',
+		                     sa.get('ids'), label_col)
+	except (RuntimeError, ValueError) as e:
+		return [{'level': 'info', 'text': f'The part of the study areas that the variables cover could not be checked ({e}).'}]
+	return coverage_checks(cov)
 
 
 def check_eco_study(eco, eco_study):
