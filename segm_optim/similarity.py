@@ -151,18 +151,52 @@ def scenario_root(study_area, scenario):
 	return root
 
 
+class _NonFinite(ast.NodeTransformer):
+	"""float('nan'), float('inf') and float('-inf') (as setup.py writes a NoData that is not a finite number) as
+	constants, so that ast.literal_eval reads them; any other call is left as it is, and literal_eval rejects it."""
+
+	def visit_Call(self, node):
+		arg = node.args[0] if len(node.args) == 1 and not node.keywords else None
+		if isinstance(node.func, ast.Name) and node.func.id == 'float' and isinstance(arg, ast.Constant) and \
+				isinstance(arg.value, str) and arg.value.strip().lower().lstrip('+-') in ('nan', 'inf', 'infinity'):
+			return ast.copy_location(ast.Constant(float(arg.value)), node)
+		return node
+
+
+def literal_value(text):
+	"""The value of TEXT, a literal of Python (as ast.literal_eval) that can also have float('nan'), float('inf') and
+	float('-inf'). ValueError, SyntaxError or TypeError if it has anything else."""
+	return ast.literal_eval(_NonFinite().visit(ast.parse(text.strip(), mode='eval')))
+
+
 def scenario_variables(root, cfg):
-	"""ENV_VARS of the scenario (processing_metadata.txt of moranvar_plots.R), else those of config.py."""
+	"""ENV_VARS of the scenario (processing_metadata.txt of moranvar_plots.R), else (results made before that file)
+	those of config.py. ValueError if processing_metadata.txt is there but its ENV_VARS cannot be read: those of
+	config.py can be the variables of another scenario, and the similarity with them would be wrong without a word."""
 	meta = os.path.join(root, 'processing_metadata.txt')
-	if os.path.isfile(meta):
-		text = open(meta, encoding='utf-8', errors='replace').read()
-		m = re.search(r'^ENV_VARS = \{(.*?)^\}', text, re.M | re.S)
-		if m:
-			try:
-				return ast.literal_eval('{' + m.group(1) + '}'), 'processing_metadata.txt'
-			except (ValueError, SyntaxError):
-				pass
-	return dict(cfg.get('ENV_VARS') or {}), 'config.py'
+	if not os.path.isfile(meta):
+		return dict(cfg.get('ENV_VARS') or {}), 'config.py'
+	text = open(meta, encoding='utf-8', errors='replace').read()
+	m = re.search(r'^ENV_VARS\s*=\s*\{(.*?)^\}', text, re.M | re.S)
+	why = 'there are none'
+	if not m and re.search(r'^ENV_VARS\s*=', text, re.M):
+		why = 'not as setup.py writes them: from ENV_VARS = { to a } at the start of a line'
+	if m:
+		try:
+			env_vars = literal_value('{' + m.group(1) + '}')
+			if isinstance(env_vars, dict) and all(isinstance(v, dict) for v in env_vars.values()):
+				return env_vars, 'processing_metadata.txt'
+			why = 'they are not a dictionary of variables, each with its file and NoData'
+		except (ValueError, SyntaxError, TypeError) as e:
+			why = e.msg if isinstance(e, SyntaxError) else 'a value that is not a number, text, list or dictionary'
+			n = getattr(e, 'lineno', None) or next((int(x) for x in re.findall(r'on line (\d+)', str(e))), None)
+			if n:  # the line in ENV_VARS (1 is that of ENV_VARS = {) -> in the file
+				before = text.count('\n', 0, m.start())
+				why += f', line {before + n}'
+	raise ValueError(f'the variables (ENV_VARS) of {rel(meta)} cannot be read ({why}). similarity.py needs those that '
+	                 f'the HFTs of this scenario were made with, and does not take those of config.py instead, which can '
+	                 f'be the variables of another scenario: correct ENV_VARS in that file (as in the config.py of that '
+	                 f'run) or run the HFT model of this scenario again')
 
 
 def files_by_key(folder):

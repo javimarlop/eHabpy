@@ -31,6 +31,11 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Desktop app, Similarity** (fix): The similarity of a scenario whose variables have NoData NaN (`float('nan')` in `processing_metadata.txt`) uses the variables of that scenario, and no longer those of `config.py`, which could be those of another scenario (e.g. 8 variables instead of its 7). If the variables of `processing_metadata.txt` cannot be read, the similarity stops and says what to correct, instead of using those of `config.py` without a warning.
+- **HFT model** (fix): A variable whose NoData is infinite no longer makes `setup.py` write a `config.py` that cannot be read.
+
 ### [1.6.12](https://github.com/javimarlop/eHabpy/releases/tag/1.6.12) · 2026-11-26
 
 - **HFT model** (fix): A study area where a variable has the same value in every pixel (e.g. all 0) is no longer segmented on axes of the PCA without values: the segmentation stops and says which area and what to do (take the variable out of the set, or segment without PCA).

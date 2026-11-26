@@ -82,6 +82,8 @@ def fmt_num(v):
 		return 'None'
 	if math.isnan(v):
 		return "float('nan')"
+	if math.isinf(v):  # repr would be inf, which is not Python
+		return "float('inf')" if v > 0 else "float('-inf')"
 	return str(int(v)) if float(v).is_integer() else repr(float(v))
 
 
