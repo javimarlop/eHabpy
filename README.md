@@ -31,7 +31,7 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
-### Unreleased
+### [1.6.14](https://github.com/javimarlop/eHabpy/releases/tag/1.6.14) · 2026-11-26
 
 - **Desktop app, HFT model**: The segmentation can use a number of axes of the PCA, the first N in every study area ("A number of axes" in "Axes of the PCA" of "HFT mapping", `SEGM_PCA_AXES` in `config.py`), besides the first three or those that explain a % of the variance. "See the PCA in the study area", next to it, opens a viewer of the PCA of the variables in each study area chosen: how much each variable loads on each axis (its correlation with it, in colours), the % of the variance of each axis, and how much of each variable the axes chosen take, marking those they take less than 50 % of, which the segmentation hardly sees; clicking an axis or moving the slider changes the number of axes, and "Use the first N axes" sets it. On the command line, `python3 pca_preview.py --axes 4` lists the same. A parameters file saved before these options sets them to their default (the first three axes) when loaded. The next run of the model segments again, as the code of the segmentation changed.
 - **Desktop app** (fix): "Check in the study area" of "Axes of the PCA" (now "See the PCA in the study area") no longer fails with "'function' object has no attribute 'study_inputs'".
