@@ -55,17 +55,27 @@ FORCE_RESTART = False
 PA_BUFFER = 500
 
 # ENTRADA DE LA SEGMENTACIÓN:
-# True  = Segmenta los tres primeros ejes de una PCA estandarizada de las variables de
-#         ENV_VARS0, calculada para cada área (necesita al menos 3 variables).
+# True  = Segmenta ejes de una PCA estandarizada de las variables de ENV_VARS0, calculada para
+#         cada área (necesita al menos 3 variables): los tres primeros, o los de SEGM_PCA_VARIANCE.
 # False = Segmenta directamente las variables de ENV_VARS0, todas con el mismo peso, sin PCA
 #         (las variables muy correlacionadas, p. ej. dos índices de vegetación, pesan más).
 # En los dos casos i.segment escala cada capa a su rango en la región de trabajo del área,
 # así que las unidades de las variables no influyen.
 SEGM_PCA = True
 
+# EJES DE LA PCA QUE SE SEGMENTAN (solo con SEGM_PCA = True):
+# 0       = Los tres primeros (como siempre).
+# 50-100  = Los primeros que juntos explican al menos ese % de la varianza (p. ej. 90; 100 = todos).
+# Con más variables, parte de la varianza pasa a los ejes 4, 5...: con un % se segmentan también (cada eje
+# pesa en la segmentación lo mismo que el primero, porque i.segment escala cada capa a su rango). El
+# registro de la segmentación y processing_metadata.txt dicen qué % explican los ejes usados (también con
+# los tres por defecto), y csv/pca_axes_<área>.csv (en los resultados, pca_axes_<área>.csv), cada eje.
+# Antes de segmentar, python3 pca_preview.py --variance 90 dice cuántos ejes necesita cada área.
+SEGM_PCA_VARIANCE = 0
+
 # RECORTE DE LOS VALORES EXTREMOS (percentil, de 0 a menos de 50):
 # 0   = Sin recorte.
-# > 0 = Antes de la segmentación cada capa de i.segment (PC1-PC3 o las variables, según SEGM_PCA) y antes de
+# > 0 = Antes de la segmentación cada capa de i.segment (los ejes de la PCA o las variables, según SEGM_PCA) y antes de
 #       la clasificación cada variable se recortan a sus percentiles CLIP_PERCENTILE y 100 - CLIP_PERCENTILE
 #       (p. ej. 0.5: los valores por debajo del percentil 0.5 pasan a valer el percentil 0.5, y los de por
 #       encima del 99.5, el 99.5). i.segment escala cada capa a su rango y la clasificación tipifica cada
@@ -99,7 +109,7 @@ SMALL_SEGM_RADIUS = 10
 
 # A QUÉ SEGMENTO SE UNE CADA SEGMENTO PEQUEÑO, de los mayores que él a SMALL_SEGM_RADIUS o menos:
 # 'frequent' = al más frecuente en ese radio, se parezca o no (la regla anterior; también sin esta opción).
-# 'similar'  = al más parecido: el de medias más cercanas en las capas de la segmentación (PC1-PC3, o las
+# 'similar'  = al más parecido: el de medias más cercanas en las capas de la segmentación (los ejes de la PCA, o las
 #              variables con SEGM_PCA = False), escaladas a su rango como hace i.segment.
 SMALL_SEGM_MERGE = 'frequent'
 

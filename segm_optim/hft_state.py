@@ -31,6 +31,7 @@ import re
 import runpy
 import sys
 
+import pca_axes
 import var_order
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +48,7 @@ SCENARIO_RE = re.compile(r'[A-Za-z0-9_-]+')  # also checked in moranvar_plots.R
 
 # Steps in order: name, what it does, command that runs it, files with its code
 STEPS = [
-	('segm', 'segmentation', 'python3 segmentation_pca_par.py', ['segmentation_pca_par.py']),
+	('segm', 'segmentation', 'python3 segmentation_pca_par.py', ['segmentation_pca_par.py', 'pca_axes.py']),
 	('stats', 'statistics of the segments', 'python3 get_mean_median_var.py',
 	 ['get_mean_median_var.py', 'ehab_segm_core.py']),
 	('moranvar', "Moran's I, variance and threshold", 'python3 moranvar.py', ['moranvar.py']),
@@ -424,7 +425,8 @@ def segm_id_error(area, ths, kmax=None):
 
 
 def options_error(cfg=None):
-	"""Why SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE or HFT_SUBCLASSES of config.py are not valid, or why
+	"""Why SEGM_THRESHOLDS, THRESHOLD_METHOD, SMALL_SEGM_MERGE, HFT_SUBCLASSES or SEGM_PCA_VARIANCE of config.py are
+	not valid, or why
 	the segm_id of an area of palist.csv would not fit (segm_id_error), None if all is right: checked before any step
 	runs (run_hft.py, check_ready), so that a wrong value does not stop the run after the steps before the one that
 	uses it."""
@@ -442,6 +444,10 @@ def options_error(cfg=None):
 		return str(e)
 	if not isinstance(cfg.get('HFT_SUBCLASSES', False), bool):
 		return f"HFT_SUBCLASSES in config.py must be True or False, not {cfg.get('HFT_SUBCLASSES')!r}"
+	try:
+		pca_axes.variance_option(cfg)
+	except ValueError as e:
+		return str(e)
 	if os.path.isfile(PALIST):
 		ths = segm_thresholds(cfg)
 		errs = [e for e in (segm_id_error(a, ths, fixed_level(cfg)) for a in sorted(set(open(PALIST).read().split()))) if e]
@@ -474,6 +480,14 @@ def step_inputs(step, cfg=None, state=None):
 		              ('RESOLUTION', None), ('ENV_VARS0', None), ('CLIP_TO_PA', False), ('PA_BUFFER', 0),
 		              ('SEGM_PCA', True), ('SMALL_SEGM_RADIUS', 5))
 		inputs.update(later(('CLIP_PERCENTILE', 0), ('MIN_SEGM_SIZE', 0)))
+		# the axes of the PCA (SEGM_PCA_VARIANCE; 0 or None, the first 3 axes as before the option, not recorded): only
+		# with SEGM_PCA, which ignores it otherwise
+		try:
+			pv = pca_axes.variance_option(cfg)
+		except ValueError:
+			pv = cfg.get('SEGM_PCA_VARIANCE')
+		if cfg.get('SEGM_PCA', True) and pv:
+			inputs['SEGM_PCA_VARIANCE'] = repr(pv)
 		# SMALL_SEGM_MERGE as the segmentation reads it (merge_rule: 'Frequent' or None are 'frequent', the default, not
 		# recorded); an invalid value is recorded as it is (the scripts stop saying why: check_ready)
 		try:

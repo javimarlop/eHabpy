@@ -326,6 +326,11 @@ class Api:
 		return model.save_params(values, nproc)
 
 	@exposed
+	def pca_preview(self, buffer=None):
+		"""The axes of the PCA in the study areas chosen, before the segmentation (model.pca_preview)."""
+		return model.pca_preview(buffer)
+
+	@exposed
 	def params_export(self, path):
 		"""The parameters of config.py, the recipe and the order of the variables to a file (parameters.py)."""
 		return presets.export(path)
