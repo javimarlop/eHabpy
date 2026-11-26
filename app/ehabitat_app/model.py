@@ -10,6 +10,8 @@ import multiprocessing
 from . import inputs, jobs, paths
 
 import hft_state  # segm_optim (paths puts it in sys.path)
+import pca_axes  # segm_optim
+import pca_preview  # segm_optim
 import var_order  # segm_optim
 
 THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
@@ -39,10 +41,24 @@ PARAMS = [
 	{'name': 'CLIP_TO_PA', 'group': 'segm', 'type': 'bool', 'default': False, 'label': 'Clip to the study area',
 	 'help': 'Ticked: only the pixels inside the polygons of the study area are analysed. Unticked: the whole rectangle '
 	         'of the working region (with the buffer).'},
-	{'name': 'SEGM_PCA', 'group': 'segm', 'type': 'bool', 'default': True, 'label': 'Segment the first 3 axes of a PCA',
-	 'help': 'Ticked: segments the first three axes of a standardized PCA of the variables (needs at least 3). '
-	         'Unticked: segments the variables themselves, all with the same weight (highly correlated variables weigh '
-	         'more). In both cases i.segment scales each layer to its range, so the units do not matter.'},
+	{'name': 'SEGM_PCA', 'group': 'segm', 'type': 'bool', 'default': True, 'label': 'Segment axes of a PCA',
+	 'help': 'Ticked: segments axes of a standardized PCA of the variables (needs at least 3): the first three, or '
+	         'those of the option below. Unticked: segments the variables themselves, all with the same weight (highly '
+	         'correlated variables weigh more). In both cases i.segment scales each layer to its range, so the units do '
+	         'not matter.'},
+	{'name': 'SEGM_PCA_VARIANCE', 'group': 'segm', 'type': 'pca_variance', 'default': 0, 'min': pca_axes.MIN_VARIANCE,
+	 'max': 100, 'step': 1, 'unit': '%', 'label': 'Axes of the PCA', 'only_if': {'SEGM_PCA': True},
+	 'help': 'Unticked: the first 3 axes of the PCA, as always. Ticked: the first axes that together explain at least '
+	         'this % of the variance (100 = all of them), so that what the first three leave out (e.g. a variable '
+	         'added that loads on the fourth axis) is also segmented; more axes give more, smaller segments, and each '
+	         'axis used weighs the same as the first one in the segmentation (i.segment scales each layer to its '
+	         'range), however little of the variance it explains. Every '
+	         'area has its own PCA, so the number of axes can differ between areas. The log of the segmentation says '
+	         'which axes it used and how much of the variance they explain (also with the 3 by default), and so do '
+	         'processing_metadata.txt and pca_axes_<id>.csv in the results. "Check in the study area" computes the same '
+	         'PCA of the variables in each study area chosen, without segmenting, and says how much the first 3 axes '
+	         'explain and how many the % of the slider needs (move it to see other %). Changing it runs the segmentation '
+	         'again.'},
 	{'name': 'CLIP_PERCENTILE', 'group': 'segm', 'type': 'number', 'default': 0, 'min': 0, 'max': 49.9, 'step': 0.1,
 	 'unit': 'percentile', 'label': 'Clipping of extreme values',
 	 'help': '0 = no clipping. > 0: before the segmentation and the classification, each layer is clipped to its '
@@ -71,7 +87,7 @@ PARAMS = [
 	 'choices': [['frequent', 'The most frequent larger segment within the radius (as before)'],
 	             ['similar', 'The most similar larger segment within the radius']],
 	 'help': '"frequent": the larger segment with the most pixels within the radius, whether it is similar or not (the '
-	         'rule up to now). "similar": the larger segment whose means in the layers of the segmentation (PC1-PC3, or the '
+	         'rule up to now). "similar": the larger segment whose means in the layers of the segmentation (the axes of the PCA, or the '
 	         'variables), each scaled to its range as i.segment does, are the closest.'},
 	{'name': 'MIN_SEGM_SIZE', 'group': 'segm', 'type': 'int', 'default': 0, 'min': 0, 'step': 1, 'unit': 'pixels',
 	 'label': 'Minimum size of a segment',
@@ -242,6 +258,14 @@ def _literal(p, value, fixed=None, thresholds=None):
 		if t == 'int' or v.is_integer():
 			return str(int(round(v)))
 		return repr(v)
+	if t == 'pca_variance':  # 0 = the first 3 axes, or a % of the variance
+		try:
+			v = float(value or 0)
+		except (TypeError, ValueError):
+			raise ValueError(f"{p['label']}: {value!r} is not a number")
+		if not math.isfinite(v) or (v != 0 and not p['min'] <= v <= p['max']):
+			raise ValueError(f"{p['label']}: must be off (the first 3 axes) or a % from {p['min']} to {p['max']}")
+		return str(int(round(v))) if v.is_integer() else repr(v)
 	if t == 'select':
 		allowed = [c[0] for c in p['choices']]
 		if p.get('cast') == 'int':
@@ -313,6 +337,32 @@ def save_params(values, nproc=None):
 
 def defaults():
 	return {p['name']: p['default'] for p in PARAMS}
+
+
+PCA_PREVIEW_MAX = 20  # areas computed by the preview of the axes of the PCA (the first ones chosen)
+
+
+def pca_preview(buffer=None):
+	"""The axes of the standardized PCA of the variables of the set of the model in each study area chosen (at most
+	PCA_PREVIEW_MAX), before the segmentation (pca_preview.preview, the same as i.pca of the segmentation): {'variables',
+	'areas': [{id, pixels, percents}], 'more' (areas left out)}. BUFFER: PA_BUFFER of the form (else that of config.py)."""
+	cfg = read_config()
+	files = pca_preview.study_inputs(cfg)[0]
+	if len(files) < 3:
+		raise ValueError('the PCA needs at least 3 variables in the set of the model (Input variables)')
+	sa = study_area()
+	if not sa or not sa.get('file'):
+		raise ValueError('choose the study area in "Input variables"')
+	ids = [str(i) for i in (sa.get('ids') or [])]
+	more = max(0, len(ids) - PCA_PREVIEW_MAX)
+	buf = pa_buffer() if buffer in (None, '') else float(buffer)
+	res = pca_preview.preview(files, sa['file'], sa.get('col_id') or 'cat', ids[:PCA_PREVIEW_MAX] or None, buf,
+	                          sa.get('layer'), limit=PCA_PREVIEW_MAX)
+	if not ids:
+		more = max(0, len(pca_preview.area_boxes(sa['file'], sa.get('col_id') or 'cat', None, sa.get('layer'))) - len(res))
+	return {'variables': [os.path.basename(f) for f in files], 'more': more,
+	        'areas': [{'id': r['id'], 'pixels': r['pixels'], 'percents': [p for _, _, p in r['axes']],
+	                   'constant': r.get('constant', [])} for r in res]}
 
 
 # Study area and IDs --------------------------------------------------------------------------------------------------

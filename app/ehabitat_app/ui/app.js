@@ -2698,6 +2698,53 @@ pages.model = (() => {
 			sync();
 			return el('div', {class: 'inline'}, c, fx, dl);
 		}
+		if (p.type === 'pca_variance') {
+			// off: the first 3 axes (0); on: the axes that explain at least the % of the slider
+			c = el('input', {type: 'checkbox', id: 'p-' + p.name});
+			c.checked = Number(p.value) > 0;
+			const r = el('input', {type: 'range', id: 'p-' + p.name + '-pct', min: p.min, max: p.max, step: p.step || 1,
+				value: Number(p.value) > 0 ? p.value : 90, style: {width: '160px'}});
+			const shown = el('b', {});
+			// the axes in the study area before the segmentation (model.pca_preview): what the first 3 explain and how
+			// many the % of the slider needs, recomputed when it moves
+			const out = el('div', {class: 'small', style: {width: '100%'}});
+			let pv = null;
+			// as pca_axes.choose: 100 % = all the axes (the % of i.pca, rounded, may add up to 99.99 or 100.01)
+			const need = (ps, v) => { if (v >= 100) return ps.length; let s = 0; for (let i = 0; i < ps.length; i++) { s += ps[i]; if (s >= v - 1e-6) return i + 1; } return ps.length; };
+			const sum = (ps, k) => ps.slice(0, k).reduce((a, b) => a + b, 0);
+			const showPv = () => {
+				if (!pv) return;
+				const v = Number(r.value);
+				if (!pv.areas.length) { out.textContent = 'No study area with those IDs in the file of the study areas.'; return; }
+				out.replaceChildren(...pv.areas.map(a => a.constant && a.constant.length
+					? el('div', {}, el('b', {}, `ID ${a.id}`), `: ${a.constant.join(', ')} has the same value in every pixel: the PCA (and the segmentation) cannot be computed with it; take it out of the set.`)
+					: a.percents.length
+					? el('div', {}, el('b', {}, `ID ${a.id}`), ` (${a.pixels.toLocaleString()} pixels): the first 3 axes explain ${sum(a.percents, 3).toFixed(1)} % of the variance; ${v} % needs ${need(a.percents, v)} of ${a.percents.length} axes (${sum(a.percents, need(a.percents, v)).toFixed(1)} %).`,
+						el('span', {class: 'faint'}, ' ' + a.percents.map((p, i) => `PC${i + 1} ${p.toFixed(1)}`).join(', ')))
+					: el('div', {}, `ID ${a.id}: too few pixels with data in every variable (${a.pixels}).`)),
+					pv.more ? el('div', {class: 'faint'}, `(${pv.more} more study areas not computed)`) : '');
+			};
+			const check = el('button', {class: 'btn ghost small', type: 'button',
+				title: 'The PCA of the variables of the set of the model in each study area chosen, as the segmentation computes it, without segmenting'},
+				'Check in the study area');
+			check.addEventListener('click', async () => {
+				check.disabled = true; out.textContent = 'Computing the PCA of the variables…';
+				try {
+					const pb = $('#p-PA_BUFFER');
+					pv = await api('pca_preview', pb && pb.value !== '' ? Number(pb.value) : null);
+					showPv();
+				} catch (e) { out.textContent = ''; fail(e); }
+				check.disabled = false;
+			});
+			// the slider moves also unticked, to see in the check how many axes each % needs
+			const sync = () => { shown.textContent = r.value + ' %'; shown.classList.toggle('faint', !c.checked); showPv(); };
+			c.addEventListener('change', () => { sync(); changed(); });
+			r.addEventListener('input', () => { sync(); changed(); });
+			sync();
+			return el('div', {class: 'stack', style: {gap: '6px', width: '100%'}},
+				el('div', {class: 'inline'}, el('label', {class: 'check'}, c,
+					el('span', {class: 'small muted'}, 'the axes that explain at least')), r, shown, check), out);
+		}
 		if (p.type === 'number' || p.type === 'int') {
 			c = el('input', {type: 'number', id: 'p-' + p.name, min: p.min, max: p.max, step: p.step || 'any', value: p.value});
 			c.addEventListener('input', changed);
@@ -2727,6 +2774,7 @@ pages.model = (() => {
 
 	function defText(p) {
 		if (p.type === 'bool') return p.default ? 'on' : 'off';
+		if (p.type === 'pca_variance') return Number(p.default) > 0 ? p.default + ' % of the variance' : 'the first 3 axes';
 		if (p.type === 'thresholds' || p.type === 'cuts') return p.default.join(', ');
 		if (p.type === 'select' || p.type === 'threshold') return (p.choices.find(c => String(c[0]) === String(p.default)) || [, p.default])[1];
 		if (p.default === '') return 'empty';
@@ -2760,7 +2808,9 @@ pages.model = (() => {
 		for (const p of S.params) {
 			const c = $('#p-' + p.name);
 			if (!c) continue;
-			out[p.name] = p.type === 'bool' ? c.checked : p.type === 'select' && p.cast === 'int' ? Number(c.value)
+			out[p.name] = p.type === 'bool' ? c.checked
+				: p.type === 'pca_variance' ? (c.checked ? Number($('#p-' + p.name + '-pct').value) : 0)
+				: p.type === 'select' && p.cast === 'int' ? Number(c.value)
 				: (p.type === 'number' || p.type === 'int') ? (c.value === '' ? null : Number(c.value)) : c.value;
 		}
 		const fx = $('#p-THRESHOLD_FIXED');
@@ -2916,6 +2966,7 @@ pages.model = (() => {
 			const c = $('#p-' + p.name);
 			if (!c) continue;
 			if (p.type === 'bool') c.checked = !!p.default;
+			else if (p.type === 'pca_variance') { c.checked = Number(p.default) > 0; c.dispatchEvent(new Event('change')); }
 			else if (p.type === 'threshold') { c.value = p.default; c.dispatchEvent(new Event('change')); }
 			else if (p.type === 'thresholds') { c.value = p.default.join(', '); c.dispatchEvent(new Event('input')); }
 			else c.value = p.default;

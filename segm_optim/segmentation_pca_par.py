@@ -8,11 +8,13 @@ import subprocess
 import numpy as np
 from scipy import ndimage
 import math
+import re
 import os
 import sys
 import shutil
 
 import hft_state
+import pca_axes
 
 # Importar configuración global de variables y opciones
 try:
@@ -39,6 +41,10 @@ except ValueError as e:
 	sys.exit(f'ERROR: {e}')
 K_DIGITS, CAT_DIGITS = hft_state.segm_id_layout(SEGM_THRESHOLDS)
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
+try:  # the axes of the PCA: 0 = the first 3; a % = the first ones that explain at least that % of the variance
+	SEGM_PCA_VARIANCE = pca_axes.variance_option(vars(sys.modules['config']))
+except ValueError as e:
+	sys.exit(f'ERROR: {e}')
 CLIP_PERCENTILE = float(getattr(sys.modules['config'], 'CLIP_PERCENTILE', 0) or 0)
 if not 0 <= CLIP_PERCENTILE < 50:
 	sys.exit(f'ERROR: CLIP_PERCENTILE in config.py must be from 0 to less than 50, not {CLIP_PERCENTILE}')
@@ -315,11 +321,33 @@ def fsegm(pa):
 		if len(a) == 0: a = [1, 625]
 		minarea = MIN_SEGM_SIZE if MIN_SEGM_SIZE > 0 else int(np.sqrt(int(a[1])))
 
-		# Input of i.segment, which scales each map to its range: PC1-PC3, or copies of the variables
-		# on the working region, so that their range is also that of the region and not of the whole map
+		# Input of i.segment, which scales each map to its range: axes of the PCA (PC1-PC3, or those that explain
+		# SEGM_PCA_VARIANCE % of the variance: pca_axes.py), or copies of the variables on the working region, so
+		# that their range is also that of the region and not of the whole map
 		if SEGM_PCA:
-			grass.run_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
-			segm_input = [f"{pa44x}.{i}" for i in (1, 2, 3)]
+			out = grass.read_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
+			print('Eigen values, (vectors), and [percent importance]:\n' + out.rstrip(), flush=True)
+			axes = pca_axes.parse(out)
+			# (exceptions, not sys.exit: this runs in a worker of the Pool, and pool.map raises them in the main process)
+			if re.search(r'\bnan\b', out, re.I):
+				# i.pca divides each variable by its standard deviation: nan when one has the same value in every pixel,
+				# and the axes would be empty maps
+				raise RuntimeError(f'the PCA of the variables of area {pa} could not be computed (i.pca gives nan): a '
+				                   'variable has the same value in every pixel of the area (e.g. all 0)? Take it out of the '
+				                   'set, or segment without PCA (SEGM_PCA = False)')
+			if len(axes) == len(SEGM_VARS):
+				k = pca_axes.choose([p for _, _, p in axes], SEGM_PCA_VARIANCE)
+				pca_axes.write(os.path.join('csv', f'pca_axes_{pa}.csv'), axes, k)
+				print(f'Segmentation of {pa}: {pca_axes.summary(axes, k, SEGM_PCA_VARIANCE)}', flush=True)
+			elif SEGM_PCA_VARIANCE:
+				raise RuntimeError(f'the % of the variance of the axes of the PCA of area {pa} could not be read from i.pca '
+				                   f'({len(axes)} axes of {len(SEGM_VARS)}), needed by SEGM_PCA_VARIANCE = '
+				                   f'{SEGM_PCA_VARIANCE:g}: set it to 0 (the first 3 axes)')
+			else:  # an i.pca that prints its table otherwise: the first 3 axes, as before, without their %
+				k = min(3, len(SEGM_VARS))
+				print(f'WARNING: the % of the variance of the axes of the PCA of {pa} could not be read from i.pca: the '
+				      'segmentation uses the first 3 axes', flush=True)
+			segm_input = [f"{pa44x}.{i}" for i in range(1, k + 1)]
 		else:
 			segm_input = []
 			for i, var in enumerate(SEGM_VARS, 1):

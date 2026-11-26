@@ -31,6 +31,11 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **HFT model** (fix): A study area where a variable has the same value in every pixel (e.g. all 0) is no longer segmented on axes of the PCA without values: the segmentation stops and says which area and what to do (take the variable out of the set, or segment without PCA).
+- **Desktop app, HFT model**: The segmentation can use the axes of the PCA that together explain a % of the variance (with a slider, from 50 to 100 %; "Axes of the PCA" in "HFT mapping", `SEGM_PCA_VARIANCE` in `config.py`) instead of the first three, so that what the first three leave out, e.g. a variable added that loads on the fourth axis, is also segmented. With the three by default, as before, the log of the segmentation now says how much of the variance they explain, and so do `processing_metadata.txt` and `pca_axes_<id>.csv` in the results (every axis, its % of the variance and whether it was used). Before segmenting, "Check in the study area" (next to the slider) computes the same PCA of the variables in each study area chosen and says how much the first three axes explain and how many axes each % needs; on the command line, `python3 pca_preview.py --variance 90`.
+
 ### [1.6.11](https://github.com/javimarlop/eHabpy/releases/tag/1.6.11) · 2026-11-25
 
 - **Desktop app, HFT model**: The parameters can be saved to a file and loaded by another user, or by you in another study area: "Save to a file…" and "Load from a file…" in "HFT mapping" keep the options of the HFT model and of the similarity, the recipe of MonitorEO and the order of the variables, without what belongs to the study area or the computer (the study area, its IDs and variables, the scenario, the GRASS database, the comparison area). Before loading, the app shows what changes, and it refuses a file with a value that is not valid without changing anything; the recipe downloads into a folder of its own for the new study area (`gee_<study area>`). Every run of the model also leaves its `parameters.yaml` in the folder of its results, and on the command line `python3 parameters.py save|show|load <file>` does the same.
