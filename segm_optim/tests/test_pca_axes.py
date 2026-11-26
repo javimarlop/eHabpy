@@ -1,15 +1,19 @@
-#### eHabitat+: test of the axes of the PCA of the segmentation (pca_axes.py, SEGM_PCA_VARIANCE)
+#### eHabitat+: test of the axes of the PCA of the segmentation (pca_axes.py, SEGM_PCA_AXES, SEGM_PCA_VARIANCE)
 #### License: CC BY-SA 3.0
 """
 Checks that the output of i.pca is read, that SEGM_PCA_VARIANCE 0 keeps the first 3 axes and a % takes the fewest
-first axes that reach it (all of them if never reached), that a value outside 0 / 50-100 is refused by config.py,
-the app and the parameters files, that a % makes the segmentation out of date (and 0 does not, as before the option),
-and, with GRASS, that i.pca of the segmentation gives the table that pca_axes.parse reads.
+first axes that reach it (all of them if never reached), that SEGM_PCA_AXES takes the first N (overriding the %), that
+a value outside 0 / 50-100 (or 0 / 1 or more axes) is refused by config.py, the app and the parameters files, that a %
+or a number of axes makes the segmentation out of date (and 0 does not, as before the options), that a parameters file
+saved before the options sets them to 0, and, with GRASS, that i.pca of the segmentation gives the table that
+pca_axes.parse reads and the loadings of pca_preview.
 
     cd segm_optim && python -s tests/test_pca_axes.py
 """
 
+import math
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -50,6 +54,12 @@ def test_choose():
 	s = pca_axes.summary(axes, 3, 0)
 	assert s == 'PC1-PC3 of 8 axes, 84.0 % of the variance (the first 3 axes, SEGM_PCA_VARIANCE = 0)', s
 	assert pca_axes.summary(axes, 4, 90).startswith('PC1-PC4 of 8 axes, 91.4 %')
+	# a number of axes: the first N whatever the %, all of them if there are fewer
+	assert pca_axes.choose(p, 0, 5) == 5 and pca_axes.choose(p, 90, 2) == 2 and pca_axes.choose(p, 0, 12) == 8
+	assert pca_axes.choose(p, 95, 0) == 5 and pca_axes.choose(p, 0, 1) == 1
+	assert pca_axes.summary(axes, 5, 0, 5) == 'PC1-PC5 of 8 axes, 95.7 % of the variance (SEGM_PCA_AXES = 5)'
+	assert pca_axes.summary(axes, 8, 90, 12).endswith('(SEGM_PCA_AXES = 12, but the area has 8 axes)')
+	assert pca_axes.summary(axes, 1, 0, 1).startswith('PC1 of 8 axes, 55.5 %')
 	with tempfile.TemporaryDirectory() as t:
 		f = os.path.join(t, 'a.csv')
 		pca_axes.write(f, axes, 4)
@@ -76,6 +86,22 @@ def test_option():
 	assert hft_state.step_inputs('segm', {k: v for k, v in dict(cfg, SEGM_PCA=True).items() if k != 'SEGM_PCA_VARIANCE'}) == base
 	assert hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=True, SEGM_PCA_VARIANCE=90))['SEGM_PCA_VARIANCE'] == '90'
 	assert 'SEGM_PCA_VARIANCE' not in hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=False, SEGM_PCA_VARIANCE=90))
+	# a number of axes: recorded instead of the % (which it overrides), not with 0 or without the PCA
+	for ok in (0, None, 1, 3, 4.0, 12):
+		pca_axes.axes_option({'SEGM_PCA_AXES': ok})
+	assert pca_axes.axes_option({}) == 0 and pca_axes.axes_option({'SEGM_PCA_AXES': 4.0}) == 4
+	for bad in (-1, 2.5, True, '4', float('nan'), float('inf')):
+		try:
+			pca_axes.axes_option({'SEGM_PCA_AXES': bad})
+			raise AssertionError(f'{bad!r} accepted')
+		except ValueError:
+			pass
+	assert hft_state.options_error(dict(cfg, SEGM_PCA_AXES=2.5)).startswith('SEGM_PCA_AXES')
+	assert hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=True, SEGM_PCA_VARIANCE=0, SEGM_PCA_AXES=0)) == base
+	ax = hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=True, SEGM_PCA_VARIANCE=90, SEGM_PCA_AXES=4))
+	assert ax['SEGM_PCA_AXES'] == '4' and 'SEGM_PCA_VARIANCE' not in ax
+	assert hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=True, SEGM_PCA_AXES=5))['SEGM_PCA_AXES'] == '5'
+	assert 'SEGM_PCA_AXES' not in hft_state.step_inputs('segm', dict(cfg, SEGM_PCA=False, SEGM_PCA_AXES=4))
 	# the app and the parameters files
 	from ehabitat_app import model
 	import parameters
@@ -89,6 +115,38 @@ def test_option():
 			pass
 	assert parameters.check('SEGM_PCA_VARIANCE', 95) == '95' and parameters.check('SEGM_PCA_VARIANCE', 90.0) == '90'
 	assert 'SEGM_PCA_VARIANCE' in parameters.collect(cfg, recipe=False)['model']
+	# the number of axes in the form: a number typed (a text) of 1 or more, or 0 (the other modes)
+	q = model.BY_NAME['SEGM_PCA_AXES']
+	assert q['within'] == 'SEGM_PCA_VARIANCE'
+	assert model._literal(q, 0) == '0' and model._literal(q, None) == '0' and model._literal(q, '4') == '4'
+	assert model._literal(q, 6) == '6' and model._literal(q, 4.0) == '4' and model._literal(q, ' 3 ') == '3'
+	for bad in ('', '0', '2.5', '-1', 'x', 2.5, -1, 'nan', float('inf')):
+		try:
+			model._literal(q, bad)
+			raise AssertionError(f'the form took {bad!r}')
+		except ValueError:
+			pass
+	assert parameters.check('SEGM_PCA_AXES', 4) == '4' and parameters.check('SEGM_PCA_AXES', 4.0) == '4'
+	for bad in (2.5, -1, True, 'x'):
+		try:
+			parameters.check('SEGM_PCA_AXES', bad)
+			raise AssertionError(f'the file took {bad!r}')
+		except ValueError:
+			pass
+	assert parameters.collect(dict(cfg, SEGM_PCA_AXES=None), recipe=False)['model']['SEGM_PCA_AXES'] == 0
+	# a file saved before the options (without them) sets them to 0, so that its % is not overridden by the number of
+	# axes of config.py; a file with them, as they are
+	now = dict(cfg, SEGM_PCA_AXES=4, SEGM_PCA_VARIANCE=0)
+	old = {'model': {'SEGM_PCA': True, 'PA_BUFFER': cfg.get('PA_BUFFER', 0)}}
+	ch = {o['name']: o['new'] for o in parameters.plan(old, now)['options']}
+	assert ch.get('SEGM_PCA_AXES') == 0 and 'SEGM_PCA_VARIANCE' not in ch, ch
+	ch = {o['name']: o['new'] for o in parameters.plan({'model': dict(old['model'], SEGM_PCA_VARIANCE=90)}, now)['options']}
+	assert ch.get('SEGM_PCA_AXES') == 0 and ch.get('SEGM_PCA_VARIANCE') == 90, ch
+	ch = {o['name']: o['new'] for o in parameters.plan({'model': dict(old['model'], SEGM_PCA_AXES=6)}, now)['options']}
+	assert ch.get('SEGM_PCA_AXES') == 6, ch
+	# not a change when config.py has no option and the file is older (0, as the scripts use it)
+	bare = {k: v for k, v in cfg.items() if k not in ('SEGM_PCA_AXES', 'SEGM_PCA_VARIANCE')}
+	assert not [o for o in parameters.plan(old, bare)['options'] if o['name'].startswith('SEGM_PCA_')]
 	print('test_option: OK')
 
 
@@ -201,6 +259,20 @@ def test_preview_grass():
 				want = [p for _, _, p in pca_axes.parse(r.stdout)]
 				have = [p for _, _, p in got['axes']]
 				assert want and max(abs(a - b) for a, b in zip(want, have)) <= 0.011, (ext, area, buffer, want, have, r.stderr[-500:])
+				# the loadings: the eigenvectors of i.pca (in parentheses, 4 decimals) times the square root of the
+				# eigenvalues, with the sign of the axis that of its largest loading
+				vecs = [[float(x) for x in m.split(',')] for m in re.findall(r'^\s*PC\d+\s+\S+\s+\((.*)\)', r.stdout, re.M)]
+				assert len(vecs) == len(files) == len(got['loadings']), (vecs, got['loadings'])
+				for i, (gv, load) in enumerate(zip(vecs, got['loadings'])):
+					eig = got['axes'][i][1]
+					sign = 1 if gv[max(range(len(gv)), key=lambda j: abs(gv[j]))] >= 0 else -1
+					mine = [x / math.sqrt(eig) for x in load]
+					assert max(abs(sign * a - b) for a, b in zip(gv, mine)) <= 0.002, (ext, area, i, gv, mine)
+					assert abs(sum(x * x for x in load) - eig) < 1e-3  # the squared loadings of an axis add up to its eigenvalue
+				# all the axes take all of every variable; the first ones, less
+				assert all(abs(c - 100) < 0.05 for c in pca_preview.captured(got['loadings'], len(files)))
+				one = pca_preview.captured(got['loadings'], 1)
+				assert all(0 <= c <= 100 for c in one) and abs(sum(one) - 100 * got['axes'][0][1]) < 0.1
 		# a constant variable: no PCA (i.pca gives nan), said
 		from osgeo import gdal
 		c = os.path.join(t, 'const.tif')
@@ -219,7 +291,33 @@ def test_preview_grass():
 			r = pca_preview.preview(files + [c2], vec['shp'], 'cat', [area], buf)[0]
 			assert r['axes'] == [] and r['constant'] == ['const01.tif'], (area, r)
 		assert len(pca_preview.preview(files, vec['gpkg'], 'cat', None, limit=1)) == 1
+		# the variables that load most on an axis
+		assert pca_preview.main_variables([0.1, -0.9, 0.5, 0.2], list('abcd')) == [('b', -0.9), ('c', 0.5)]
+		assert pca_preview.main_variables([0.1, 0.3, 0.2], list('abc')) == [('b', 0.3)]
 	print('test_preview_grass: OK')
+
+
+def test_app_preview():
+	"""The PCA of the app (model.pca_preview, behind "See the PCA in the study area"): the % and the loadings of every
+	area chosen, as pca_preview gives them (it failed, the module hidden by the function of the same name)."""
+	from ehabitat_app import model
+	with tempfile.TemporaryDirectory() as t:
+		files, vec = _data(t)
+		saved = model.pca_view.study_inputs, model.study_area, model.read_config
+		try:
+			model.pca_view.study_inputs = lambda cfg: (files, vec['shp'], None, 'cat', None)
+			model.study_area = lambda: {'file': vec['shp'], 'layer': None, 'col_id': 'cat', 'ids': ['1', '2']}
+			model.read_config = lambda: {'PA_BUFFER': 0}
+			r = model.pca_preview(25)
+		finally:
+			model.pca_view.study_inputs, model.study_area, model.read_config = saved
+		want = pca_preview.preview(files, vec['shp'], 'cat', ['1', '2'], 25)
+	assert r['variables'] == [os.path.basename(f) for f in files] and r['more'] == 0
+	assert [a['id'] for a in r['areas']] == ['1', '2']
+	for a, w in zip(r['areas'], want):
+		assert a['percents'] == [p for _, _, p in w['axes']] and a['loadings'] == w['loadings'] and a['constant'] == []
+		assert len(a['loadings']) == len(files) and all(len(x) == len(files) for x in a['loadings'])
+	print('test_app_preview: OK')
 
 
 if __name__ == '__main__':
@@ -227,4 +325,5 @@ if __name__ == '__main__':
 	test_option()
 	test_grass()
 	test_preview_grass()
+	test_app_preview()
 	print('All the tests passed')

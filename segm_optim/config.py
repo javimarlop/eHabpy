@@ -63,7 +63,9 @@ PA_BUFFER = 500
 # así que las unidades de las variables no influyen.
 SEGM_PCA = True
 
-# EJES DE LA PCA QUE SE SEGMENTAN (solo con SEGM_PCA = True):
+# EJES DE LA PCA QUE SE SEGMENTAN (solo con SEGM_PCA = True): SEGM_PCA_AXES, un número de ejes, o si no
+# SEGM_PCA_VARIANCE, un % de la varianza.
+# SEGM_PCA_VARIANCE:
 # 0       = Los tres primeros (como siempre).
 # 50-100  = Los primeros que juntos explican al menos ese % de la varianza (p. ej. 90; 100 = todos).
 # Con más variables, parte de la varianza pasa a los ejes 4, 5...: con un % se segmentan también (cada eje
@@ -72,6 +74,13 @@ SEGM_PCA = True
 # los tres por defecto), y csv/pca_axes_<área>.csv (en los resultados, pca_axes_<área>.csv), cada eje.
 # Antes de segmentar, python3 pca_preview.py --variance 90 dice cuántos ejes necesita cada área.
 SEGM_PCA_VARIANCE = 0
+# SEGM_PCA_AXES:
+# 0       = Los de SEGM_PCA_VARIANCE (por defecto).
+# 1 o más = Los primeros N ejes en todas las áreas (todos si un área tiene menos), sea cual sea
+#           SEGM_PCA_VARIANCE. Para elegirlos, python3 pca_preview.py --axes N (o "See the PCA in the
+#           study area" en la app) dice cuánto carga cada variable en cada eje y qué parte de cada variable
+#           recogen los N primeros.
+SEGM_PCA_AXES = 0
 
 # RECORTE DE LOS VALORES EXTREMOS (percentil, de 0 a menos de 50):
 # 0   = Sin recorte.
