@@ -427,3 +427,14 @@ table.t tr.bad td { background: var(--err-soft); }
 .area-file:first-child { border-top: none; }
 .cond-list { display: flex; flex-direction: column; gap: 4px; }
 .cond-list .row { gap: 6px; }
+
+/* The viewer of the PCA of the study areas (HFT mapping, Axes of the PCA) */
+.warn-text { color: var(--warn); }
+table.t td.pca-l { min-width: 52px; }
+table.t .pca-off { opacity: .45; }
+table.t th.click { cursor: pointer; }
+table.t th.click:hover { color: var(--ink); }
+.pca-bar { display: inline-block; width: 64px; height: 6px; margin-right: 6px; vertical-align: middle; overflow: hidden;
+	background: var(--line-2); border-radius: 3px; }
+.pca-bar > span { display: block; height: 100%; background: var(--brand); }
+.pca-bar.low > span { background: var(--warn); }

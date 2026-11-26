@@ -47,11 +47,11 @@ FILE = 'parameters.yaml'  # the name of the one of each scenario (run_hft.py)
 APP_RECIPE = os.path.join(hft_state.HERE, 'app_recipe.yaml')  # the last recipe of the app (app/ehabitat_app/paths.py)
 
 # The options of config.py of each section, as their values (type) are checked when loaded: bool, int, number (both
-# finite, within BOUNDS), pca_variance (0 or 50-100), choice (one of the list), cuts (whole percentages 1-99),
-# thresholds, threshold (a method or a number of the thresholds) and cut (of the tree)
+# finite, within BOUNDS), pca_variance (0 or 50-100), pca_axes (0 or a number of axes), choice (one of the list), cuts
+# (whole percentages 1-99), thresholds, threshold (a method or a number of the thresholds) and cut (of the tree)
 MODEL = {
 	'PA_BUFFER': 'number', 'CLIP_TO_PA': 'bool', 'SEGM_PCA': 'bool', 'SEGM_PCA_VARIANCE': 'pca_variance',
-	'CLIP_PERCENTILE': 'number',
+	'SEGM_PCA_AXES': 'pca_axes', 'CLIP_PERCENTILE': 'number',
 	'SEGM_THRESHOLDS': 'thresholds', 'SMALL_SEGM_RADIUS': 'int', 'SMALL_SEGM_MERGE': ('frequent', 'similar'),
 	'MIN_SEGM_SIZE': 'int', 'THRESHOLD_METHOD': 'threshold', 'THRESHOLD_ALPHA': 'number',
 	'MORAN_NEIGHBOURS': ('rook', 'queen'), 'CLASS_METHOD': ('ward_area', 'ward_area_kmeans', 'ward'),
@@ -69,12 +69,17 @@ BOUNDS = {'PA_BUFFER': (0, None), 'CLIP_PERCENTILE': (0, 49.9), 'SMALL_SEGM_RADI
 # The value that the scripts use when config.py does not have the option (an older config.py, kept by the updates):
 # saved as such, so that the file gives the method that was run (getattr of segmentation_pca_par.py, moranvar.py and
 # get_mean_median_var.py, read_config of moranvar_plots.R, DEFAULTS of similarity.py)
-USED = {'PA_BUFFER': 0, 'CLIP_TO_PA': False, 'SEGM_PCA': True, 'SEGM_PCA_VARIANCE': 0, 'CLIP_PERCENTILE': 0,
+USED = {'PA_BUFFER': 0, 'CLIP_TO_PA': False, 'SEGM_PCA': True, 'SEGM_PCA_VARIANCE': 0, 'SEGM_PCA_AXES': 0,
+        'CLIP_PERCENTILE': 0,
         'SEGM_THRESHOLDS': list(hft_state.DEFAULT_THRESHOLDS), 'SMALL_SEGM_RADIUS': 5, 'SMALL_SEGM_MERGE': 'frequent',
         'MIN_SEGM_SIZE': 0, 'THRESHOLD_METHOD': 'f', 'THRESHOLD_ALPHA': 0.5, 'MORAN_NEIGHBOURS': 'rook',
         'CLASS_METHOD': 'ward_area', 'SIMIL': 2, 'SIMIL_CUTS': [10, 25, 50, 75, 90], 'HFT_SUBCLASSES': False,
         'STAT_AGG': 'mean', 'ECOSIM_CUT': '', 'ECOSIM_RESOLUTION': 0, 'ECOSIM_CLASSES': 'hft', 'ECOSIM_STAT': 'mean',
         'ECOSIM_COVARIANCE': 'mcd', 'ECOSIM_NEIGHBOURS': 8, 'ECOSIM_MIN_COVER': 0.5}
+# Options of the model added after the first parameters files: a file without one of them (saved before it existed)
+# was made with its value of USED, which a load sets (so that, e.g., the % of the variance of an older file is not
+# overridden by the number of axes of the PCA of config.py)
+LATER = ('SEGM_PCA_VARIANCE', 'SEGM_PCA_AXES')
 LOCAL = ('GRASSDB', 'GRASSLOC', 'STUDY_AREA', 'COL_ID', 'RESOLUTION', 'ENV_VARS0', 'ENV_VARS', 'INVARS_FOLDER',
          'SCENARIO', 'FORCE_RESTART', 'ECOSIM_AREA', 'ECOSIM_ECOREGIONS', 'ECOSIM_MARINE')
 THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
@@ -280,6 +285,11 @@ def check(name, value, thresholds=None):
 			return repr(int(v) if float(v).is_integer() else v)  # 90.0 as 90, as config.py has it
 		except ValueError as e:
 			raise ValueError(str(e).replace(' in config.py', '')) from e
+	if kind == 'pca_axes':
+		try:
+			return repr(pca_axes.axes_option({name: value}))  # 4.0 as 4
+		except ValueError as e:
+			raise ValueError(str(e).replace(' in config.py', '')) from e
 	if kind == 'cuts':
 		if not (isinstance(value, list) and value and all(isinstance(x, int) and not isinstance(x, bool) and 1 <= x <= 99
 		                                                  for x in value)):
@@ -343,7 +353,10 @@ def plan(data, cfg=None, study_area=None):
 	except ValueError:
 		ths = None
 	for sec, names in SECTIONS.items():
-		for name, value in (data.get(sec) or {}).items():
+		values = dict(data.get(sec) or {})
+		filled = {n for n in LATER if n not in values} if sec == 'model' and values else set()
+		values.update({n: USED[n] for n in filled})
+		for name, value in values.items():
 			if name not in names:
 				out['ignored'].append(f'{name} ({"of a study area or a computer" if name in LOCAL else "unknown"})')
 				continue
@@ -352,7 +365,7 @@ def plan(data, cfg=None, study_area=None):
 			except ValueError as e:
 				out['errors'].append(str(e))
 				continue
-			if name not in cfg or repr(model_value(name, cfg)) != lit:
+			if (name not in cfg and name not in filled) or repr(model_value(name, cfg)) != lit:
 				out['options'].append({'name': name, 'section': sec, 'old': model_value(name, cfg), 'new': value,
 				                       'literal': lit})
 	rec = portable_recipe(data.get('recipe'))

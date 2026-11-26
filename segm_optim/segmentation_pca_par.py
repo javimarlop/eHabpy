@@ -41,7 +41,9 @@ except ValueError as e:
 	sys.exit(f'ERROR: {e}')
 K_DIGITS, CAT_DIGITS = hft_state.segm_id_layout(SEGM_THRESHOLDS)
 SEGM_PCA = getattr(sys.modules['config'], 'SEGM_PCA', True)
-try:  # the axes of the PCA: 0 = the first 3; a % = the first ones that explain at least that % of the variance
+try:  # the axes of the PCA: a number of axes (SEGM_PCA_AXES); else 0 = the first 3, a % = the first ones that explain at
+	# least that % of the variance (SEGM_PCA_VARIANCE)
+	SEGM_PCA_AXES = pca_axes.axes_option(vars(sys.modules['config']))
 	SEGM_PCA_VARIANCE = pca_axes.variance_option(vars(sys.modules['config']))
 except ValueError as e:
 	sys.exit(f'ERROR: {e}')
@@ -321,9 +323,9 @@ def fsegm(pa):
 		if len(a) == 0: a = [1, 625]
 		minarea = MIN_SEGM_SIZE if MIN_SEGM_SIZE > 0 else int(np.sqrt(int(a[1])))
 
-		# Input of i.segment, which scales each map to its range: axes of the PCA (PC1-PC3, or those that explain
-		# SEGM_PCA_VARIANCE % of the variance: pca_axes.py), or copies of the variables on the working region, so
-		# that their range is also that of the region and not of the whole map
+		# Input of i.segment, which scales each map to its range: axes of the PCA (PC1-PC3, the first SEGM_PCA_AXES, or
+		# those that explain SEGM_PCA_VARIANCE % of the variance: pca_axes.py), or copies of the variables on the working
+		# region, so that their range is also that of the region and not of the whole map
 		if SEGM_PCA:
 			out = grass.read_command('i.pca', flags='n', input=ENV_VARS0, output=pa44x, overwrite=True)
 			print('Eigen values, (vectors), and [percent importance]:\n' + out.rstrip(), flush=True)
@@ -336,17 +338,18 @@ def fsegm(pa):
 				                   'variable has the same value in every pixel of the area (e.g. all 0)? Take it out of the '
 				                   'set, or segment without PCA (SEGM_PCA = False)')
 			if len(axes) == len(SEGM_VARS):
-				k = pca_axes.choose([p for _, _, p in axes], SEGM_PCA_VARIANCE)
+				k = pca_axes.choose([p for _, _, p in axes], SEGM_PCA_VARIANCE, SEGM_PCA_AXES)
 				pca_axes.write(os.path.join('csv', f'pca_axes_{pa}.csv'), axes, k)
-				print(f'Segmentation of {pa}: {pca_axes.summary(axes, k, SEGM_PCA_VARIANCE)}', flush=True)
-			elif SEGM_PCA_VARIANCE:
+				print(f'Segmentation of {pa}: {pca_axes.summary(axes, k, SEGM_PCA_VARIANCE, SEGM_PCA_AXES)}', flush=True)
+			elif SEGM_PCA_VARIANCE and not SEGM_PCA_AXES:
 				raise RuntimeError(f'the % of the variance of the axes of the PCA of area {pa} could not be read from i.pca '
 				                   f'({len(axes)} axes of {len(SEGM_VARS)}), needed by SEGM_PCA_VARIANCE = '
-				                   f'{SEGM_PCA_VARIANCE:g}: set it to 0 (the first 3 axes)')
-			else:  # an i.pca that prints its table otherwise: the first 3 axes, as before, without their %
-				k = min(3, len(SEGM_VARS))
+				                   f'{SEGM_PCA_VARIANCE:g}: set it to 0 (the first 3 axes), or give a number of axes '
+				                   '(SEGM_PCA_AXES)')
+			else:  # an i.pca that prints its table otherwise: the first 3 axes as before (or SEGM_PCA_AXES), without their %
+				k = min(SEGM_PCA_AXES or 3, len(SEGM_VARS))
 				print(f'WARNING: the % of the variance of the axes of the PCA of {pa} could not be read from i.pca: the '
-				      'segmentation uses the first 3 axes', flush=True)
+				      f'segmentation uses the first {k} axes', flush=True)
 			segm_input = [f"{pa44x}.{i}" for i in range(1, k + 1)]
 		else:
 			segm_input = []

@@ -11,7 +11,7 @@ from . import inputs, jobs, paths
 
 import hft_state  # segm_optim (paths puts it in sys.path)
 import pca_axes  # segm_optim
-import pca_preview  # segm_optim
+import pca_preview as pca_view  # segm_optim (not pca_preview: the function of the app below has that name)
 import var_order  # segm_optim
 
 THRESHOLD_METHODS = ('f', 'gs', 'gs_fixed', 'crossing', 'crossing_first')
@@ -48,17 +48,23 @@ PARAMS = [
 	         'not matter.'},
 	{'name': 'SEGM_PCA_VARIANCE', 'group': 'segm', 'type': 'pca_variance', 'default': 0, 'min': pca_axes.MIN_VARIANCE,
 	 'max': 100, 'step': 1, 'unit': '%', 'label': 'Axes of the PCA', 'only_if': {'SEGM_PCA': True},
-	 'help': 'Unticked: the first 3 axes of the PCA, as always. Ticked: the first axes that together explain at least '
-	         'this % of the variance (100 = all of them), so that what the first three leave out (e.g. a variable '
-	         'added that loads on the fourth axis) is also segmented; more axes give more, smaller segments, and each '
-	         'axis used weighs the same as the first one in the segmentation (i.segment scales each layer to its '
-	         'range), however little of the variance it explains. Every '
-	         'area has its own PCA, so the number of axes can differ between areas. The log of the segmentation says '
-	         'which axes it used and how much of the variance they explain (also with the 3 by default), and so do '
-	         'processing_metadata.txt and pca_axes_<id>.csv in the results. "Check in the study area" computes the same '
-	         'PCA of the variables in each study area chosen, without segmenting, and says how much the first 3 axes '
-	         'explain and how many the % of the slider needs (move it to see other %). Changing it runs the segmentation '
-	         'again.'},
+	 'help': 'The axes of the PCA that the segmentation uses: the first 3, as always; a number of axes, the first ones '
+	         'in every area (SEGM_PCA_AXES); or the first axes that together explain at least the % of the slider '
+	         '(100 = all of them; SEGM_PCA_VARIANCE). More axes segment also what the first three leave out (e.g. a '
+	         'variable added that loads on the fourth axis), and give more, smaller segments; each axis used weighs the '
+	         'same as the first one in the segmentation (i.segment scales each layer to its range), however little of '
+	         'the variance it explains. Every area has its own PCA, so with a % the number of axes can differ between '
+	         'areas. "See the PCA in the study area" computes the same PCA of the variables in each study area chosen, '
+	         'without segmenting, and shows how much each variable loads on each axis (its correlation with it), how much '
+	         'of the variance each axis explains and how much of each variable the axes chosen take (a variable that '
+	         'they hardly take is hardly segmented); "Use the first N axes" there sets the number. The log of the '
+	         'segmentation says which axes it used and how much of the variance they explain, and so do '
+	         'processing_metadata.txt and pca_axes_<id>.csv in the results. Changing it runs the segmentation again.'},
+	# the number of axes of the field above (its control sets both options): 0 = those of SEGM_PCA_VARIANCE
+	{'name': 'SEGM_PCA_AXES', 'group': 'segm', 'type': 'pca_axes', 'default': 0, 'min': 1, 'step': 1,
+	 'label': 'Number of axes of the PCA', 'within': 'SEGM_PCA_VARIANCE', 'only_if': {'SEGM_PCA': True},
+	 'help': 'The first N axes of the PCA in every area (all of them if an area has fewer); 0 = those of "Axes of the '
+	         'PCA" (SEGM_PCA_VARIANCE), which a number overrides.'},
 	{'name': 'CLIP_PERCENTILE', 'group': 'segm', 'type': 'number', 'default': 0, 'min': 0, 'max': 49.9, 'step': 0.1,
 	 'unit': 'percentile', 'label': 'Clipping of extreme values',
 	 'help': '0 = no clipping. > 0: before the segmentation and the classification, each layer is clipped to its '
@@ -258,6 +264,17 @@ def _literal(p, value, fixed=None, thresholds=None):
 		if t == 'int' or v.is_integer():
 			return str(int(round(v)))
 		return repr(v)
+	if t == 'pca_axes':  # 0 = the axes of SEGM_PCA_VARIANCE, or a number of axes; a text is a number typed in the form
+		# (with "A number of axes"), which cannot be empty nor 0
+		typed = isinstance(value, str)
+		bad = ValueError(f"{p['label']}: write a whole number of axes, {p['min']} or more")
+		try:
+			v = float(value) if typed else float(value or 0)
+		except (TypeError, ValueError):
+			raise bad
+		if not math.isfinite(v) or not v.is_integer() or v < 0 or ((typed or v != 0) and v < p['min']):
+			raise bad
+		return str(int(v))
 	if t == 'pca_variance':  # 0 = the first 3 axes, or a % of the variance
 		try:
 			v = float(value or 0)
@@ -345,9 +362,10 @@ PCA_PREVIEW_MAX = 20  # areas computed by the preview of the axes of the PCA (th
 def pca_preview(buffer=None):
 	"""The axes of the standardized PCA of the variables of the set of the model in each study area chosen (at most
 	PCA_PREVIEW_MAX), before the segmentation (pca_preview.preview, the same as i.pca of the segmentation): {'variables',
-	'areas': [{id, pixels, percents}], 'more' (areas left out)}. BUFFER: PA_BUFFER of the form (else that of config.py)."""
+	'areas': [{id, pixels, percents, loadings (for each axis, the correlation of each variable with it), constant}],
+	'more' (areas left out)}. BUFFER: PA_BUFFER of the form (else that of config.py)."""
 	cfg = read_config()
-	files = pca_preview.study_inputs(cfg)[0]
+	files = pca_view.study_inputs(cfg)[0]
 	if len(files) < 3:
 		raise ValueError('the PCA needs at least 3 variables in the set of the model (Input variables)')
 	sa = study_area()
@@ -356,13 +374,13 @@ def pca_preview(buffer=None):
 	ids = [str(i) for i in (sa.get('ids') or [])]
 	more = max(0, len(ids) - PCA_PREVIEW_MAX)
 	buf = pa_buffer() if buffer in (None, '') else float(buffer)
-	res = pca_preview.preview(files, sa['file'], sa.get('col_id') or 'cat', ids[:PCA_PREVIEW_MAX] or None, buf,
+	res = pca_view.preview(files, sa['file'], sa.get('col_id') or 'cat', ids[:PCA_PREVIEW_MAX] or None, buf,
 	                          sa.get('layer'), limit=PCA_PREVIEW_MAX)
 	if not ids:
-		more = max(0, len(pca_preview.area_boxes(sa['file'], sa.get('col_id') or 'cat', None, sa.get('layer'))) - len(res))
+		more = max(0, len(pca_view.area_boxes(sa['file'], sa.get('col_id') or 'cat', None, sa.get('layer'))) - len(res))
 	return {'variables': [os.path.basename(f) for f in files], 'more': more,
 	        'areas': [{'id': r['id'], 'pixels': r['pixels'], 'percents': [p for _, _, p in r['axes']],
-	                   'constant': r.get('constant', [])} for r in res]}
+	                   'loadings': r.get('loadings', []), 'constant': r.get('constant', [])} for r in res]}
 
 
 # Study area and IDs --------------------------------------------------------------------------------------------------

@@ -2652,6 +2652,99 @@ async function areaDialog(purpose = 'study', preset = {}) {
 	view.pre = null; view.bar = null;
 }
 
+// The PCA of the study areas before the segmentation (model.pca_preview) ------------------------------------------
+const PCA_LOW = 50; // a variable of which the axes used take less than this % is hardly segmented
+const varLabel = f => String(f).replace(/\.tiff?$/i, '');
+const pcaSum = (ps, k) => ps.slice(0, k).reduce((a, b) => a + b, 0);
+const pcaAxesText = k => k === 1 ? 'PC1' : `PC1–PC${k}`;
+
+// How many axes the segmentation uses of an area whose axes explain PS % of the variance, as pca_axes.choose: MODE
+// 'axes', the first N; 'variance', the fewest first ones that explain at least V % (100 % = all of them: the % of
+// i.pca, rounded, may add up to 99.99 or 100.01); else the first 3
+function pcaAxesUsed(ps, mode, n, v) {
+	if (mode === 'axes' && n >= 1) return Math.min(Math.round(n), ps.length);
+	if (mode !== 'variance') return Math.min(3, ps.length);
+	if (v >= 100) return ps.length;
+	let s = 0;
+	for (let i = 0; i < ps.length; i++) { s += ps[i]; if (s >= v - 1e-6) return i + 1; }
+	return ps.length;
+}
+
+// The % of the variance of each variable that the first K axes take: the sum of its squared loadings on them
+// (LOADINGS: for each axis, the correlation of each variable with it), as pca_preview.captured
+function pcaTaken(loadings, k) {
+	if (!loadings || !loadings.length) return [];
+	return loadings[0].map((_, j) => 100 * loadings.slice(0, k).reduce((s, ax) => s + ax[j] ** 2, 0));
+}
+
+// The viewer of the PCA of the study areas (PV, model.pca_preview): the loadings of every variable on every axis,
+// what each axis explains and how much of each variable the first k axes take; AXES_OF(percents) gives the axes of the
+// choice of the form (k at first), and USE(k) is called with "Use the first k axes"
+function pcaViewer(pv, axesOf, use) {
+	const names = pv.variables.map(varLabel);
+	const areas = pv.areas.filter(a => a.percents.length && a.loadings && a.loadings.length);
+	if (!areas.length) return void toast('No study area with a PCA: see the messages under "Axes of the PCA".', 'warn');
+	let area = areas[0];
+	let k = axesOf(area.percents);
+	const pick = el('select', {}, ...areas.map((a, i) => el('option', {value: i}, `ID ${a.id} (${a.pixels.toLocaleString()} pixels)`)));
+	const kIn = el('input', {type: 'range', min: 1, step: 1, style: {width: '200px'}});
+	const kShown = el('b', {});
+	const summary = el('div', {});
+	const wrap = el('div', {class: 'table-wrap'});
+	const main = ax => names.map((nm, j) => [nm, ax[j]]).sort((x, y) => Math.abs(y[1]) - Math.abs(x[1]))
+		.filter((x, i) => i === 0 || (i < 3 && Math.abs(x[1]) >= 0.4));
+	const signed = x => Math.abs(x) < 0.005 ? '0.00' : (x < 0 ? '−' : '+') + Math.abs(x).toFixed(2);
+	let btn = null;
+	function draw() {
+		const n = area.percents.length;
+		k = Math.max(1, Math.min(k, n));
+		kIn.max = n; kIn.value = k; kShown.textContent = pcaAxesText(k);
+		const taken = pcaTaken(area.loadings, k);
+		const low = names.map((nm, j) => [nm, taken[j]]).filter(x => x[1] < PCA_LOW).sort((x, y) => x[1] - y[1]);
+		summary.replaceChildren(`${pcaAxesText(k)} explain ${pcaSum(area.percents, k).toFixed(1)} % of the variance of ID ${area.id}; `,
+			low.length ? el('span', {class: 'warn-text'}, `they take less than ${PCA_LOW} % of ${low.map(x => `${x[0]} (${x[1].toFixed(0)} %)`).join(', ')}, which would hardly be segmented: look on which axes they load.`)
+				: `they take at least ${PCA_LOW} % of every variable.`);
+		let cum = 0;
+		const cums = area.percents.map(p => (cum += p));
+		const off = i => i >= k ? ' pca-off' : '';
+		const head = el('tr', {}, el('th', {}, 'Variable'),
+			...area.percents.map((p, i) => el('th', {class: 'num click' + off(i),
+				title: `PC${i + 1}: ${p.toFixed(1)} % of the variance; mainly ${main(area.loadings[i]).map(x => `${x[0]} (${signed(x[1])})`).join(', ')}. Click: the first ${i + 1} axes`,
+				onclick: () => { k = i + 1; draw(); }}, `PC${i + 1}`, el('div', {class: 'faint'}, p.toFixed(1) + ' %'))),
+			el('th', {class: 'num'}, `Taken by ${pcaAxesText(k)}`));
+		const rows = names.map((nm, j) => el('tr', {}, el('td', {class: 'vname'}, nm),
+			...area.loadings.map((ax, i) => {
+				const x = ax[j], a = Math.min(1, Math.abs(x));
+				return el('td', {class: 'num pca-l' + off(i), title: `${nm} on PC${i + 1}: ${signed(x)}`,
+					style: {background: x >= 0 ? `rgba(201, 122, 38, ${(0.75 * a).toFixed(3)})` : `rgba(59, 106, 160, ${(0.75 * a).toFixed(3)})`,
+						fontWeight: a >= 0.5 ? '650' : null}}, signed(x));
+			}),
+			el('td', {class: 'num'}, el('span', {class: 'pca-bar' + (taken[j] < PCA_LOW ? ' low' : '')}, el('span', {style: {width: Math.min(100, taken[j]).toFixed(1) + '%'}})),
+				el('span', {class: taken[j] < PCA_LOW ? 'warn-text' : ''}, taken[j].toFixed(0) + ' %'))));
+		const foot = el('tr', {class: 'cat-sep'}, el('td', {}, 'Cumulative'),
+			...cums.map((c, i) => el('td', {class: 'num' + off(i)}, c.toFixed(1) + ' %')), el('td', {}));
+		wrap.replaceChildren(el('table', {class: 't'}, el('thead', {}, head), el('tbody', {}, ...rows, foot)));
+		if (btn) btn.textContent = `Use the first ${k} axes`;
+	}
+	pick.addEventListener('change', () => { area = areas[Number(pick.value)]; k = axesOf(area.percents); draw(); });
+	kIn.addEventListener('input', () => { k = Number(kIn.value); draw(); });
+	const body = el('div', {class: 'stack', style: {gap: '10px'}},
+		el('div', {class: 'small muted'}, 'The standardized PCA of the variables of the model in the study area, as the segmentation computes it. ',
+			'Each cell is the loading of a variable on an axis: its correlation with the axis, from −1 to 1 (orange positive, blue negative; ',
+			'the sign of an axis is arbitrary, what matters is which variables load strongly and whether they go the same way or opposite ways). ',
+			`The last column is the % of the variance of each variable that the first axes take (the sum of its squared loadings; 100 % with all of them): under ${PCA_LOW} %, the segmentation hardly sees it. `,
+			'Every axis used weighs the same as the first one in the segmentation, however little of the variance it explains.'),
+		el('div', {class: 'inline'}, areas.length > 1 ? pick : el('b', {}, `ID ${area.id} (${area.pixels.toLocaleString()} pixels)`),
+			el('span', {class: 'small muted'}, 'Axes:'), kIn, kShown),
+		summary, wrap,
+		pv.more ? el('div', {class: 'small faint'}, `(${pv.more} more study areas not computed)`) : '');
+	const done = modal({title: 'PCA of the variables', wide: true, body,
+		buttons: [{label: 'Close', result: null}, {label: 'Use the first axes', cls: 'primary', value: () => k}]});
+	btn = body.closest('.modal').querySelector('footer .btn.primary');
+	draw();
+	done.then(v => { if (v) use(v); });
+}
+
 // 3. HFT mapping =====================================================================================================
 pages.model = (() => {
 	const S = {params: [], saved: {}, status: null};
@@ -2699,51 +2792,74 @@ pages.model = (() => {
 			return el('div', {class: 'inline'}, c, fx, dl);
 		}
 		if (p.type === 'pca_variance') {
-			// off: the first 3 axes (0); on: the axes that explain at least the % of the slider
-			c = el('input', {type: 'checkbox', id: 'p-' + p.name});
-			c.checked = Number(p.value) > 0;
+			// the axes of the PCA: the first 3 (both options 0), a number of axes (SEGM_PCA_AXES, the option within this
+			// field) or the axes that explain at least the % of the slider (SEGM_PCA_VARIANCE); a number of axes
+			// overrides the %, as in the segmentation (pca_axes.choose)
+			const pa = S.params.find(q => q.within === p.name);
+			const nAxes = Number(pa && pa.value) || 0;
+			c = el('select', {id: 'p-' + p.name},
+				el('option', {value: 'first3'}, 'The first 3 axes'),
+				el('option', {value: 'axes'}, 'A number of axes'),
+				el('option', {value: 'variance'}, 'The axes that explain a % of the variance'));
+			c.value = nAxes > 0 ? 'axes' : Number(p.value) > 0 ? 'variance' : 'first3';
+			const nIn = el('input', {type: 'number', id: 'p-' + pa.name, min: pa.min, step: 1,
+				value: nAxes > 0 ? nAxes : 4, style: {width: '70px'}});
+			const nBox = el('span', {class: 'inline'}, el('span', {class: 'small muted'}, 'the first'), nIn, el('span', {class: 'unit'}, 'axes'));
 			const r = el('input', {type: 'range', id: 'p-' + p.name + '-pct', min: p.min, max: p.max, step: p.step || 1,
 				value: Number(p.value) > 0 ? p.value : 90, style: {width: '160px'}});
 			const shown = el('b', {});
-			// the axes in the study area before the segmentation (model.pca_preview): what the first 3 explain and how
-			// many the % of the slider needs, recomputed when it moves
+			const vBox = el('span', {class: 'inline'}, el('span', {class: 'small muted'}, 'at least'), r, shown);
+			// the PCA in the study areas before the segmentation (model.pca_preview): for each area, what the axes
+			// chosen explain and the variables they hardly take, recomputed when the choice changes; the viewer
+			// (pcaViewer) shows the loadings of every variable on every axis
 			const out = el('div', {class: 'small', style: {width: '100%'}});
 			let pv = null;
-			// as pca_axes.choose: 100 % = all the axes (the % of i.pca, rounded, may add up to 99.99 or 100.01)
-			const need = (ps, v) => { if (v >= 100) return ps.length; let s = 0; for (let i = 0; i < ps.length; i++) { s += ps[i]; if (s >= v - 1e-6) return i + 1; } return ps.length; };
-			const sum = (ps, k) => ps.slice(0, k).reduce((a, b) => a + b, 0);
+			const axesOf = ps => pcaAxesUsed(ps, c.value, Number(nIn.value), Number(r.value));
 			const showPv = () => {
 				if (!pv) return;
-				const v = Number(r.value);
 				if (!pv.areas.length) { out.textContent = 'No study area with those IDs in the file of the study areas.'; return; }
-				out.replaceChildren(...pv.areas.map(a => a.constant && a.constant.length
-					? el('div', {}, el('b', {}, `ID ${a.id}`), `: ${a.constant.join(', ')} has the same value in every pixel: the PCA (and the segmentation) cannot be computed with it; take it out of the set.`)
-					: a.percents.length
-					? el('div', {}, el('b', {}, `ID ${a.id}`), ` (${a.pixels.toLocaleString()} pixels): the first 3 axes explain ${sum(a.percents, 3).toFixed(1)} % of the variance; ${v} % needs ${need(a.percents, v)} of ${a.percents.length} axes (${sum(a.percents, need(a.percents, v)).toFixed(1)} %).`,
-						el('span', {class: 'faint'}, ' ' + a.percents.map((p, i) => `PC${i + 1} ${p.toFixed(1)}`).join(', ')))
-					: el('div', {}, `ID ${a.id}: too few pixels with data in every variable (${a.pixels}).`)),
-					pv.more ? el('div', {class: 'faint'}, `(${pv.more} more study areas not computed)`) : '');
+				const names = pv.variables.map(varLabel);
+				out.replaceChildren(...pv.areas.map(a => {
+					if (a.constant && a.constant.length) return el('div', {}, el('b', {}, `ID ${a.id}`), `: ${a.constant.join(', ')} has the same value in every pixel: the PCA (and the segmentation) cannot be computed with it; take it out of the set.`);
+					if (!a.percents.length) return el('div', {}, `ID ${a.id}: too few pixels with data in every variable (${a.pixels}).`);
+					const k = axesOf(a.percents);
+					const low = pcaTaken(a.loadings, k).map((t, j) => [names[j], t]).filter(x => x[1] < PCA_LOW).sort((x, y) => x[1] - y[1]);
+					return el('div', {}, el('b', {}, `ID ${a.id}`), ` (${a.pixels.toLocaleString()} pixels): ${pcaAxesText(k)} explain ${pcaSum(a.percents, k).toFixed(1)} % of the variance`
+						+ (c.value === 'first3' || k === 3 ? '' : ` (the first 3, ${pcaSum(a.percents, 3).toFixed(1)} %)`) + '; ',
+						low.length ? el('span', {class: 'warn-text'}, `they take less than ${PCA_LOW} % of ${low.map(x => `${x[0]} (${x[1].toFixed(0)} %)`).join(', ')}`)
+							: `they take at least ${PCA_LOW} % of every variable`, '.');
+				}),
+				pv.more ? el('div', {class: 'faint'}, `(${pv.more} more study areas not computed)`) : '',
+				el('div', {}, el('button', {class: 'btn ghost small', type: 'button', onclick: openViewer}, 'Loadings of the variables on each axis…')));
 			};
+			const useAxes = k => { c.value = 'axes'; nIn.value = k; sync(); changed(); };
+			const openViewer = () => { if (pv) pcaViewer(pv, axesOf, useAxes); };
 			const check = el('button', {class: 'btn ghost small', type: 'button',
-				title: 'The PCA of the variables of the set of the model in each study area chosen, as the segmentation computes it, without segmenting'},
-				'Check in the study area');
+				title: 'The PCA of the variables of the set of the model in each study area chosen, as the segmentation computes it, without segmenting: the loadings of each variable on each axis'},
+				'See the PCA in the study area');
 			check.addEventListener('click', async () => {
 				check.disabled = true; out.textContent = 'Computing the PCA of the variables…';
 				try {
 					const pb = $('#p-PA_BUFFER');
 					pv = await api('pca_preview', pb && pb.value !== '' ? Number(pb.value) : null);
+					nIn.max = pv.variables.length;
 					showPv();
+					openViewer();
 				} catch (e) { out.textContent = ''; fail(e); }
 				check.disabled = false;
 			});
-			// the slider moves also unticked, to see in the check how many axes each % needs
-			const sync = () => { shown.textContent = r.value + ' %'; shown.classList.toggle('faint', !c.checked); showPv(); };
+			const sync = () => {
+				shown.textContent = r.value + ' %';
+				nBox.classList.toggle('hidden', c.value !== 'axes');
+				vBox.classList.toggle('hidden', c.value !== 'variance');
+				showPv();
+			};
 			c.addEventListener('change', () => { sync(); changed(); });
 			r.addEventListener('input', () => { sync(); changed(); });
+			nIn.addEventListener('input', () => { sync(); changed(); });
 			sync();
 			return el('div', {class: 'stack', style: {gap: '6px', width: '100%'}},
-				el('div', {class: 'inline'}, el('label', {class: 'check'}, c,
-					el('span', {class: 'small muted'}, 'the axes that explain at least')), r, shown, check), out);
+				el('div', {class: 'inline'}, c, nBox, vBox, check), out);
 		}
 		if (p.type === 'number' || p.type === 'int') {
 			c = el('input', {type: 'number', id: 'p-' + p.name, min: p.min, max: p.max, step: p.step || 'any', value: p.value});
@@ -2775,6 +2891,7 @@ pages.model = (() => {
 	function defText(p) {
 		if (p.type === 'bool') return p.default ? 'on' : 'off';
 		if (p.type === 'pca_variance') return Number(p.default) > 0 ? p.default + ' % of the variance' : 'the first 3 axes';
+		if (p.type === 'pca_axes') return Number(p.default) > 0 ? `the first ${p.default} axes` : 'those of the %';
 		if (p.type === 'thresholds' || p.type === 'cuts') return p.default.join(', ');
 		if (p.type === 'select' || p.type === 'threshold') return (p.choices.find(c => String(c[0]) === String(p.default)) || [, p.default])[1];
 		if (p.default === '') return 'empty';
@@ -2787,11 +2904,13 @@ pages.model = (() => {
 		box.textContent = '';
 		for (const [g, title] of data.groups) {
 			const card = el('div', {class: 'card'}, el('div', {class: 'card-head'}, el('h2', {}, title)));
-			for (const p of data.params.filter(p => p.group === g)) {
+			// an option within the field of another (SEGM_PCA_AXES, set by the control of SEGM_PCA_VARIANCE) has no field
+			for (const p of data.params.filter(p => p.group === g && !p.within)) {
+				const names = [p.name, ...data.params.filter(q => q.within === p.name).map(q => q.name)].join(', ');
 				card.append(el('div', {class: 'field', id: 'f-' + p.name},
-					el('label', {for: 'p-' + p.name, title: p.name}, p.label),
+					el('label', {for: 'p-' + p.name, title: names}, p.label),
 					el('div', {class: 'ctl'}, ctl(p), el('span', {class: 'def'}, 'Default: ' + defText(p))),
-					el('div', {class: 'help'}, p.help, ' ', el('code', {class: 'faint'}, p.name))));
+					el('div', {class: 'help'}, p.help, ' ', el('code', {class: 'faint'}, names))));
 			}
 			box.append(card);
 		}
@@ -2809,7 +2928,9 @@ pages.model = (() => {
 			const c = $('#p-' + p.name);
 			if (!c) continue;
 			out[p.name] = p.type === 'bool' ? c.checked
-				: p.type === 'pca_variance' ? (c.checked ? Number($('#p-' + p.name + '-pct').value) : 0)
+				: p.type === 'pca_variance' ? (c.value === 'variance' ? Number($('#p-' + p.name + '-pct').value) : 0)
+				// a number of axes as typed (a text, which must be 1 or more: model._literal), else 0
+				: p.type === 'pca_axes' ? ($('#p-' + p.within).value === 'axes' ? c.value.trim() : 0)
 				: p.type === 'select' && p.cast === 'int' ? Number(c.value)
 				: (p.type === 'number' || p.type === 'int') ? (c.value === '' ? null : Number(c.value)) : c.value;
 		}
@@ -2835,10 +2956,12 @@ pages.model = (() => {
 	function markChanged() {
 		const v = values();
 		let unsaved = 0;
+		const changedField = {}; // the field of an option within another (p.within) is changed when either is
 		for (const p of S.params) {
-			const f = $('#f-' + p.name);
+			const f = $('#f-' + (p.within || p.name));
 			if (!f) continue;
-			f.classList.toggle('changed', !isDefault(p, v[p.name]));
+			changedField[p.within || p.name] = changedField[p.within || p.name] || !isDefault(p, v[p.name]);
+			f.classList.toggle('changed', changedField[p.within || p.name]);
 			if (JSON.stringify(v[p.name]) !== JSON.stringify(S.saved[p.name])) unsaved++;
 			if (p.only_if) f.classList.toggle('disabled', !Object.entries(p.only_if).every(([k, want]) => v[k] === want));
 		}
@@ -2966,7 +3089,12 @@ pages.model = (() => {
 			const c = $('#p-' + p.name);
 			if (!c) continue;
 			if (p.type === 'bool') c.checked = !!p.default;
-			else if (p.type === 'pca_variance') { c.checked = Number(p.default) > 0; c.dispatchEvent(new Event('change')); }
+			else if (p.type === 'pca_variance') {
+				const pa = S.params.find(q => q.within === p.name);
+				c.value = pa && Number(pa.default) > 0 ? 'axes' : Number(p.default) > 0 ? 'variance' : 'first3';
+				c.dispatchEvent(new Event('change'));
+			}
+			else if (p.type === 'pca_axes') { if (Number(p.default) > 0) c.value = p.default; } // its mode: the field above
 			else if (p.type === 'threshold') { c.value = p.default; c.dispatchEvent(new Event('change')); }
 			else if (p.type === 'thresholds') { c.value = p.default.join(', '); c.dispatchEvent(new Event('input')); }
 			else c.value = p.default;

@@ -657,13 +657,14 @@ write.table(data.frame(k=names(thr_text), value=thr_text), file.path(outroot, 's
 # as pca_axes_<id>.csv, with their % of the variance in processing_metadata.txt
 if (!identical(read_config('SEGM_PCA'), 'False')) {
 	pca_var <- read_config_num('SEGM_PCA_VARIANCE', 0)
+	pca_n <- read_config_num('SEGM_PCA_AXES', 0)  # a number of axes, which overrides the %
 	for (id in ecox_list) {
 		f <- file.path('csv', paste0('pca_axes_', id, '.csv'))
 		if (!file.exists(f)) next
 		ax <- read.table(f, header=TRUE, sep=' ', stringsAsFactors=FALSE)
 		file.copy(f, file.path(outroot, basename(f)), overwrite=TRUE)
 		k <- sum(ax$used == 1)
-		why <- if (is.na(pca_var) || pca_var == 0) 'the first 3 axes, SEGM_PCA_VARIANCE = 0' else paste0('the first ones that explain at least ', pca_var, ' %')
+		why <- if (!is.na(pca_n) && pca_n > 0) paste0('SEGM_PCA_AXES = ', pca_n) else if (is.na(pca_var) || pca_var == 0) 'the first 3 axes, SEGM_PCA_VARIANCE = 0' else paste0('the first ones that explain at least ', pca_var, ' %')
 		write(sprintf('PCA of ID %s: the segmentation used %s of %d axes, %.1f %% of the variance (%s)', id,
 		              if (k == 1) 'PC1' else paste0('PC1-PC', k), nrow(ax), sum(ax$variance_pct[ax$used == 1]), why),
 		      file.path(outroot, 'processing_metadata.txt'), append=TRUE)
