@@ -36,6 +36,7 @@ time it opens, so it has each release as soon as it is made.
 - **Desktop app**: New page Landscape metrics: the 133 metrics of patches, classes and landscape of the R package landscapemetrics (FRAGSTATS) for maps of patches of your own, rasters of classes or polygons, with an optional boundary; add the same habitat mapped at several dates to follow its fragmentation, with the change of every metric between the first and last date, charts of every metric over the dates, a map of the patches and a guide that explains each metric.
 - **Similarity**: Every HFT gets the landscape metrics of FRAGSTATS of its similar areas (PLAND, PD, LPI, AREA_MN, AREA_CV, ED, LSI, SHAPE_MN, GYRATE_MN, ENN_MN, AI, CLUMPY, COHESION, DIVISION, MESH, SPLIT, CPLAND) in `hri_results.csv`, computed as landscapemetrics does.
 - **Desktop app, Similarity**: The results of the similarity explain themselves: how to read them, the results of each HFT in words when you click it, an explanation of every column and index (ⓘ), a table of the fragmentation of the similar areas and a guide to all the metrics.
+- **Similarity**: The polygons of the similar patches (`similar_<id>_hft_<n>.gpkg`) are written several times faster, with much less memory, when the similar areas have large patches with holes and pixels joined only at corners (e.g. from 2 minutes to 12 s for a grid of 8000 × 8000 pixels), with the same patches.
 
 ### [1.6.15](https://github.com/monitoreo-obsnev/eHabpy/releases/tag/1.6.15) · 2026-11-27
 
