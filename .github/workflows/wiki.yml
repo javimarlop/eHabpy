@@ -33,5 +33,5 @@ jobs:
       - name: Links of the wiki
         run: |
           git ls-files -z | grep -zvE '^\.github/(test_)?wiki_links\.py$|/vendor/' \
-            | xargs -0 grep -lIZ 'github.com/javimarlop/eHabpy/wiki' \
+            | xargs -0 grep -lIZ 'github.com/monitoreo-obsnev/eHabpy/wiki' \
             | xargs -0 python .github/wiki_links.py wiki

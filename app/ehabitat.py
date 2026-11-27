@@ -9,7 +9,7 @@ Open the app with the Python of the environment of eHabitat+ (environment.yml):
     python app/ehabitat.py --browser  # in the web browser, without pywebview
 
 The installers of app/installer create that environment and a shortcut on the Desktop (see the page
-Desktop app of the wiki: https://github.com/javimarlop/eHabpy/wiki/Desktop-app).
+Desktop app of the wiki: https://github.com/monitoreo-obsnev/eHabpy/wiki/Desktop-app).
 The app works on the copy of eHabpy it belongs to: inVars, segm_optim (config.py, pa/, results/), ...
 """
 

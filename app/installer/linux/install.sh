@@ -6,7 +6,7 @@
 #
 # or, without downloading anything first, paste this in a terminal (wget comes with Ubuntu; curl works too):
 #
-#   bash -c "$(wget -qO- https://raw.githubusercontent.com/javimarlop/eHabpy/master/app/installer/linux/install.sh)"
+#   bash -c "$(wget -qO- https://raw.githubusercontent.com/monitoreo-obsnev/eHabpy/master/app/installer/linux/install.sh)"
 #
 # It installs in ~/eHabitat, without administrator rights (no sudo, no apt):
 #   - micromamba (the package installer of conda-forge), in ~/eHabitat/micromamba;
@@ -25,7 +25,7 @@
 
 main() {
 	set -euo pipefail
-	REPO=javimarlop/eHabpy
+	REPO=monitoreo-obsnev/eHabpy
 	BRANCH="${EHAB_BRANCH:-master}"
 	DIR="${EHAB_HOME:-$HOME/eHabitat}"
 	ENV="$DIR/env"

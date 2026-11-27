@@ -33,7 +33,7 @@ import zipfile
 
 from . import envsetup, jobs, paths
 
-REPO = 'javimarlop/eHabpy'
+REPO = 'monitoreo-obsnev/eHabpy'
 API = f'https://api.github.com/repos/{REPO}'
 RECORD = os.path.join(paths.ROOT, '.ehabitat_version.json')
 REQUIRED = 'app/ehabitat.py'  # a version without the app is never applied

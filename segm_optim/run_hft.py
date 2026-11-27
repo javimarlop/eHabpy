@@ -114,7 +114,7 @@ def main():
 		sys.exit(f'ERROR: {err}')
 	project = os.path.join(os.path.expanduser(str(cfg.get('GRASSDB'))), str(cfg.get('GRASSLOC')), 'PERMANENT')
 	if not os.path.isdir(project):
-		sys.exit(f'ERROR: GRASS project not found: {project}\nRun python3 setup.py first (see the wiki: https://github.com/javimarlop/eHabpy/wiki)')
+		sys.exit(f'ERROR: GRASS project not found: {project}\nRun python3 setup.py first (see the wiki: https://github.com/monitoreo-obsnev/eHabpy/wiki)')
 
 	env = dict(os.environ, PYTHONNOUSERSITE='1', EHAB_PYTHON=sys.executable)
 	try:  # as 'ulimit -n 8192'

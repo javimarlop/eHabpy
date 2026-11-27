@@ -4,7 +4,7 @@ rem double click from the folder app\installer\windows of a copy of the reposito
 rem "Run anyway"), or downloaded and opened with a command in the Command Prompt (what curl downloads has no mark of
 rem the Internet, so SmartScreen does not stop it):
 rem
-rem   curl -fsSLo "%TEMP%\install-ehabitat.bat" https://raw.githubusercontent.com/javimarlop/eHabpy/master/app/installer/windows/install.bat && "%TEMP%\install-ehabitat.bat"
+rem   curl -fsSLo "%TEMP%\install-ehabitat.bat" https://raw.githubusercontent.com/monitoreo-obsnev/eHabpy/master/app/installer/windows/install.bat && "%TEMP%\install-ehabitat.bat"
 rem
 rem It installs in %USERPROFILE%\eHabitat, without administrator rights:
 rem   - micromamba (the package installer of conda-forge), in %USERPROFILE%\eHabitat\micromamba, with the DLLs of the
@@ -22,7 +22,7 @@ rem Other variables: EHAB_HOME (installation folder), EHAB_BRANCH (branch of Git
 rem EHAB_NO_OPEN=1 (do not open the app at the end). No accents: cmd reads this file with the code page of the console.
 setlocal EnableExtensions
 title Installer of eHabitat+
-set "REPO=javimarlop/eHabpy"
+set "REPO=monitoreo-obsnev/eHabpy"
 if not defined EHAB_BRANCH set "EHAB_BRANCH=master"
 if defined EHAB_HOME (set "DIR=%EHAB_HOME%") else (set "DIR=%USERPROFILE%\eHabitat")
 set "ENV=%DIR%\env"

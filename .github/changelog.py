@@ -10,7 +10,7 @@ first (as that of MonitorEO, https://github.com/monitoreo-obsnev/monitoreo#chang
 Each release is a heading with its tag and the date of its GitHub release, followed by its entries, one per line, each
 with the parts of eHabitat+ it reaches (AREAS) and "(fix)" for the fixes:
 
-    ### [1.4](https://github.com/javimarlop/eHabpy/releases/tag/1.4) · 2026-10-27
+    ### [1.4](https://github.com/monitoreo-obsnev/eHabpy/releases/tag/1.4) · 2026-10-27
 
     - **HFT model**: New CLASS_METHOD option in config.py ...
     - **Similarity** (fix): The similarity indices are right when a mask is used.
@@ -38,7 +38,7 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-REPO = 'https://github.com/javimarlop/eHabpy'
+REPO = 'https://github.com/monitoreo-obsnev/eHabpy'
 SECTION = '## Changelog'
 UNRELEASED = '### Unreleased'
 AREAS = ('eHabitat+', 'Desktop app', 'Installers', 'HFT model', 'Similarity', 'Earth Engine variables', 'Documentation')
