@@ -13,4 +13,4 @@ landscape metrics and THDI).
   yet: GRASS GIS 8.5.0 of conda-forge for Windows cannot open its databases).
 - Open: the shortcut **eHabitat+** on the Desktop, or `python app/ehabitat.py` in the environment of `environment.yml`.
 
-Documentation: [Desktop app](https://github.com/javimarlop/eHabpy/wiki/Desktop-app) in the wiki.
+Documentation: [Desktop app](https://github.com/monitoreo-obsnev/eHabpy/wiki/Desktop-app) in the wiki.

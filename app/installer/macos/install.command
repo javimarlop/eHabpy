@@ -3,7 +3,7 @@
 # double click from the folder app/installer/macos of a copy of the repository (the first time macOS may ask for
 # permission: right click > Open), or pasted in the Terminal:
 #
-#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/javimarlop/eHabpy/master/app/installer/macos/install.command)"
+#   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/monitoreo-obsnev/eHabpy/master/app/installer/macos/install.command)"
 #
 # It installs in ~/eHabitat, without administrator rights:
 #   - micromamba (the package installer of conda-forge), in ~/eHabitat/micromamba;
@@ -21,7 +21,7 @@
 
 main() {
 	set -euo pipefail
-	REPO=javimarlop/eHabpy
+	REPO=monitoreo-obsnev/eHabpy
 	BRANCH="${EHAB_BRANCH:-master}"
 	DIR="${EHAB_HOME:-$HOME/eHabitat}"
 	ENV="$DIR/env"

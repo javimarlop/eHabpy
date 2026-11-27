@@ -37,7 +37,7 @@ history).
   then 1.6.1, 1.6.2... (the last number plus one; a new minor version, e.g. `release 1.7`, only when the user asks). A
   push with nothing for users (no entries) makes none. After the merge of its branch into `master`, in this folder:
   `python .github/changelog.py release` renames `### Unreleased` to
-  `### [X.Y.Z](https://github.com/javimarlop/eHabpy/releases/tag/X.Y.Z) · YYYY-MM-DD` (today in UTC), commits
+  `### [X.Y.Z](https://github.com/monitoreo-obsnev/eHabpy/releases/tag/X.Y.Z) · YYYY-MM-DD` (today in UTC), commits
   `README.md` alone (`Release X.Y.Z`; `--trailer "..."` adds the attribution line) and makes an annotated tag; then
   `git push --atomic --follow-tags origin master`, one release per push. The tag makes `.github/workflows/release.yml`
   create the GitHub release `eHabitat+ X.Y.Z`, whose notes are the output of `python .github/changelog.py notes X.Y.Z`,

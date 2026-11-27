@@ -1,11 +1,11 @@
-"""The links of the wiki of eHabitat+ (https://github.com/javimarlop/eHabpy/wiki): every link to a page, a section
+"""The links of the wiki of eHabitat+ (https://github.com/monitoreo-obsnev/eHabpy/wiki): every link to a page, a section
 (anchor) or an image of the wiki must lead somewhere, in the pages of the wiki (_Sidebar.md and _Footer.md included)
 and in the files of the repository that link to the wiki (README.md, the comments of the scripts...).
 
     python .github/wiki_links.py WIKI [FILE ...]
 
-WIKI is a copy of the wiki (git clone https://github.com/javimarlop/eHabpy.wiki.git), FILE the files of the repository
-whose links to https://github.com/javimarlop/eHabpy/wiki are also checked. It prints one line per broken link
+WIKI is a copy of the wiki (git clone https://github.com/monitoreo-obsnev/eHabpy.wiki.git), FILE the files of the repository
+whose links to https://github.com/monitoreo-obsnev/eHabpy/wiki are also checked. It prints one line per broken link
 ("file:line: link: why") and exits with 1 if there is any, 0 otherwise. Only the standard library; it runs in
 .github/workflows/wiki.yml every time the wiki is edited.
 
@@ -21,7 +21,7 @@ import re
 import sys
 import urllib.parse
 
-WIKI_URL = 'https://github.com/javimarlop/eHabpy/wiki'
+WIKI_URL = 'https://github.com/monitoreo-obsnev/eHabpy/wiki'
 HEADING = re.compile(r'^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$')
 FENCE = re.compile(r'^ {0,3}(`{3,}|~{3,})')
 INLINE_CODE = re.compile(r'(`+)(.+?)\1')
@@ -147,7 +147,7 @@ def check_page(wiki, page, text, where):
 
 
 def check_file(wiki, path):
-	"""The broken links to the wiki (https://github.com/javimarlop/eHabpy/wiki/...) of a file of the repository."""
+	"""The broken links to the wiki (https://github.com/monitoreo-obsnev/eHabpy/wiki/...) of a file of the repository."""
 	out = []
 	with open(path, encoding='utf-8', errors='replace') as f:
 		for n, line in enumerate(f, 1):

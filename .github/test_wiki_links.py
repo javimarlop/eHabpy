@@ -20,7 +20,7 @@ PAGES = {
 
 ## Contents
 - [Tutorial](HFT-tutorial#step-6-run-the-model-run_hftpy), [plots](HFT-tutorial#variance-explained-r2_id_hftspng)
-- [[HFT tutorial]], [[The steps|HFT-tutorial]], [this page](#contents), [the home](https://github.com/javimarlop/eHabpy/wiki)
+- [[HFT tutorial]], [[The steps|HFT-tutorial]], [this page](#contents), [the home](https://github.com/monitoreo-obsnev/eHabpy/wiki)
 - [Paper](https://doi.org/10.1/x), [code](../blob/master/README.md)
 - Broken: [a](Missing-page), [b](HFT-tutorial#no-such-step), [c](#nowhere), [d](images/none.png), [e](hft-tutorial)
 - `[in code](Missing-in-code)`
@@ -37,10 +37,10 @@ PAGES = {
 [the second](#troubleshooting-1), [by hand](#by-hand)
 """,
 	'_Sidebar.md': """<details>
-<summary><a href="https://github.com/javimarlop/eHabpy/wiki/HFT-tutorial">HFT tutorial</a></summary>
+<summary><a href="https://github.com/monitoreo-obsnev/eHabpy/wiki/HFT-tutorial">HFT tutorial</a></summary>
 
 - [Steps](HFT-tutorial#troubleshooting)
-- <a href="https://github.com/javimarlop/eHabpy/wiki/HFT-tutorial#gone">gone</a>
+- <a href="https://github.com/monitoreo-obsnev/eHabpy/wiki/HFT-tutorial#gone">gone</a>
 
 </details>
 """,
@@ -88,7 +88,7 @@ class Links(unittest.TestCase):
 		                                          ('8', '#nowhere'), ('8', 'images/none.png'), ('8', 'hft-tutorial')])
 		self.assertEqual(self.broken('HFT-tutorial.md'), [])
 		self.assertEqual(self.broken('_Sidebar.md'),
-		                 [('5', 'https://github.com/javimarlop/eHabpy/wiki/HFT-tutorial#gone')])
+		                 [('5', 'https://github.com/monitoreo-obsnev/eHabpy/wiki/HFT-tutorial#gone')])
 
 	def test_why(self):
 		self.assertEqual(self.wiki.problem('hft-tutorial'), 'no page hft-tutorial (there is HFT-tutorial)')
@@ -97,11 +97,11 @@ class Links(unittest.TestCase):
 	def test_files_of_the_repository(self):
 		path = os.path.join(self.dir, 'README.txt')
 		with open(path, 'w') as f:
-			f.write('See https://github.com/javimarlop/eHabpy/wiki/HFT-tutorial#troubleshooting.\n'
-			        '(https://github.com/javimarlop/eHabpy/wiki#contents) and '
-			        'https://github.com/javimarlop/eHabpy/wiki/Old-page\n')
+			f.write('See https://github.com/monitoreo-obsnev/eHabpy/wiki/HFT-tutorial#troubleshooting.\n'
+			        '(https://github.com/monitoreo-obsnev/eHabpy/wiki#contents) and '
+			        'https://github.com/monitoreo-obsnev/eHabpy/wiki/Old-page\n')
 		self.assertEqual([(w.split(':')[-1], u) for w, u, _ in wl.check_file(self.wiki, path)],
-		                 [('2', 'https://github.com/javimarlop/eHabpy/wiki/Old-page')])
+		                 [('2', 'https://github.com/monitoreo-obsnev/eHabpy/wiki/Old-page')])
 
 	def test_main(self):
 		self.assertEqual(wl.main([self.dir]), 1)
