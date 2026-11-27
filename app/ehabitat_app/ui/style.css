@@ -438,3 +438,40 @@ table.t th.click:hover { color: var(--ink); }
 	background: var(--line-2); border-radius: 3px; }
 .pca-bar > span { display: block; height: 100%; background: var(--brand); }
 .pca-bar.low > span { background: var(--warn); }
+
+/* Landscape metrics: explanations, charts and the page of maps of patches --------------------------------------- */
+.info-btn { border: 0; background: none; color: var(--info); cursor: pointer; font-size: 12px; padding: 0 0 0 3px; line-height: 1; }
+.info-btn:hover { color: var(--brand); }
+.up, .down { font-size: 9px; vertical-align: 1px; }
+.up { color: var(--err); }
+.down { color: var(--info); }
+.frag-key { white-space: nowrap; }
+.ok-text { color: var(--ok); }
+.fact.click { cursor: pointer; }
+.fact.click:hover { border-color: var(--faint); }
+.how-read { line-height: 1.55; }
+.hft-reading { background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 30%, var(--line)); border-radius: 8px;
+	padding: 10px 12px; font-size: 13px; line-height: 1.55; }
+.hft-reading p { margin: 6px 0 0; }
+.metric-dl { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; }
+.metric-dl dt { color: var(--muted); font-weight: 600; }
+.metric-dl dd { margin: 0; }
+table.t.guide td { vertical-align: top; }
+table.t.guide td:nth-child(3), table.t.guide td:nth-child(4) { min-width: 240px; }
+.charts { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.chart { border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px 4px; background: var(--panel); min-width: 0; }
+.chart.click { cursor: pointer; }
+.chart.click:hover { border-color: var(--brand); }
+.chart-t { font-size: 12.5px; line-height: 1.3; min-height: 32px; }
+.chart-svg { width: 100%; height: auto; display: block; }
+.chart-svg .axis { stroke: var(--line); stroke-width: 1; }
+.chart-svg .tick { fill: var(--muted); font-size: 9.5px; font-variant-numeric: tabular-nums; }
+.chart-legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; }
+.chart-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 4px 12px; }
+.metric-grid .check { align-items: baseline; }
+.metric-grid .check .muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#page-landscape .field { grid-template-columns: 150px minmax(0, 1fr); }
+#page-landscape .field .ctl > select { flex: 1 1 240px; min-width: 0; max-width: 100%; }
+#l-inputs td { vertical-align: top; }
+#l-inputs .chips { max-width: 380px; }

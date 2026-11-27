@@ -19,7 +19,9 @@ Determinant, with ECOSIM_COVARIANCE = 'mcd'). Every pixel of the ecoregion gets
 the chi-square probability of its Mahalanobis distance to the HFT (0 if it is 0.001 or less): the similarity. The
 pixels outside the HFT with a similarity at least as high as the mean (or median, ECOSIM_STAT) of the HFT pixels
 are the similar areas, and their patches (ECOSIM_NEIGHBOURS) give the landscape metrics of eHabitat+ (HSR,
-number of patches, largest patch, aggregation...). thdi.R then computes the indices of each study area (THDI) and
+number of patches, largest patch, aggregation...) and the landscape metrics of FRAGSTATS of the similar areas as one
+class (PLAND, PD, LPI, ED, MESH, ENN_MN, COHESION... as the R package landscapemetrics computes them: lsm.py), in the
+pixels compared without those of the HFT. thdi.R then computes the indices of each study area (THDI) and
 similarity_plots.R the plots. As a check of the robustness of the maps, every HFT is also compared with the pixels of
 all the HFTs of its study area (fit_matrix.csv): the % of the study area similar to the HFT and the % of that similar
 area that is the HFT itself (StudySim_pct, SelfFit_pct in hri_results.csv). The % of the HFT similar to itself (the
@@ -60,6 +62,7 @@ import numpy as np
 from osgeo import gdal, ogr, osr
 
 import hft_state
+import lsm
 
 gdal.UseExceptions()
 ogr.UseExceptions()
@@ -104,6 +107,14 @@ MCD_SUBSAMPLE = 3000  # pixels of the subsample of the starts of FastMCD with la
 MCD_BEST = 10  # starts iterated to convergence on all the pixels of the HFT
 MCD_SEED = 0  # FastMCD draws its starts at random: a fixed seed gives the same result in every run
 FIT_CSV = 'fit_matrix.csv'
+# Landscape metrics of the similar areas (lsm.py: as the R package landscapemetrics, which follows FRAGSTATS), columns of
+# hri_results.csv: the similar pixels (categories 1 and 2 of the map of the similar areas) as one class, in the landscape
+# of the pixels compared (with data, in the ecoregion of the HFT) without the pixels of the HFT, with the neighbours of
+# the patches (ECOSIM_NEIGHBOURS) and an edge depth of 1 pixel for the core area
+SIM_LSM = [('PLAND', 'pland'), ('PD', 'pd'), ('LPI', 'lpi'), ('AREA_MN', 'area_mn'), ('AREA_CV', 'area_cv'),
+           ('ED', 'ed'), ('LSI', 'lsi'), ('SHAPE_MN', 'shape_mn'), ('GYRATE_MN', 'gyrate_mn'), ('ENN_MN', 'enn_mn'),
+           ('AI', 'ai'), ('CLUMPY', 'clumpy'), ('COHESION', 'cohesion'), ('DIVISION', 'division'), ('MESH', 'mesh'),
+           ('SPLIT', 'split'), ('CPLAND', 'cpland')]
 GTIFF = ['TILED=YES', 'COMPRESS=DEFLATE', 'NUM_THREADS=ALL_CPUS', 'BIGTIFF=IF_SAFER']
 
 
@@ -973,6 +984,26 @@ def landscape(similar, structure, n_hft):
 	return labels, sizes
 
 
+def similar_metrics(cat, res, neighbours):
+	"""The landscape metrics SIM_LSM of the similar areas of the map CAT (rows x columns of the categories of
+	similar_<id>_hft<h>.tif): the similar pixels (1, 2) as one class in the pixels compared without the HFT (0, 1, 2).
+	{column: value or None}; without similar pixels, 0 for the amounts (PLAND, PD, LPI, ED, MESH, CPLAND) and None
+	for the rest."""
+	valid = (cat != CAT_NODATA) & (cat != 3)
+	rows, cols = np.flatnonzero(valid.any(axis=1)), np.flatnonzero(valid.any(axis=0))
+	out = {c: None for c, _ in SIM_LSM}
+	if not rows.size:
+		return out
+	sub = (slice(rows[0], rows[-1] + 1), slice(cols[0], cols[-1] + 1))  # the pixels compared, not the whole grid
+	cls = ((cat[sub] == 1) | (cat[sub] == 2)).astype(np.int8)
+	got = lsm.compute(cls, valid[sub], res, ['c_' + m for _, m in SIM_LSM], directions=neighbours, edge_depth=1,
+	                  only_classes=[1])
+	if not got['class']:
+		absent = lsm.absent_class(1, ['c_' + m for _, m in SIM_LSM])
+		return {c: absent[m] for c, m in SIM_LSM}
+	return {c: got['class'][0].get(m) for c, m in SIM_LSM}
+
+
 def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 	"""Similarity, maps and landscape metrics of the HFT H of TARGET, with XH the values of its pixels (pixels x
 	variables, on the grid of the similarity, from the area or from the study area at its pixel) and CELLS the indices
@@ -1067,6 +1098,8 @@ def run_hft(h, ctx, target, Xh, cells, eco_v, eco_of_hft, outdir):
 		del labels
 		row['Status'] = status
 	cat[cells] = 3
+	if rec['threshold'] is not None:
+		row.update(similar_metrics(cat.reshape(cg.height, cg.width), cg.res, ctx['neighbours']))
 	rec['status'] = status
 	sim_cat = f'similar_{hid}_hft{h}.tif'
 	write_raster(os.path.join(outdir, sim_cat), cat.reshape(cg.height, cg.width), cg, gdal.GDT_Byte, CAT_NODATA,
@@ -1133,7 +1166,7 @@ HRI_COLUMNS = ['ecoregion', 'wdpaid', 'wdpaid_hft', '{sim}', 'NrSimPixEco', 'NrP
                'NrSimPixEco_NrPixHFT_ratio', 'NrSimLcpPatEco', 'NrPixLargLcpPat_NrPixHFT_ratio', 'HSR',
                'NrSimLcpPatEqLargArea', 'NrPixLargLcpPat', 'Aggregation', 'hft', 'HFTArea_ha', 'SimAreaEco_km2',
                'LargPatArea_km2', 'PixelSize_m', 'NrVars', 'Covariance', 'NrSimPixStudy', 'StudySim_pct',
-               'SelfFit_pct', 'Status']
+               'SelfFit_pct'] + [c for c, _ in SIM_LSM] + ['Status']
 
 
 def write_hri(path, rows, pairs, sim_label, classes='hft'):
@@ -1307,8 +1340,10 @@ def _cells(cov, h, cg):
 
 
 def memory_mb(cg, p):
-	"""Rough peak memory (MB) of a run on the grid CG with P variables (measured: 3.1 GB at 100 m with Guajares)."""
-	return int(round(cg.width * cg.height * (4 * p + 14) / 2 ** 20 + 600))
+	"""Rough peak memory (MB) of a run on the grid CG with P variables (measured: 3.3 GB at 100 m with Guajares, 6
+	variables; the landscape metrics of the similar areas add about 40 bytes per pixel when they are fragmented, up to
+	75 when they are scattered single pixels)."""
+	return int(round(cg.width * cg.height * (4 * p + 60) / 2 ** 20 + 600))
 
 
 def comparison_areas(study_area=None, scenario=None, cfg=None):
@@ -1493,6 +1528,7 @@ def run(s, cfg, plots=True):
 	       'covariance': s['covariance'], 'classes': s['classes'],
 	       'sim_label': 'MedianHFTSim' if s['stat'] == 'median' else 'AveHFTSim',
 	       'structure': ndimage.generate_binary_structure(2, 2 if s['neighbours'] == 8 else 1),
+	       'neighbours': s['neighbours'],
 	       'min_pixels': max(5, p + 1), 'few_pixels': 3 * p}
 	local_res = local_resolution(pairs)
 	by_dir = {}
@@ -1681,6 +1717,15 @@ def write_metadata(path, rec, thdi):
 	         if h.get('covariance_note') and h.get('covariance') == 'classic']
 	if notes:
 		lines += [''] + notes
+	lines += ['', 'Landscape metrics of the similar areas (hri_results.csv, ' + ', '.join(c for c, _ in SIM_LSM) + '): '
+	          'the similar pixels as one class in the pixels compared (with data, in the ecoregion of the HFT) without '
+	          'the pixels of the HFT, as the R package landscapemetrics computes them (FRAGSTATS): PLAND % of those '
+	          'pixels, PD patches per 100 ha, LPI largest patch (%), AREA_MN mean patch area (ha) and AREA_CV its '
+	          'coefficient of variation (%), ED edge density (m/ha), LSI landscape shape index, SHAPE_MN mean shape '
+	          'index, GYRATE_MN mean radius of gyration (m), ENN_MN mean distance to the nearest similar patch (m), AI '
+	          'aggregation index (%), CLUMPY clumpiness (-1 to 1), COHESION patch cohesion (0-100), DIVISION (0-1), '
+	          'MESH effective mesh size (ha), SPLIT splitting index, CPLAND core area (% of the pixels, edge depth 1 '
+	          'pixel). Patches of ECOSIM_NEIGHBOURS neighbours, as NrSimLcpPatEco.']
 	lines += ['', 'Fit in the study area (fit_matrix.csv): study_sim_% = % of the pixels of the HFTs of the study area '
 	          'similar to the HFT (similarity >= T); self_fit_% = % of those similar pixels that are the HFT itself. A '
 	          'robust map has a high self_fit_%: what it takes as similar in the study area is mostly the HFT itself. '

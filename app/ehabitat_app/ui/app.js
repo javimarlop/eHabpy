@@ -59,6 +59,13 @@ function fmt(v, d = 2) {
 	return n.toLocaleString('en-US', {maximumFractionDigits: d});
 }
 
+// FMT, but values that would show as 0 with D decimals with two significant digits (e.g. 0.0000033)
+function fmtn(v, d = 2) {
+	const n = Number(v);
+	if (v !== null && v !== undefined && v !== '' && Number.isFinite(n) && n !== 0 && Math.abs(n) < 0.5 * 10 ** -d) return n.toPrecision(2);
+	return fmt(v, d);
+}
+
 function store(key, value) {
 	try {
 		if (value === undefined) return localStorage.getItem('ehab.' + key);
@@ -356,6 +363,110 @@ function gallery(container, plots) {
 			el('img', {src: BASE + p.url, loading: 'lazy', alt: p.label}),
 			el('div', {class: 'cap'}, p.label, el('span', {class: 'f'}, p.file))));
 	});
+}
+
+// Landscape metrics: their catalogue, explanations and charts ======================================================
+// The metrics of landscapemetrics (segm_optim/lsm.py), loaded once: {key: entry}
+const LSM = {list: null, byKey: {}, refs: [], fragmentation: [], similarity: [], loading: null};
+async function lsmCatalogue() {
+	if (LSM.list) return LSM;
+	if (!LSM.loading) {
+		LSM.loading = api('lsm_catalogue').then(c => {
+			LSM.list = c.metrics;
+			LSM.byKey = Object.fromEntries(c.metrics.map(m => [m.key, m]));
+			LSM.refs = c.references;
+			LSM.fragmentation = c.fragmentation;
+			LSM.similarity = c.similarity;
+			return LSM;
+		}).catch(e => { LSM.loading = null; throw e; });
+	}
+	return LSM.loading;
+}
+// ▲ larger values mean more fragmentation, ▼ smaller ones do
+function fragArrow(frag) {
+	if (frag === '+') return el('span', {class: 'up', title: 'more fragmented when larger'}, '▲');
+	if (frag === '-') return el('span', {class: 'down', title: 'more fragmented when smaller'}, '▼');
+	return null;
+}
+// A metric explained in a window: M has label, name, unit, what, read and, for those of landscapemetrics, type,
+// level, fragmentation and docs
+function metricInfo(m) {
+	if (!m) return;
+	const rows = [['What it measures', m.what], ['How to read it', m.read], ['Unit', m.unit],
+		m.formula ? ['Formula', m.formula] : null,
+		m.level ? ['Level', `${m.level} (${m.type || ''})`] : null,
+		m.fragmentation ? ['Fragmentation', m.fragmentation === '+' ? 'larger values: more fragmented, scattered or isolated'
+			: 'smaller values: more fragmented, scattered or isolated'] : null].filter(r => r && r[1]);
+	const body = el('div', {class: 'stack', style: {gap: '8px'}},
+		el('dl', {class: 'metric-dl'}, ...rows.flatMap(([k, v]) => [el('dt', {}, k), el('dd', {}, v)])),
+		m.docs ? el('div', {class: 'small'}, 'As the R package landscapemetrics computes it (', el('a', {href: '#', onclick: e => {
+			e.preventDefault(); api('open_url', m.docs).catch(fail);
+		}}, m.function), '), which follows FRAGSTATS.') : null);
+	modal({title: `${m.label}${m.name && m.name !== m.label ? ' · ' + m.name : ''}`, body, buttons: [{label: 'Close', result: true}]});
+}
+// A header of a table with the label of its metric and a button that explains it
+function metricTh(label, m, cls = 'num') {
+	const th = el('th', {class: cls, title: m ? `${m.name || label}${m.unit ? ' (' + m.unit + ')' : ''}: ${m.what || ''}` : label}, label);
+	if (m) {
+		if (m.fragmentation) th.append(' ', fragArrow(m.fragmentation));
+		th.append(el('button', {class: 'info-btn', title: 'What it is', onclick: e => { e.stopPropagation(); metricInfo(m); }}, 'ⓘ'));
+	}
+	return th;
+}
+// The guide of a list of metrics: a table with what each one measures and how to read it
+function guideTable(tbl, entries) {
+	tbl.textContent = '';
+	tbl.append(el('thead', {}, el('tr', {}, ...['Metric', 'Unit', 'What it measures', 'How to read it'].map(h => el('th', {}, h)))));
+	const body = el('tbody');
+	for (const m of entries) {
+		body.append(el('tr', {class: 'click', onclick: () => metricInfo(m)},
+			el('td', {}, el('b', {}, m.label), ' ', fragArrow(m.fragmentation), el('div', {class: 'small muted'}, m.name)),
+			el('td', {class: 'small nowrap'}, m.unit || ''),
+			el('td', {class: 'small'}, m.what || ''),
+			el('td', {class: 'small'}, m.read || '')));
+	}
+	tbl.append(body);
+}
+// A small line chart (SVG) of the values of every map (XS: their labels, spaced by their value when all are numbers)
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs = {}, ...children) {
+	const e = document.createElementNS(SVGNS, tag);
+	for (const [k, v] of Object.entries(attrs)) if (v !== null && v !== undefined) e.setAttribute(k, v);
+	for (const c of children.flat()) if (c !== null && c !== undefined) e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+	return e;
+}
+const PALETTE = ['#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22'];
+function lineChart({title, xs, series, m, onClick}) {
+	const W = 250, H = 132, L = 50, R = 10, T = 8, B = 22;
+	const nums = xs.map(x => (String(x).trim() === '' ? NaN : Number(x)));
+	const numeric = xs.length > 1 && nums.every(Number.isFinite);
+	const x0 = numeric ? Math.min(...nums) : 0, x1 = numeric ? Math.max(...nums) : Math.max(1, xs.length - 1);
+	const px = i => L + (W - L - R) * ((numeric ? nums[i] : i) - x0) / ((x1 - x0) || 1);
+	const all = series.flatMap(s => s.ys).filter(Number.isFinite);
+	let y0 = all.length ? Math.min(...all) : 0, y1 = all.length ? Math.max(...all) : 1;
+	if (y0 === y1) { y0 -= Math.abs(y0) * 0.1 || 1; y1 += Math.abs(y1) * 0.1 || 1; }
+	const py = v => T + (H - T - B) * (1 - (v - y0) / (y1 - y0));
+	const svg = svgEl('svg', {viewBox: `0 0 ${W} ${H}`, class: 'chart-svg', role: 'img'});
+	svg.append(svgEl('line', {x1: L, x2: W - R, y1: H - B, y2: H - B, class: 'axis'}),
+		svgEl('line', {x1: L, x2: L, y1: T, y2: H - B, class: 'axis'}));
+	for (const v of [y0, y1]) {
+		svg.append(svgEl('text', {x: L - 4, y: py(v) + 3, class: 'tick', 'text-anchor': 'end'},
+			fmtn(v, Math.abs(v) >= 100 ? 0 : Math.abs(v) >= 1 ? 2 : 4)));
+	}
+	const step = Math.ceil(xs.length / 6);
+	xs.forEach((x, i) => {
+		const last = i === xs.length - 1;
+		if (i % step === 0 || last) svg.append(svgEl('text', {x: px(i), y: H - 6, class: 'tick', 'text-anchor': last && xs.length > 1 ? 'end' : 'middle'}, String(x).slice(0, 10)));
+	});
+	series.forEach((s, k) => {
+		const c = s.colour || PALETTE[k % PALETTE.length];
+		const pts = s.ys.map((v, i) => (Number.isFinite(v) ? [px(i), py(v), i] : null)).filter(Boolean);
+		if (pts.length > 1) svg.append(svgEl('polyline', {points: pts.map(p => p[0] + ',' + p[1]).join(' '), fill: 'none', stroke: c, 'stroke-width': 2}));
+		for (const [x, y, i] of pts) svg.append(svgEl('circle', {cx: x, cy: y, r: 3, fill: c}, svgEl('title', {}, `${s.name ? s.name + ' · ' : ''}${xs[i]}: ${fmt(s.ys[i], 4)}`)));
+	});
+	return el('div', {class: 'chart' + (onClick ? ' click' : ''), onclick: onClick || null},
+		el('div', {class: 'chart-t'}, el('b', {}, title), ' ', m ? fragArrow(m.fragmentation) : null,
+			m ? el('div', {class: 'small muted'}, `${m.name}${m.unit ? ' (' + m.unit + ')' : ''}`) : null), svg);
 }
 
 // Navigation =========================================================================================================
@@ -3514,27 +3625,88 @@ pages.similarity = (() => {
 		no_reference_similarity: ['err', 'no reference', 'no pixel of the HFT with a similarity above 0'],
 		no_similar: ['warn', 'no similar pixels', 'no pixel of the rest of the ecoregion as similar as the HFT'],
 	};
+	// The columns of hri_results.csv (similarity.py) and thdi_res.csv (thdi.R), explained (metricInfo and the guide)
+	const EHAB = {
+		HFTArea_ha: {label: 'Area', name: 'Area of the HFT', unit: 'ha', what: 'The area of the polygons of the HFT (or subclass) in its map.'},
+		NrPixHFT: {label: 'HFT pixels', name: 'Pixels of the HFT', unit: 'pixels', what: 'The pixels of the grid of the similarity that '
+			+ 'the HFT covers (at least the minimum cover of the options): the pixels its mean and covariance come from.',
+			read: 'With fewer than 3 × the variables the similarity is less reliable ("few pixels"); with fewer than the variables + 1 '
+				+ '(and at least 5) it is not computed. A coarser pixel size leaves fewer of them.'},
+		T: {label: 'T', name: 'Similarity threshold', unit: '0–1', what: 'The mean (AveHFTSim) or median (MedianHFTSim) similarity '
+			+ 'of the pixels of the HFT itself (those above 0). The similarity of a pixel is the χ² probability of its Mahalanobis '
+			+ 'distance to the pixels of the HFT: 1 at their centre, towards 0 far from them.',
+			read: 'A pixel of the area compared is similar when it is at least as similar to the HFT as its own typical pixel. '
+				+ 'High T: a homogeneous HFT; low T: a diverse one, which more pixels can pass.'},
+		NrSimPixHFT: {label: 'HFT pixels ≥ T', name: 'Pixels of the HFT at least as similar as T', unit: 'pixels',
+			what: 'The pixels of the HFT with a similarity of at least T.',
+			read: 'About half of them by construction (T is their mean or median): it is not a measure of how good the HFT is.'},
+		NrSimPixEco: {label: 'Similar pixels', name: 'Similar pixels in the area compared', unit: 'pixels', what: 'The pixels of '
+			+ 'the rest of the area compared (the ecoregion of the HFT, or the comparison area) with a similarity of at least T, '
+			+ 'outside the HFT.', read: 'How much land is like the HFT: few means a rare habitat in its ecoregion.'},
+		SimAreaEco_km2: {label: 'Similar area', name: 'Similar area in the area compared', unit: 'km²',
+			what: 'The area of the similar pixels.', read: 'The amount of habitat like the HFT outside it.'},
+		NrSimPixEco_NrPixHFT_ratio: {label: 'Similar / HFT', name: 'Similar pixels / pixels of the HFT', unit: 'ratio',
+			what: 'The similar pixels divided by the pixels of the HFT.', read: 'Above 1: more similar land outside than the HFT itself.'},
+		NrSimLcpPatEco: {label: 'Patches', name: 'Patches of similar pixels', unit: 'number', what: 'The patches of similar '
+			+ 'pixels: the similar pixels that touch (with the neighbours of the options, 8 or 4) form one patch.',
+			read: 'Many patches for the same similar area: scattered similar land, fragmented.', fragmentation: '+'},
+		NrSimLcpPatEqLargArea: {label: 'Patches ≥ HFT', name: 'Patches at least as large as the HFT', unit: 'number',
+			what: 'The similar patches with at least as many pixels as the HFT.',
+			read: 'The places where the whole HFT could be found again (they shape the map of the similar areas: dark red).'},
+		NrPixLargLcpPat: {label: 'Largest patch', name: 'Pixels of the largest similar patch', unit: 'pixels', what: 'The pixels of the largest similar patch.'},
+		LargPatArea_km2: {label: 'Largest patch', name: 'Area of the largest similar patch', unit: 'km²', what: 'The area of the largest similar patch.',
+			fragmentation: '-'},
+		NrPixLargLcpPat_NrPixHFT_ratio: {label: 'Largest / HFT', name: 'Largest similar patch / HFT', unit: 'ratio',
+			what: 'The pixels of the largest similar patch divided by those of the HFT.', read: 'At least 1: a patch as large as the HFT exists.'},
+		HSR: {label: 'HSR', name: 'Habitat Similarity Ratio', unit: 'ratio', formula: 'Σ pixels of the similar patches ≥ HFT / pixels of '
+			+ 'the HFT; if no patch is that large, pixels of the largest patch / pixels of the HFT',
+			what: 'How many times the HFT fits in the similar patches that are at least as large as it.',
+			read: 'Below 1: no similar patch in its ecoregion is as large as the HFT, so it would be hard to replace. Above 1: as many '
+				+ 'times the HFT in large similar patches (replaceable). Its median enters THR.', fragmentation: '-'},
+		Aggregation: {label: 'Aggregation', name: 'Aggregation of eHabitat+ (mean patch size)', unit: 'pixels per patch',
+			formula: 'similar pixels / patches', what: 'The similar pixels per patch: the mean size of the similar patches in pixels.',
+			read: 'Large when the similar land is in few large patches. Not the aggregation index AI of FRAGSTATS (in the table of '
+				+ 'fragmentation).', fragmentation: '-'},
+		StudySim_pct: {label: 'Study similar', name: 'Study area similar to the HFT', unit: '%', what: 'The % of the pixels of all '
+			+ 'the HFTs of the study area with a similarity to this HFT of at least T (fit_matrix.csv).',
+			read: 'How much of the study area the map of this HFT takes as similar.'},
+		SelfFit_pct: {label: 'Self-fit', name: 'Self-fit in the study area', unit: '%', what: 'Of the pixels of the study area '
+			+ 'similar to the HFT, the % that are the HFT itself.',
+			read: 'High: its similarity picks the HFT and not its neighbours (a robust, specific map). Low: it also takes other HFTs of '
+				+ 'the study area as similar, so its similar areas mix habitats.'},
+		TerrEco: {label: 'TerrEco', name: 'Terrestrial ecoregions', unit: 'number', what: 'The terrestrial ecoregions that the HFTs of '
+			+ 'the study area touch (1 without a file of ecoregions).'},
+		MarEco: {label: 'MarEco', name: 'Marine ecoregions', unit: 'number', what: 'The marine ecoregions that the HFTs touch (0 '
+			+ 'without a file of marine ecoregions).'},
+		NrHFT: {label: 'NrHFT', name: 'HFTs', unit: 'number', what: 'The HFTs of the study area.'},
+		SIH: {label: 'SIH', name: 'Shannon index of the HFTs', unit: '≥ 0', formula: '−Σ p ln p, p = share of each HFT in their area '
+			+ '(1 when there is a single HFT)', what: 'The diversity of the HFTs of the study area.',
+			read: 'Grows with more HFTs and with HFTs of more even sizes.'},
+		THD: {label: 'THD', name: 'Total Habitat Diversity', unit: '≥ 0', formula: '(TerrEco + MarEco) × SIH',
+			what: 'The diversity of the habitats of the study area, more where it spans several ecoregions.'},
+		THR: {label: 'THR', name: 'Total Habitat Replaceability', unit: 'ratio', formula: 'median HSR of the HFTs / TerrEco',
+			what: 'How much similar land, in patches as large as them, the HFTs have in their ecoregions.',
+			read: 'High: the habitats of the study area are common around it; low: they are hard to find elsewhere.'},
+		THDI: {label: 'THDI', name: 'Total Habitat Diversity Index', unit: 'ratio', formula: 'THD / THR',
+			what: 'Diversity over replaceability (Martínez-López et al. 2023).',
+			read: 'High in study areas with diverse habitats that are hard to find elsewhere in their ecoregions: irreplaceable.'},
+	};
 	const THDI = [['TerrEco', 'Terrestrial ecoregions', 'touched by the HFTs'], ['MarEco', 'Marine ecoregions', 'touched by the HFTs'],
 		['NrHFT', 'HFTs', ''], ['SIH', 'SIH', 'Shannon index of the areas of the HFTs'],
 		['THD', 'THD', 'Total Habitat Diversity: ecoregions × SIH'],
 		['THR', 'THR', 'Total Habitat Replaceability: median HSR / terrestrial ecoregions'], ['THDI', 'THDI', 'THD / THR']];
-	const HRI = [ // column, header, decimals, title
-		['HFTArea_ha', 'Area (ha)', 1, 'Area of the HFT in its map'],
-		['NrPixHFT', 'HFT pixels', 0, 'Pixels of the HFT on the grid of the similarity'],
-		['T', 'T', 3, 'Similarity threshold: the statistic of the similarity of the HFT pixels'],
-		['NrSimPixHFT', 'HFT pixels ≥ T', 0, 'Pixels of the HFT with a similarity of at least T'],
-		['NrSimPixEco', 'Similar pixels', 0, 'Pixels of the rest of the ecoregion with a similarity of at least T'],
-		['SimAreaEco_km2', 'Similar area (km²)', 1, 'Area of the similar pixels'],
-		['NrSimLcpPatEco', 'Patches', 0, 'Patches of similar pixels'],
-		['NrSimLcpPatEqLargArea', 'Patches ≥ HFT', 0, 'Patches at least as large as the HFT'],
-		['LargPatArea_km2', 'Largest patch (km²)', 2, 'Area of the largest patch'],
-		['HSR', 'HSR', 2, 'Habitat Similarity Ratio: pixels of the patches at least as large as the HFT (or of the largest patch) / '
-			+ 'pixels of the HFT'],
-		['Aggregation', 'Aggregation', 1, 'Similar pixels per patch'],
-		['StudySim_pct', 'Study similar (%)', 0, 'Fit in the study area: % of the pixels of the HFTs of the study area with a '
-			+ 'similarity to the HFT of at least T'],
-		['SelfFit_pct', 'Self-fit (%)', 0, 'Fit in the study area: % of the pixels of the study area similar to the HFT (similarity ≥ T) '
-			+ 'that are the HFT itself; low values mean that its map also takes other HFTs of the study area as similar']];
+	const HRI = [ // column, header, decimals
+		['HFTArea_ha', 'Area (ha)', 1], ['NrPixHFT', 'HFT pixels', 0], ['T', 'T', 3], ['NrSimPixHFT', 'HFT pixels ≥ T', 0],
+		['NrSimPixEco', 'Similar pixels', 0], ['SimAreaEco_km2', 'Similar area (km²)', 1], ['NrSimLcpPatEco', 'Patches', 0],
+		['NrSimLcpPatEqLargArea', 'Patches ≥ HFT', 0], ['LargPatArea_km2', 'Largest patch (km²)', 2], ['HSR', 'HSR', 2],
+		['Aggregation', 'Aggregation', 1], ['StudySim_pct', 'Study similar (%)', 0], ['SelfFit_pct', 'Self-fit (%)', 0]];
+	// the landscape metrics of the similar areas (similarity.py, SIM_LSM): column, key of the catalogue, decimals
+	const SIM_LSM = [['PLAND', 'c_pland', 4], ['PD', 'c_pd', 4], ['LPI', 'c_lpi', 4], ['AREA_MN', 'c_area_mn', 2],
+		['AREA_CV', 'c_area_cv', 0], ['ED', 'c_ed', 3], ['LSI', 'c_lsi', 1], ['SHAPE_MN', 'c_shape_mn', 2],
+		['GYRATE_MN', 'c_gyrate_mn', 0], ['ENN_MN', 'c_enn_mn', 0], ['AI', 'c_ai', 1], ['CLUMPY', 'c_clumpy', 2],
+		['COHESION', 'c_cohesion', 1], ['DIVISION', 'c_division', 4], ['MESH', 'c_mesh', 2], ['SPLIT', 'c_split', 0],
+		['CPLAND', 'c_cpland', 4]];
+	const ehab = c => (EHAB[c] ? Object.assign({label: c}, EHAB[c]) : null);
 
 	const key = (sa, sc) => sa + '/' + sc;
 	function parts() {
@@ -4253,6 +4425,8 @@ pages.similarity = (() => {
 			.filter(Boolean).join(' · ');
 		renderThdi(R);
 		renderHri(R);
+		await renderLsm(R);
+		renderGuide();
 		$('#s-meta').textContent = R.metadata || 'No similarity_metadata.txt';
 		gallery($('#s-plots'), R.plots);
 		const multi = new Set(R.maps.map(m => m.id)).size > 1;
@@ -4278,9 +4452,28 @@ pages.similarity = (() => {
 		}
 		for (const row of R.thdi) {
 			if (R.thdi.length > 1) box.append(el('div', {class: 'thdi-id'}, areaName(row.wdpaid)));
-			box.append(el('div', {class: 'facts'}, ...THDI.map(([k, label, s]) => el('div', {class: 'fact', title: k},
-				el('div', {class: 'k'}, label), el('div', {class: 'v'}, fmt(row[k], 3)), s ? el('div', {class: 's'}, s) : null))));
+			box.append(el('div', {class: 'facts'}, ...THDI.map(([k, label, s]) => el('div', {class: 'fact click', title: 'What it is',
+				onclick: () => metricInfo(ehab(k))},
+				el('div', {class: 'k'}, label, ' ', el('span', {class: 'info-btn'}, 'ⓘ')), el('div', {class: 'v'}, fmt(row[k], 3)),
+				s ? el('div', {class: 's'}, s) : null))));
 		}
+		box.append(el('p', {class: 'small muted', style: {margin: 0}}, 'THDI = THD / THR. THD (diversity) grows with the ecoregions the '
+			+ 'study area spans and with more HFTs of more even sizes (SIH); THR (replaceability) is the median HSR of its HFTs per '
+			+ 'ecoregion: how much similar land, in patches as large as them, they have around. A high THDI marks a study area with '
+			+ 'diverse habitats that are hard to find elsewhere; NA when THR is NA (no HFT with similar patches).'));
+	}
+
+	// The HFT (class) of a row of hri_results.csv (from wdpaid_hft in the tables without the column hft) and its key
+	const hftOf = r => r.hft ?? String(r.wdpaid_hft || '').split('_').pop();
+	const rowKey = r => `${r.wdpaid}_${hftOf(r)}`;
+	function selectRow(R, k) {
+		S.selRow = k;
+		$$('#s-hri tbody tr, #s-lsm tbody tr').forEach(tr => tr.classList.toggle('sel', tr.dataset.key === k));
+		renderReading(R, k);
+		if (![...$('#s-map-hft').options].some(o => o.value === k)) return;
+		$('#s-map-hft').value = k;
+		if ($('#s-map-kind').value === 'all') $('#s-map-kind').value = 'similar';
+		drawMap();
 	}
 
 	function renderHri(R) {
@@ -4289,6 +4482,8 @@ pages.similarity = (() => {
 		const t = R.tables.hri;
 		$('#s-hri-file').textContent = t ? t.file : '';
 		fullTable($('#s-hri-all'), t);
+		if (!R.hri.some(r => rowKey(r) === S.selRow)) S.selRow = null;
+		renderReading(R, S.selRow);
 		if (!t) {
 			tbl.append(el('tbody', {}, el('tr', {}, el('td', {class: 'empty'}, 'No hri_results.csv.'))));
 			return;
@@ -4298,26 +4493,124 @@ pages.similarity = (() => {
 		const colour = Object.fromEntries(R.maps.map(m => [`${m.id}_${m.hft}`, m.colour]));
 		const cols = HRI.filter(([c]) => c === 'T' || t.header.includes(c));
 		tbl.append(el('thead', {}, el('tr', {}, multi ? el('th', {}, 'ID') : null, el('th', {}, t.header.includes('subclass') ? 'Subclass' : 'HFT'), el('th', {}, 'Status'),
-			...cols.map(([c, h, , title]) => el('th', {class: 'num', title: c === 'T' ? `${title} (${tcol})` : `${title} (${c})`}, h)))));
+			...cols.map(([c, h]) => metricTh(h, c === 'T' ? Object.assign(ehab('T'), {name: `Similarity threshold (${tcol})`}) : ehab(c))))));
 		const body = el('tbody');
 		for (const r of R.hri) {
-			const hft = r.hft ?? String(r.wdpaid_hft || '').split('_').pop();
-			const k = `${r.wdpaid}_${hft}`;
-			const tr = el('tr', {class: 'click', title: 'Show its maps'},
+			const k = rowKey(r);
+			const tr = el('tr', {class: 'click' + (k === S.selRow ? ' sel' : ''), title: 'Read its results and show its maps', 'data-key': k},
 				multi ? el('td', {}, r.wdpaid) : null,
-				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), r.subclass || hft)),
+				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), r.subclass || hftOf(r))),
 				el('td', {}, statusBadge(r.Status)),
 				...cols.map(([c, , d]) => el('td', {class: 'num'}, fmt(c === 'T' ? r[tcol] : r[c], d))));
-			tr.addEventListener('click', () => {
-				if (![...$('#s-map-hft').options].some(o => o.value === k)) return;
-				$('#s-map-hft').value = k;
-				if ($('#s-map-kind').value === 'all') $('#s-map-kind').value = 'similar';
-				drawMap();
-				$('#s-map-card').scrollIntoView({behavior: 'smooth', block: 'start'});
-			});
+			tr.addEventListener('click', () => selectRow(R, k));
 			body.append(tr);
 		}
 		tbl.append(body);
+	}
+
+	// The landscape metrics of the similar areas of every HFT (runs made before them have none)
+	async function renderLsm(R) {
+		const tbl = $('#s-lsm');
+		tbl.textContent = '';
+		const t = R.tables.hri;
+		const cols = t ? SIM_LSM.filter(([c]) => t.header.includes(c)) : [];
+		$('#s-lsm-box').classList.toggle('hidden', !cols.length);
+		if (!cols.length) return;
+		try { await lsmCatalogue(); } catch (e) { /* the headers without their explanation */ }
+		const multi = new Set(R.hri.map(r => r.wdpaid)).size > 1;
+		const colour = Object.fromEntries(R.maps.map(m => [`${m.id}_${m.hft}`, m.colour]));
+		tbl.append(el('thead', {}, el('tr', {}, multi ? el('th', {}, 'ID') : null, el('th', {}, t.header.includes('subclass') ? 'Subclass' : 'HFT'),
+			...cols.map(([c, key]) => metricTh(c, LSM.byKey[key] || null)))));
+		const body = el('tbody');
+		for (const r of R.hri) {
+			const k = rowKey(r);
+			const tr = el('tr', {class: 'click' + (k === S.selRow ? ' sel' : ''), 'data-key': k, title: 'Read its results and show its maps'},
+				multi ? el('td', {}, r.wdpaid) : null,
+				el('td', {}, el('span', {class: 'hft'}, swatch(colour[k]), r.subclass || hftOf(r))),
+				...cols.map(([c, , d]) => el('td', {class: 'num'}, fmtn(r[c], d))));
+			tr.addEventListener('click', () => selectRow(R, k));
+			body.append(tr);
+		}
+		tbl.append(body);
+	}
+
+	// The results of one HFT in words
+	function renderReading(R, k) {
+		const box = $('#s-reading');
+		box.textContent = '';
+		const r = k ? R.hri.find(x => rowKey(x) === k) : null;
+		box.classList.toggle('hidden', !r);
+		if (!r) return;
+		const n = v => (v === null || v === undefined || v === '' ? null : Number(v));
+		const name = r.subclass ? `Subclass ${r.subclass}` : `HFT ${hftOf(r)}`;
+		const ar = R.area || {};
+		const where = ar.kind === 'comparison area' ? 'the comparison area' : 'its ecoregion';
+		const px = n(r.PixelSize_m);
+		const tval = n(r.AveHFTSim ?? r.MedianHFTSim);
+		const parts = [];
+		parts.push(`${name}${R.hri.some(x => x.wdpaid !== r.wdpaid) ? ` (${areaName(r.wdpaid)})` : ''}: ${fmt(r.NrPixHFT, 0)} pixels of `
+			+ `${fmt(px, 0)} m${n(r.HFTArea_ha) !== null ? `, ${fmt(r.HFTArea_ha, 1)} ha in its map` : ''}.`);
+		const st = STATUS[r.Status];
+		if (r.Status && r.Status !== 'ok' && st) parts.push(`Status: ${st[1]} (${st[2]}).`);
+		if (n(r.NrSimPixEco) !== null) {
+			const pl = n(r.PLAND);
+			const share = pl !== null ? `, ${fmt(pl, 3)} % of the pixels compared` : '';
+			parts.push(`${fmt(r.NrSimPixEco, 0)} pixels of ${where} (${fmt(r.SimAreaEco_km2, 2)} km²${share}) are at least as similar `
+				+ `to it as its own typical pixel (T = ${fmt(tval, 3)}): ${fmt(r.NrSimPixEco_NrPixHFT_ratio, 2)} times its size.`);
+			if (n(r.NrSimLcpPatEco)) {
+				parts.push(`They form ${fmt(r.NrSimLcpPatEco, 0)} patches${n(r.AREA_MN) !== null ? ` of ${fmt(r.AREA_MN, 2)} ha on average` : ''}; `
+					+ `the largest is ${fmt(r.LargPatArea_km2, 2)} km² (${fmt(r.NrPixLargLcpPat_NrPixHFT_ratio, 2)} × the HFT).`);
+				parts.push(n(r.NrSimLcpPatEqLargArea) > 0
+					? `${fmt(r.NrSimLcpPatEqLargArea, 0)} of them are at least as large as the HFT, ${fmt(r.HSR, 2)} times its area in all (HSR): `
+						+ 'there is similar land around that could replace it.'
+					: `None is as large as the HFT (HSR = ${fmt(r.HSR, 2)}, the largest patch / the HFT): it would be hard to find it whole elsewhere in ${where}.`);
+				if (n(r.ENN_MN) !== null || n(r.AI) !== null) {
+					parts.push([n(r.ENN_MN) !== null ? `Each similar patch is ${fmt(r.ENN_MN, 0)} m from the nearest one on average (ENN_MN)` : null,
+						n(r.AI) !== null ? `its pixels have ${fmt(r.AI, 0)} % of the like adjacencies possible (AI: 100 is one compact block, low is scattered pixels)` : null,
+						n(r.COHESION) !== null ? `and a cohesion of ${fmt(r.COHESION, 1)} (COHESION, 0–100: physical connectedness)` : null]
+						.filter(Boolean).join(', ') + '.');
+				}
+			} else if (r.Status === 'no_similar') {
+				parts.push(`No pixel of ${where} is as similar to it as its own pixels: a habitat unique in ${where}.`);
+			}
+		}
+		if (n(r.SelfFit_pct) !== null) {
+			parts.push(`In the study area, ${fmt(r.StudySim_pct, 0)} % of the pixels of the HFTs are similar to it, and ${fmt(r.SelfFit_pct, 0)} % `
+				+ `of those are the ${r.subclass ? 'subclass' : 'HFT'} itself: ${n(r.SelfFit_pct) >= 50 ? 'its map is specific to it'
+					: 'its map also takes other HFTs as similar, so read its similar areas with care'}.`);
+		}
+		box.append(el('div', {class: 'row'}, el('b', {}, 'Reading of ' + name),
+			el('button', {class: 'btn small right', onclick: () => $('#s-map-card').scrollIntoView({behavior: 'smooth', block: 'start'})}, 'Show its maps ↓'),
+			el('button', {class: 'btn small ghost', onclick: () => { S.selRow = null; selectRow(R, null); }}, '✕')),
+			el('p', {}, parts.join(' ')));
+	}
+
+	// The guide of the metrics of a run: those of eHabitat+, of FRAGSTATS (landscapemetrics) and of the THDI
+	async function renderGuide() {
+		const box = $('#s-guide');
+		if (box.dataset.done) return;
+		box.dataset.done = '1';
+		try { await lsmCatalogue(); } catch (e) { /* only those of eHabitat+ */ }
+		const section = (title, text, entries, open) => {
+			const tbl = el('table', {class: 't guide'});
+			guideTable(tbl, entries);
+			return el('details', {class: 'more', open: open || null}, el('summary', {}, title),
+				text ? el('p', {class: 'small muted'}, text) : null, el('div', {class: 'table-wrap'}, tbl));
+		};
+		box.append(
+			section('Similarity and similar areas', 'T decides which pixels are similar; the similar pixels and their area say how '
+				+ 'much land like the HFT there is in the area compared.', ['T', 'NrPixHFT', 'NrSimPixHFT', 'NrSimPixEco', 'SimAreaEco_km2',
+				'NrSimPixEco_NrPixHFT_ratio'].map(ehab), true),
+			section('Patches of the similar areas (eHabitat+)', 'The similar pixels that touch form patches; HSR measures how far the '
+				+ 'large ones could replace the HFT.', ['NrSimLcpPatEco', 'NrSimLcpPatEqLargArea', 'LargPatArea_km2',
+				'NrPixLargLcpPat_NrPixHFT_ratio', 'HSR', 'Aggregation'].map(ehab)),
+			LSM.list ? section('Fragmentation of the similar areas (FRAGSTATS, landscapemetrics)', 'The similar pixels of each HFT as one '
+				+ 'class in the pixels compared without the HFT (▲ more fragmented when larger, ▼ when smaller).',
+				SIM_LSM.map(([c, key]) => LSM.byKey[key]).filter(Boolean)) : null,
+			section('Fit in the study area', 'A check of the maps: how specific the similarity of each HFT is within the study area '
+				+ '(fit_matrix.csv).', ['StudySim_pct', 'SelfFit_pct'].map(ehab)),
+			section('Indices of the study area (thdi_res.csv)', 'THDI = THD / THR (Martínez-López et al. 2023, Ecological Informatics).',
+				['TerrEco', 'MarEco', 'NrHFT', 'SIH', 'THD', 'THR', 'THDI'].map(ehab)));
 	}
 
 	function fullTable(tbl, t) {
@@ -4737,6 +5030,590 @@ pages.similarity = (() => {
 	};
 })();
 
+// 6. Landscape metrics of maps of patches ===========================================================================
+pages.landscape = (() => {
+	const S = {loaded: false, inputs: [], boundary: null, custom: null, runs: [], res: null, map: null, pLayer: null,
+		bLayer: null, bFor: null, fitted: null, mapSeq: 0};
+	const NAME_RE = /^[A-Za-z0-9_-]{1,80}$/;
+	const VIRIDIS = ['#440154', '#482878', '#3e4989', '#31688e', '#26828e', '#1f9e89', '#35b779', '#6ece58', '#b5de2b', '#fde725'];
+	const view = new JobView($('#l-log'), $('#l-bar'), {
+		onStart: () => { $('#l-stop').classList.remove('hidden'); $('#dot-landscape').classList.remove('hidden'); canRun(); },
+		onEnd: async s => {
+			$('#l-stop').classList.add('hidden');
+			$('#dot-landscape').classList.add('hidden');
+			canRun();
+			if (s.state === 'done') toast('Landscape metrics computed.', 'ok');
+			else if (s.state === 'failed') toast('The landscape metrics failed: see the messages.', 'err');
+			await loadRuns(s.state === 'done' && s.result ? s.result.name : null);
+		}});
+	const mode = () => $('#l-mode').value;
+	const base = p => String(p || '').split(/[\\/]/).pop();
+
+	// The maps and options, kept in this computer while they are not run -----------------------------------------
+	function save() {
+		store('landscape.draft', JSON.stringify({inputs: S.inputs, boundary: S.boundary, custom: S.custom, name: $('#l-name').value,
+			mode: mode(), nb: $('#l-nb').value, edge: $('#l-edge').value, res: $('#l-res').value, set: $('#l-set').value}));
+	}
+	function restore() {
+		let d = null;
+		try { d = JSON.parse(store('landscape.draft') || 'null'); } catch (e) { d = null; }
+		if (!d) return;
+		S.inputs = Array.isArray(d.inputs) ? d.inputs : [];
+		S.boundary = d.boundary || null;
+		S.custom = Array.isArray(d.custom) ? d.custom : null;
+		$('#l-name').value = d.name || '';
+		$('#l-mode').value = d.mode === 'classes' ? 'classes' : 'habitat';
+		$('#l-nb').value = d.nb === '4' ? '4' : '8';
+		$('#l-edge').value = d.edge || 1;
+		$('#l-res').value = d.res || '';
+		$('#l-set').value = ['fragmentation', 'all', 'custom'].includes(d.set) ? d.set : 'fragmentation';
+	}
+
+	// Inputs -----------------------------------------------------------------------------------------------------
+	function defaults(info) {
+		const it = {file: info.path, label: info.year || info.name, layer: info.kind === 'vector' ? info.layer : null, field: '',
+			habitat: [], info};
+		const prev = [...S.inputs].reverse().find(x => x.info && x.info.kind === info.kind);
+		if (info.kind === 'raster') {
+			const vals = (info.classes || []).map(c => String(c.value));
+			if (prev && prev.habitat.length && prev.habitat.every(v => vals.includes(String(v)))) it.habitat = [...prev.habitat];
+			else if (vals.includes('1') && vals.every(v => v === '0' || v === '1')) it.habitat = ['1'];
+		} else if (prev && prev.field && (info.fields || []).some(f => f.name === prev.field)) {
+			it.field = prev.field;
+			const vals = ((info.fields.find(f => f.name === prev.field) || {}).values || []).map(v => String(v.value));
+			it.habitat = prev.habitat.filter(v => vals.includes(String(v)));
+		}
+		return it;
+	}
+	async function addMaps() {
+		const files = await pickFiles('patches', true, 'Maps of patches');
+		if (!files.length) return;
+		const added = [];
+		for (const f of files) {
+			if (S.inputs.some(x => x.file === f)) { toast(`${base(f)} is already in the list.`, 'warn'); continue; }
+			try {
+				const info = await api('landscape_inspect', f);
+				const it = defaults(info);
+				S.inputs.push(it);
+				added.push(it);
+			} catch (e) { fail(e); }
+		}
+		if (!added.length) return;
+		if (S.inputs.every(x => Number.isFinite(Number(x.label)))) S.inputs.sort((a, b) => Number(a.label) - Number(b.label));
+		if (!$('#l-name').value.trim()) {
+			const stem = base(S.inputs[0].file).replace(/\.[^.]+$/, '').replace(/(?<!\d)(1[89]\d\d|20\d\d|21\d\d)(?!\d)/g, '')
+				.replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+			$('#l-name').value = (stem || 'landscape').slice(0, 60);
+		}
+		renderInputs();
+	}
+
+	function chips(values, chosen, onToggle) {
+		return el('div', {class: 'chips'}, ...values.map(v => {
+			const on = chosen.includes(String(v.value));
+			return el('span', {class: 'chip' + (on ? ' on' : ''), title: v.title || '', onclick: () => onToggle(String(v.value))},
+				String(v.value), v.n ? el('span', {class: 'small muted'}, ' ' + v.n) : null);
+		}));
+	}
+	// the values of the classes of a map: those of the raster, or of a column of the polygons
+	const valuesOf = (info, field) => (info.kind === 'raster' ? (info.classes || []).map(c => String(c.value))
+		: (((info.fields || []).find(f => f.name === field) || {}).values || []).map(v => String(v.value)));
+	// what is chosen for one map, also for the other maps of the series that have nothing chosen yet (and those values)
+	function spread(it) {
+		for (const o of S.inputs) {
+			if (o === it || !o.info || o.info.kind !== it.info.kind) continue;
+			if (it.info.kind === 'vector' && !o.field && it.field && (o.info.fields || []).some(f => f.name === it.field)) o.field = it.field;
+			if (!o.habitat.length && (it.info.kind === 'raster' || o.field === it.field)) {
+				const vals = valuesOf(o.info, o.field);
+				if (it.habitat.every(v => vals.includes(v))) o.habitat = [...it.habitat];
+			}
+		}
+	}
+	function habitatCell(it) {
+		const info = it.info || {};
+		const toggle = v => {
+			it.habitat = it.habitat.includes(v) ? it.habitat.filter(x => x !== v) : [...it.habitat, v];
+			spread(it);
+			renderInputs();
+		};
+		if (info.error) return el('div', {class: 'small err-text'}, info.error);
+		if (info.kind === 'raster') {
+			const vals = (info.classes || []).map(c => ({value: c.value, n: c.ha !== null && c.ha !== undefined ? fmt(c.ha, 0) + ' ha' : fmt(c.cells, 0) + ' px',
+				title: `${fmt(c.cells, 0)} cells`}));
+			if (mode() === 'classes') return el('div', {class: 'small'}, `every class: ${vals.map(v => v.value).join(', ')}`);
+			return el('div', {}, chips(vals, it.habitat.map(String), toggle),
+				it.habitat.length ? null : el('div', {class: 'small warn-text'}, 'Click the classes that are habitat.'));
+		}
+		const sel = el('select', {class: 'small'});
+		sel.append(el('option', {value: ''}, mode() === 'classes' ? '(no column: the polygons, one class)' : '(no column: every polygon is habitat)'));
+		for (const f of info.fields || []) {
+			sel.append(el('option', {value: f.name, disabled: f.values ? null : true}, f.name + (f.values ? ` (${f.values.length} values)` : ' (too many values)')));
+		}
+		sel.value = it.field || '';
+		sel.addEventListener('change', () => { it.field = sel.value; it.habitat = []; spread(it); renderInputs(); });
+		const out = el('div', {class: 'stack', style: {gap: '4px'}}, el('label', {class: 'small muted'}, 'Column of the classes ', sel));
+		const f = (info.fields || []).find(x => x.name === it.field);
+		if (f && f.values) {
+			if (mode() === 'classes') out.append(el('div', {class: 'small'}, `every value: ${f.values.map(v => v.value).join(', ')}`));
+			else {
+				out.append(chips(f.values.map(v => ({value: v.value, n: `${v.polygons}`, title: `${v.polygons} polygons`})), it.habitat.map(String), toggle));
+				if (!it.habitat.length) out.append(el('div', {class: 'small warn-text'}, 'Click the values that are habitat.'));
+			}
+		}
+		return out;
+	}
+	function renderInputs() {
+		const tbl = $('#l-inputs');
+		tbl.textContent = '';
+		$('#l-empty').classList.toggle('hidden', S.inputs.length > 0);
+		$('#l-inputs-wrap').classList.toggle('hidden', !S.inputs.length);
+		tbl.append(el('thead', {}, el('tr', {}, ...['', 'Label', 'Map', mode() === 'classes' ? 'Classes' : 'Habitat', ''].map(h => el('th', {}, h)))));
+		const body = el('tbody');
+		S.inputs.forEach((it, i) => {
+			const info = it.info || {};
+			const label = el('input', {type: 'text', value: it.label || '', style: {width: '90px'}, title: 'Its label in the tables and plots (e.g. its year)'});
+			label.addEventListener('input', () => { it.label = label.value.trim(); save(); canRun(); });
+			const what = info.kind === 'raster'
+				? `raster · ${info.crs || 'no CRS'} · ${(info.res || []).map(v => fmt(v, 6)).join(' × ')}${info.projected ? ' m' : '°'} · ${fmt(info.width, 0)} × ${fmt(info.height, 0)}`
+				: `polygons · ${info.crs || 'no CRS'} · ${fmt(info.count, 0)} features${(info.layers || []).length > 1 ? ' · layer ' + info.layer : ''}`;
+			const move = d => { const j = i + d; if (j < 0 || j >= S.inputs.length) return; [S.inputs[i], S.inputs[j]] = [S.inputs[j], S.inputs[i]]; renderInputs(); };
+			body.append(el('tr', {},
+				el('td', {class: 'num faint'}, String(i + 1)),
+				el('td', {}, label),
+				el('td', {}, el('div', {class: 'vname', title: it.file}, base(it.file)), el('div', {class: 'small muted'}, what)),
+				el('td', {}, habitatCell(it)),
+				el('td', {class: 'nowrap'},
+					el('button', {class: 'btn small ghost icon', title: 'Up', onclick: () => move(-1)}, '↑'),
+					el('button', {class: 'btn small ghost icon', title: 'Down', onclick: () => move(1)}, '↓'),
+					el('button', {class: 'btn small ghost icon', title: 'Remove', onclick: () => { S.inputs.splice(i, 1); renderInputs(); }}, '✕'))));
+		});
+		tbl.append(body);
+		renderNotes();
+		save();
+		canRun();
+	}
+	function renderNotes() {
+		const box = $('#l-input-notes');
+		box.textContent = '';
+		const infos = S.inputs.map(x => x.info || {});
+		const notes = [];
+		const rasters = infos.filter(i => i.kind === 'raster');
+		const vectors = infos.filter(i => i.kind === 'vector');
+		const sizes = new Set(rasters.map(i => (i.res || []).join('x')));
+		if (sizes.size > 1 && !$('#l-res').value) notes.push(['warn', 'The rasters have different pixel sizes: give one pixel size so that the dates are comparable.']);
+		if (rasters.some(i => !i.projected)) notes.push(['info', 'Rasters in geographic coordinates (degrees) are projected to their UTM zone, with the most common class of each new pixel.']);
+		if (vectors.length && !S.boundary) notes.push(['info', 'Without a boundary, the landscape of the polygons is the rectangle around all of them: give one (e.g. the study area) for meaningful PLAND, PD, ED…']);
+		if (rasters.length && vectors.length) notes.push(['warn', 'Rasters and polygons are on different grids: compare maps of one kind.']);
+		for (const [k, t] of notes) box.append(el('div', {class: 'notice ' + k}, t));
+		const r = Number($('#l-res').value) || (rasters[0] && rasters[0].projected ? rasters[0].res[0] : null);
+		$('#l-edge-m').textContent = r ? `= ${fmt(r * Number($('#l-edge').value || 1), 1)} m` : '';
+	}
+
+	// Options ----------------------------------------------------------------------------------------------------
+	// the metrics of the run: null = the fragmentation set (the default of landscape_metrics.py)
+	function metrics() {
+		const set = $('#l-set').value;
+		if (set === 'all') return LSM.list ? LSM.list.map(m => m.key) : null;
+		if (set === 'custom' && S.custom && S.custom.length) return S.custom;
+		return null;
+	}
+	function setCount() {
+		const set = $('#l-set').value;
+		$('#l-choose').classList.toggle('hidden', set !== 'custom');
+		const m = metrics() || LSM.fragmentation || [];
+		const n = m.filter(k => !k.startsWith('p_') && (mode() === 'classes' || !k.startsWith('l_'))).length;
+		$('#l-set-n').textContent = n ? `${n} metrics of classes${mode() === 'classes' ? ' and landscape' : ''}, and those of every patch` : '';
+		$('#l-mode-help').textContent = mode() === 'habitat'
+			? 'The classes (or polygons) you mark as habitat become one class, the rest of the landscape the other: the metrics of its patches and of the habitat as a class.'
+			: 'Every class of the maps (or value of the column of the polygons, with the same code at every date) is a class: the metrics of each class and of the whole landscape (diversity, contagion, entropy…). For polygons, the cells of the landscape without a polygon are one more class, "(no polygon)".';
+	}
+	async function chooseMetrics() {
+		await lsmCatalogue();
+		const chosen = new Set(S.custom || LSM.fragmentation);
+		const groups = {};
+		for (const m of LSM.list) {
+			if (m.level === 'patch') continue;
+			(groups[`${m.level} · ${m.type}`] = groups[`${m.level} · ${m.type}`] || []).push(m);
+		}
+		const body = el('div', {class: 'stack', style: {gap: '10px'}},
+			el('div', {class: 'small muted'}, 'The metrics of classes and of the landscape to compute (those of the landscape only with "Every class"). Hover over a name to read what it is.'));
+		for (const [g, ms] of Object.entries(groups)) {
+			body.append(el('div', {}, el('div', {class: 'section-title'}, g), el('div', {class: 'metric-grid'}, ...ms.map(m => {
+				const cb = el('input', {type: 'checkbox', checked: chosen.has(m.key) || null});
+				cb.addEventListener('change', () => { cb.checked ? chosen.add(m.key) : chosen.delete(m.key); });
+				return el('label', {class: 'check small', title: `${m.name}: ${m.what}`}, cb, el('b', {}, m.label), el('span', {class: 'muted'}, m.name));
+			}))));
+		}
+		const ok = await modal({title: 'Metrics to compute', body, wide: true, buttons: [
+			{label: 'The fragmentation set', result: 'frag'}, {label: 'Cancel', result: null}, {label: 'Use these', cls: 'primary', result: 'ok'}]});
+		if (ok === 'frag') S.custom = [...LSM.fragmentation];
+		else if (ok === 'ok') S.custom = [...chosen];
+		setCount();
+		save();
+	}
+	async function pickBoundary() {
+		const f = await pickFiles('vector', false, 'Boundary of the landscape');
+		if (!f.length) return;
+		try {
+			const info = await api('landscape_inspect', f[0]);
+			if (info.kind !== 'vector') throw new Error('the boundary must be a vector file of polygons');
+			S.boundary = {file: f[0], layer: info.layer || null};
+		} catch (e) { return fail(e); }
+		$('#l-bnd').value = S.boundary.file;
+		renderNotes();
+		save();
+	}
+
+	function spec() {
+		const res = Number($('#l-res').value);
+		return {name: $('#l-name').value.trim(), mode: mode(), directions: Number($('#l-nb').value), edge_depth: Number($('#l-edge').value) || 1,
+			res: res > 0 ? res : null, boundary: S.boundary, metrics: metrics(),
+			inputs: S.inputs.map(it => ({file: it.file, label: it.label, layer: it.layer || null, field: it.field || null,
+				habitat: mode() === 'habitat' && (it.info.kind === 'raster' || it.field) ? it.habitat : null}))};
+	}
+	function canRun() {
+		const why = [];
+		const labels = S.inputs.map(x => String(x.label || '').trim());
+		if (!S.inputs.length) why.push('add the maps of patches');
+		if (labels.some(x => !x)) why.push('give every map a label');
+		if (new Set(labels).size !== labels.length) why.push('the labels must be different');
+		if (S.inputs.some(x => x.info && x.info.error)) why.push('remove the maps that cannot be used');
+		if (mode() === 'habitat' && S.inputs.some(x => x.info && (x.info.kind === 'raster' || x.field) && !x.habitat.length)) why.push('choose the habitat of every map');
+		if (!NAME_RE.test($('#l-name').value.trim())) why.push('give the run a name (letters, digits, - and _)');
+		if (view.running()) why.push('wait for the run that is going on');
+		$('#l-run').disabled = why.length > 0;
+		$('#l-run-why').textContent = why.length ? 'To run: ' + why.join('; ') + '.' : '';
+		const n = $('#l-name').value.trim();
+		$('#l-run-sub').textContent = NAME_RE.test(n) ? `results in segm_optim/landscape/${n}` + (S.runs.some(r => r.name === n) ? ' (it replaces the run with this name)' : '') : '';
+	}
+
+	// Results ----------------------------------------------------------------------------------------------------
+	async function loadRuns(select) {
+		try { S.runs = await api('landscape_runs'); } catch (e) { fail(e); S.runs = []; }
+		const sel = $('#l-runs');
+		const cur = select || sel.value;
+		sel.textContent = '';
+		for (const r of S.runs) sel.append(el('option', {value: r.name}, `${r.name} · ${r.maps.length} map${r.maps.length === 1 ? '' : 's'} · ${r.date}`));
+		sel.value = S.runs.some(r => r.name === cur) ? cur : (S.runs[0] || {}).name || '';
+		$('#l-res-empty').classList.toggle('hidden', S.runs.length > 0);
+		$('#l-res-body').classList.toggle('hidden', !S.runs.length);
+		$('#l-map-card').classList.toggle('hidden', !S.runs.length);
+		['#l-load', '#l-open', '#l-del'].forEach(b => { $(b).disabled = !S.runs.length; });
+		canRun();
+		if (sel.value) await loadResult();
+	}
+
+	const numRow = r => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, ['map', 'class_name'].includes(k) ? v : v === null ? null : Number(v)]));
+	async function loadResult() {
+		const name = $('#l-runs').value;
+		if (!name) return;
+		let R;
+		try { R = await api('landscape_results', name); } catch (e) { return fail(e); }
+		if (name !== $('#l-runs').value) return;
+		try { await lsmCatalogue(); } catch (e) { /* without the explanations */ }
+		S.res = R;
+		S.patch = null;  // drawn again (now, or when the page is shown)
+		const run = R.run, o = run.options || {};
+		R.cls = R.class.map(numRow);
+		R.land = R.landscape.map(numRow);
+		R.order = run.maps.map(m => String(m.map));
+		$('#l-res-sub').textContent = [run.date, run.mode === 'habitat' ? 'a habitat' : 'every class', `${run.maps.length} maps`,
+			`${o.directions} neighbours`, `edge depth ${o.edge_depth} cell${o.edge_depth === 1 ? '' : 's'}`, o.res ? `polygons at ${fmt(o.res)} m` : null,
+			run.boundary ? 'boundary ' + base(run.boundary.file) : null, run.seconds ? fmt(run.seconds, 0) + ' s' : null].filter(Boolean).join(' · ');
+		const w = $('#l-warnings');
+		w.textContent = '';
+		for (const t of run.warnings || []) w.append(el('div', {class: 'notice warn'}, t));
+		for (const m of run.maps) for (const t of m.notes || []) w.append(el('div', {class: 'notice info'}, `${m.map}: ${t}`));
+		const facts = $('#l-facts');
+		facts.textContent = '';
+		for (const m of run.maps.slice(0, 12)) {
+			const h = m.habitat_metrics;
+			facts.append(el('div', {class: 'fact'}, el('div', {class: 'k'}, m.map),
+				el('div', {class: 'v'}, h ? `${fmt(h.ca, 1)} ha of habitat` : `${fmt(m.landscape_ha, 1)} ha`),
+				el('div', {class: 's'}, h ? `${fmt(h.pland, 1)} % of ${fmt(m.landscape_ha, 0)} ha · ${fmt(m.patches, 0)} patches · ${fmt(m.grid.res_m)} m`
+					: `${m.classes.length} classes · ${fmt(m.patches, 0)} patches · ${fmt(m.grid.res_m)} m`)));
+		}
+		const names = [...new Set(R.cls.map(r => r.class_name))];
+		const csel = $('#l-class');
+		const prev = csel.value;
+		csel.textContent = '';
+		if (names.length > 1) csel.append(el('option', {value: '*'}, 'All (one line each)'));
+		for (const n of names) csel.append(el('option', {value: n}, n));
+		csel.value = names.includes(prev) || (prev === '*' && names.length > 1) ? prev : names.includes('habitat') ? 'habitat' : names[0] || '';
+		$('#l-class-lab').classList.toggle('hidden', names.length < 2);
+		renderTrends();
+		renderLandscape();
+		tableOf($('#l-cls'), R.tables.class, 'c_');
+		tableOf($('#l-patch'), R.tables.patch, 'p_');
+		$('#l-patch-sum').textContent = `Metrics of every patch (metrics_patch.csv${R.tables.patch && R.tables.patch.total > R.tables.patch.rows.length
+			? `: the first ${fmt(R.tables.patch.rows.length, 0)} of ${fmt(R.tables.patch.total, 0)} patches` : ''})`;
+		gallery($('#l-plots'), R.plots);
+		if (!R.plots.length) $('#l-plots').textContent = '';
+		$('#l-meta').textContent = R.metadata || '';
+		const ms = $('#l-map-sel');
+		const pm = ms.value;
+		ms.textContent = '';
+		run.maps.forEach((m, i) => ms.append(el('option', {value: String(i + 1)}, `${m.map} (${fmt(m.patches, 0)} patches)`)));
+		ms.value = [...ms.options].some(x => x.value === pm) && S.fitted === name ? pm : '1';
+		$('#l-map-by').querySelector('option[value=class]').disabled = run.mode === 'habitat';
+		if (run.mode === 'habitat' && $('#l-map-by').value === 'class') $('#l-map-by').value = 'area';
+		await drawPatches();
+	}
+
+	// the metric columns of a table: those of the catalogue (with the prefix of their level)
+	const metricCols = (t, prefix) => (t ? t.header.filter(h => LSM.byKey[prefix + h]) : []);
+	function tableOf(tbl, t, prefix) {
+		tbl.textContent = '';
+		if (!t) return;
+		tbl.append(el('thead', {}, el('tr', {}, ...t.header.map(h => (LSM.byKey[prefix + h] ? metricTh(LSM.byKey[prefix + h].label, LSM.byKey[prefix + h]) : el('th', {}, h))))));
+		const body = el('tbody');
+		const raw = new Set(['map', 'class', 'class_name', 'id']);  // labels and codes, as they are (a year is not 2,000)
+		for (const r of t.rows) {
+			body.append(el('tr', {}, ...r.map((v, j) => {
+				const num = /^-?[\d.]+(e[-+]?\d+)?$/.test(v);
+				return el('td', {class: num ? 'num' : ''}, num && !raw.has(t.header[j]) ? fmtn(v, 4) : v);
+			})));
+		}
+		tbl.append(body);
+	}
+	// the value of METRIC of the class C (or the landscape) in every map, in the order of the run
+	function seriesOf(rows, metric, c) {
+		return S.res.order.map(mp => {
+			const r = rows.find(x => String(x.map) === mp && (c === null || x.class_name === c));
+			return r && r[metric] !== null && r[metric] !== undefined ? r[metric] : NaN;
+		});
+	}
+	function renderTrends() {
+		const R = S.res;
+		const c = $('#l-class').value;
+		const cols = metricCols(R.tables.class, 'c_');
+		const box = $('#l-charts');
+		box.textContent = '';
+		const classes = c === '*' ? [...new Set(R.cls.map(r => r.class_name))] : [c];
+		for (const m of cols) {
+			const e = LSM.byKey['c_' + m];
+			box.append(lineChart({title: e.label, xs: R.order, m: e, onClick: () => metricInfo(e),
+				series: classes.map((k, i) => ({name: k, ys: seriesOf(R.cls, m, k), colour: PALETTE[i % PALETTE.length]}))}));
+		}
+		if (c === '*') box.prepend(el('div', {class: 'chart-legend'}, ...classes.map((k, i) => el('span', {}, el('i', {style: {background: PALETTE[i % PALETTE.length]}}), k))));
+		changeTable(cols, c === '*' ? (classes.includes('habitat') ? 'habitat' : classes[0]) : c);
+	}
+	function changeTable(cols, c) {
+		const R = S.res;
+		const tbl = $('#l-change');
+		tbl.textContent = '';
+		const first = R.order[0], last = R.order[R.order.length - 1];
+		$('#l-change-title').textContent = R.order.length > 1 ? `Change between ${first} and ${last}${c ? ' · ' + c : ''}` : `Metrics of ${first}${c ? ' · ' + c : ''}`;
+		tbl.append(el('thead', {}, el('tr', {}, el('th', {}, 'Metric'), el('th', {class: 'num'}, first),
+			R.order.length > 1 ? el('th', {class: 'num'}, last) : null, R.order.length > 1 ? el('th', {class: 'num'}, 'Change') : null,
+			R.order.length > 1 ? el('th', {}, 'Reading') : null, el('th', {}, 'What it measures'))));
+		const body = el('tbody');
+		for (const m of cols) {
+			const e = LSM.byKey['c_' + m];
+			const ys = seriesOf(R.cls, m, c);
+			const a = ys[0], b = ys[ys.length - 1];
+			let reading = '', cls = '';
+			if (Number.isFinite(a) && Number.isFinite(b) && R.order.length > 1) {
+				const d = b - a;
+				const rel = Math.abs(d) <= 1e-9 * Math.max(1, Math.abs(a)) ? 0 : d;
+				if (!rel) reading = 'no change';
+				else if (e.amount) {
+					reading = rel > 0 ? 'larger (gain)' : 'smaller (loss)';
+					cls = rel > 0 ? 'ok-text' : 'err-text';
+				} else if (e.fragmentation) {
+					const worse = (e.fragmentation === '+') === (rel > 0);
+					reading = worse ? 'more fragmented' : 'less fragmented';
+					cls = worse ? 'err-text' : 'ok-text';
+				}
+			}
+			const pct = Number.isFinite(a) && Number.isFinite(b) && a !== 0 ? (b - a) / Math.abs(a) * 100 : null;
+			body.append(el('tr', {class: 'click', title: 'What it is', onclick: () => metricInfo(e)},
+				el('td', {}, el('b', {}, e.label), ' ', fragArrow(e.fragmentation), el('div', {class: 'small muted'}, `${e.name} (${e.unit})`)),
+				el('td', {class: 'num'}, fmtn(a, 4)),
+				R.order.length > 1 ? el('td', {class: 'num'}, fmtn(b, 4)) : null,
+				R.order.length > 1 ? el('td', {class: 'num'}, Number.isFinite(a) && Number.isFinite(b) ? `${b - a >= 0 ? '+' : ''}${fmtn(b - a, 4)}`
+					+ (pct !== null ? ` (${pct >= 0 ? '+' : ''}${fmt(pct, 1)} %)` : '') : '—') : null,
+				R.order.length > 1 ? el('td', {class: 'small ' + cls}, reading) : null,
+				el('td', {class: 'small muted'}, e.what)));
+		}
+		tbl.append(body);
+	}
+	function renderLandscape() {
+		const R = S.res;
+		const box = $('#l-land-box');
+		box.classList.toggle('hidden', !R.land.length);
+		const charts = $('#l-land-charts');
+		charts.textContent = '';
+		tableOf($('#l-land'), R.tables.landscape, 'l_');
+		if (!R.land.length) return;
+		for (const m of metricCols(R.tables.landscape, 'l_')) {
+			const e = LSM.byKey['l_' + m];
+			charts.append(lineChart({title: e.label, xs: R.order, m: e, onClick: () => metricInfo(e), series: [{ys: seriesOf(R.land, m, null)}]}));
+		}
+	}
+
+	// The map of the patches -------------------------------------------------------------------------------------
+	function ensureMap() {
+		if (!S.map) S.map = makeMap('l-map', 'landscape', 'osm', $('#l-base'));
+		setTimeout(() => S.map.invalidateSize(), 60);
+	}
+	const ramp = t => VIRIDIS[Math.max(0, Math.min(VIRIDIS.length - 1, Math.round(t * (VIRIDIS.length - 1))))];
+	async function drawPatches() {
+		const R = S.res;
+		if (!R || !$('#page-landscape').classList.contains('active')) return;
+		ensureMap();
+		const idx = $('#l-map-sel').value || '1';
+		const seq = ++S.mapSeq;
+		let P;
+		try { P = await api('landscape_patches', R.name, Number(idx)); } catch (e) { return fail(e); }
+		if (seq !== S.mapSeq) return;
+		S.patch = P;
+		if (S.bFor !== R.name) {
+			if (S.bLayer) { S.map.removeLayer(S.bLayer); S.bLayer = null; }
+			S.bFor = R.name;
+			const gj = await api('landscape_boundary', R.name).catch(() => null);
+			if (gj && S.bFor === R.name) {
+				S.bLayer = L.geoJSON(gj, {style: {color: '#ff3b30', weight: 2, dashArray: '6 4', fill: false}, interactive: false});
+				if ($('#l-bnd-show').checked) S.bLayer.addTo(S.map);
+			}
+		}
+		styleLayer();
+		$('#l-map-title').textContent = `Patches of ${P.map}`;
+		$('#l-map-sub').textContent = `${fmt(P.total, 0)} patches` + (P.truncated ? ` (the ${fmt(P.max_patches, 0)} largest drawn)` : '');
+		if (S.fitted !== R.name && P.bbox) {
+			S.map.fitBounds(bboxBounds(P.bbox), {padding: [12, 12]});
+			S.fitted = R.name;
+		}
+	}
+	function styleLayer() {
+		const P = S.patch;
+		if (!P) return;
+		if (S.pLayer) { S.map.removeLayer(S.pLayer); S.pLayer = null; }
+		const by = $('#l-map-by').value;
+		const op = Number($('#l-op').value) / 100;
+		const feats = P.patches.features;
+		const val = f => { const v = f.properties[by]; return v === null || v === undefined ? NaN : Number(by === 'area' ? Math.log10(Math.max(v, 1e-6)) : v); };
+		const vals = feats.map(val).filter(Number.isFinite);
+		const lo = vals.length ? Math.min(...vals) : 0, hi = vals.length ? Math.max(...vals) : 1;
+		const names = [...new Set(feats.map(f => f.properties.class_name))];
+		const colour = f => {
+			if (by === 'class') return PALETTE[names.indexOf(f.properties.class_name) % PALETTE.length];
+			const v = val(f);
+			return Number.isFinite(v) ? ramp(hi > lo ? (v - lo) / (hi - lo) : 0.5) : '#9a9a9a';
+		};
+		S.pLayer = L.geoJSON(P.patches, {style: f => ({color: colour(f), weight: 0.6, opacity: Math.min(1, op + 0.15), fillColor: colour(f), fillOpacity: op}),
+			onEachFeature: (f, layer) => {
+				const q = f.properties;
+				layer.bindTooltip(leafletText(`Patch ${q.patch}${q.class_name ? ' · ' + q.class_name : ''}: ${fmt(q.area, 2)} ha, core ${fmt(q.core, 2)} ha `
+					+ `(CAI ${fmt(q.cai, 0)} %), nearest patch ${q.enn === null ? '— (the only one)' : fmt(q.enn, 0) + ' m'}, shape ${fmt(q.shape, 2)}`), {sticky: true});
+			}}).addTo(S.map);
+		if (S.bLayer && S.map.hasLayer(S.bLayer)) S.bLayer.bringToFront();
+		const lg = $('#l-legend');
+		lg.textContent = '';
+		lg.classList.remove('hidden');
+		if (by === 'class') {
+			lg.append(el('h4', {}, 'Class'), ...names.map((n, i) => el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: PALETTE[i % PALETTE.length]}}), n)));
+		} else {
+			const lab = {area: 'Patch area (ha)', enn: 'Distance to the nearest patch (m)', cai: 'Core area index (%)', shape: 'Shape index'}[by];
+			const show = v => { const x = by === 'area' ? 10 ** v : v; return fmt(x, Math.abs(x) < 1 ? 4 : Math.abs(x) < 100 ? 2 : 0); };
+			lg.append(...[el('h4', {}, lab), el('div', {class: 'ramp', style: {background: `linear-gradient(90deg, ${VIRIDIS.join(', ')})`}}),
+				el('div', {class: 'ramp-labels'}, el('span', {}, vals.length ? show(lo) : '—'), el('span', {}, vals.length ? show(hi) : '—')),
+				by === 'area' ? el('div', {class: 'small muted'}, 'logarithmic scale') : null,
+				feats.some(f => !Number.isFinite(val(f))) ? el('div', {class: 'legend-cat'}, el('span', {class: 'sw', style: {background: '#9a9a9a'}}), 'NA') : null]
+				.filter(Boolean));
+		}
+	}
+
+	// The guide --------------------------------------------------------------------------------------------------
+	function renderGuide() {
+		if (!LSM.list) return;
+		const types = $('#l-g-type');
+		if (types.options.length < 2) for (const t of [...new Set(LSM.list.map(m => m.type))].sort()) types.append(el('option', {value: t}, t));
+		const lvl = $('#l-g-level').value, ty = types.value, q = $('#l-g-q').value.trim().toLowerCase();
+		const list = LSM.list.filter(m => m.level === lvl && (!ty || m.type === ty)
+			&& (!q || `${m.label} ${m.name} ${m.what} ${m.read}`.toLowerCase().includes(q)));
+		guideTable($('#l-guide'), list);
+		$('#l-refs').textContent = 'References: ' + LSM.refs.join(' ');
+	}
+
+	// Events -----------------------------------------------------------------------------------------------------
+	$('#l-add').addEventListener('click', () => addMaps().catch(fail));
+	$('#l-mode').addEventListener('change', () => { renderInputs(); setCount(); });
+	for (const id of ['#l-nb', '#l-edge', '#l-res']) $(id).addEventListener('input', () => { renderNotes(); save(); });
+	$('#l-name').addEventListener('input', () => { save(); canRun(); });
+	$('#l-set').addEventListener('change', () => { if ($('#l-set').value === 'custom' && !S.custom) chooseMetrics(); setCount(); save(); });
+	$('#l-choose').addEventListener('click', () => chooseMetrics().catch(fail));
+	$('#l-bnd-pick').addEventListener('click', () => pickBoundary().catch(fail));
+	$('#l-bnd-clear').addEventListener('click', () => { S.boundary = null; $('#l-bnd').value = ''; renderNotes(); save(); });
+	$('#l-run').addEventListener('click', async () => {
+		if (view.running()) return;
+		const n = $('#l-name').value.trim();
+		if (S.runs.some(r => r.name === n) && !await confirmBox('Replace the run?', `segm_optim/landscape/${n} already has results: they are replaced.`, 'Replace')) return;
+		try { view.start(await api('landscape_run', spec()), 'Landscape metrics'); } catch (e) { fail(e); }
+	});
+	$('#l-stop').addEventListener('click', () => stopJob(view));
+	$('#l-runs').addEventListener('change', loadResult);
+	$('#l-class').addEventListener('change', renderTrends);
+	$('#l-open').addEventListener('click', () => S.res && api('open_folder', S.res.path).catch(fail));
+	$('#l-del').addEventListener('click', async () => {
+		const n = $('#l-runs').value;
+		if (!n || !await confirmBox('Delete the run?', `The folder segm_optim/landscape/${n} and all its results are deleted (not to the trash).`, 'Delete')) return;
+		try { await api('landscape_remove', n); toast(`${n} deleted.`, 'ok'); } catch (e) { fail(e); }
+		await loadRuns();
+	});
+	$('#l-load').addEventListener('click', async () => {
+		const run = S.res && S.res.run;
+		if (!run) return;
+		const items = [];
+		for (const m of run.maps) {
+			try {
+				const info = await api('landscape_inspect', m.file, m.layer || null);
+				items.push({file: m.file, label: m.map, layer: m.layer || null, field: m.field || '', habitat: (m.habitat || []).map(String), info});
+			} catch (e) { fail(e); }
+		}
+		S.inputs = items;
+		$('#l-name').value = run.name;
+		$('#l-mode').value = run.mode;
+		$('#l-nb').value = String(run.options.directions);
+		$('#l-edge').value = run.options.edge_depth;
+		$('#l-res').value = run.options.res && run.vector_grid ? run.options.res : '';
+		S.boundary = run.boundary ? {file: run.boundary.file, layer: run.boundary.layer} : null;
+		$('#l-bnd').value = S.boundary ? S.boundary.file : '';
+		renderInputs();
+		setCount();
+		toast('The maps and options of the run are loaded: change them and run it again.', 'ok');
+		$('#page-landscape').scrollIntoView({behavior: 'smooth'});
+	});
+	$('#l-map-sel').addEventListener('change', drawPatches);
+	$('#l-map-by').addEventListener('change', styleLayer);
+	$('#l-op').addEventListener('input', () => {
+		const op = Number($('#l-op').value) / 100;
+		if (S.pLayer) S.pLayer.setStyle({fillOpacity: op, opacity: Math.min(1, op + 0.15)});
+	});
+	$('#l-bnd-show').addEventListener('change', () => { if (S.bLayer) $('#l-bnd-show').checked ? S.bLayer.addTo(S.map) : S.map.removeLayer(S.bLayer); });
+	for (const id of ['#l-g-level', '#l-g-type']) $(id).addEventListener('change', renderGuide);
+	$('#l-g-q').addEventListener('input', renderGuide);
+
+	return {
+		async onShow() {
+			if (!S.loaded) {
+				S.loaded = true;
+				restore();
+				$('#l-bnd').value = S.boundary ? S.boundary.file : '';
+				try { await lsmCatalogue(); } catch (e) { fail(e); }
+				renderInputs();
+				setCount();
+				renderGuide();
+				await loadRuns();
+			} else {
+				if (S.map) setTimeout(() => S.map.invalidateSize(), 60);
+				if (!S.patch && S.res) drawPatches();
+			}
+		},
+		attach(job) { view.start(job.id, job.title); },
+	};
+})();
+
 // Updates from GitHub ================================================================================================
 const updates = (() => {
 	const view = new JobView(null, null, {onEnd: () => refresh()});
@@ -4946,6 +5823,7 @@ pages.hftcomp = (() => {
 			else if (j.kind.startsWith('gee')) pages.gee.attach(j);
 			else if (j.kind === 'ecosim') pages.similarity.attach(j);
 			else if (j.kind === 'hftcomp') pages.hftcomp.attach(j);
+			else if (j.kind === 'landscape') pages.landscape.attach(j);
 		}
 	} catch (e) { /* nothing */ }
 	// MonitorEO at its last version of GitHub, in the background, when the app opens (if the app updates itself)
