@@ -913,55 +913,86 @@ def patches_name(hid, h, classes):
 
 def write_patches(outdir, cat, cg, ctx, hid, h):
 	"""The similar patches of the map of the similar areas CAT (categories 1 and 2, rows x columns of CG) as polygons, one
-	per patch (with the neighbours of the patches, ECOSIM_NEIGHBOURS), in a GeoPackage of OUTDIR. Returns its name."""
+	per patch (with the neighbours of the patches, ECOSIM_NEIGHBOURS), in a GeoPackage of OUTDIR. Returns its name.
+	The patches are numbered (with those neighbours) in the box of the similar pixels and drawn with 4 neighbours, the
+	parts of a patch that only touch at a corner joined in its multipolygon: drawn with 8 neighbours, the rings of a
+	patch touch themselves at those corners, which is not valid in a GIS, and repairing them could take minutes for large
+	patches with holes."""
+	from scipy import ndimage
 	classes = ctx['classes']
 	name = patches_name(hid, h, classes)
-	src = gdal.GetDriverByName('MEM').Create('', cg.width, cg.height, 1, gdal.GDT_Byte)
-	src.SetGeoTransform(cg.gt)
-	src.SetProjection(cg.wkt)
-	band = src.GetRasterBand(1)
-	band.WriteArray(np.where((cat == 1) | (cat == 2), cat, 0).astype(np.uint8))
-	mem = _mem_vector()
-	tmp = mem.CreateLayer('t', srs=cg.srs(), geom_type=ogr.wkbPolygon)
-	tmp.CreateField(ogr.FieldDefn('category', ogr.OFTInteger))
-	opts = ['8CONNECTED=8'] if ctx['structure'].all() else []
-	gdal.Polygonize(band, band, tmp, 0, opts)  # the band is its own mask: 0 (not similar) is left out
 	ds = gdal.GetDriverByName('GPKG').Create(os.path.join(outdir, name), 0, 0, 0, gdal.GDT_Unknown)
-	# multipolygons: with 8 neighbours a patch can join pixels that only touch at a corner, a ring that touches
-	# itself, which is not valid in a GIS; MakeValid splits it at that corner, still one feature per patch
 	lyr = ds.CreateLayer(os.path.splitext(name)[0], srs=cg.srs(), geom_type=ogr.wkbMultiPolygon)
 	for f, t in (('category', ogr.OFTInteger), ('id', ogr.OFTString), ('hft', ogr.OFTInteger),
 	             ('subclass', ogr.OFTString), ('large', ogr.OFTInteger), ('pixels', ogr.OFTInteger64),
 	             ('area_ha', ogr.OFTReal)):
 		if f != 'subclass' or classes == 'subclass':
 			lyr.CreateField(ogr.FieldDefn(f, t))
+	similar = (cat == 1) | (cat == 2)
+	rows, cols = np.flatnonzero(similar.any(axis=1)), np.flatnonzero(similar.any(axis=0))
+	if not rows.size:  # nothing similar: the layer without polygons
+		ds = None
+		return name
+	r0, r1, c0, c1 = int(rows[0]), int(rows[-1]) + 1, int(cols[0]), int(cols[-1]) + 1
+	box = similar[r0:r1, c0:c1]
+	labels, n = ndimage.label(box, structure=ctx['structure'], output=np.int32)
+	category = np.zeros(n + 1, dtype=np.int64)  # of every patch (all its pixels have the same)
+	category[labels[box]] = cat[r0:r1, c0:c1][box]
+	del box, similar
+	gt = (cg.gt[0] + c0 * cg.gt[1], cg.gt[1], 0.0, cg.gt[3] + r0 * cg.gt[5], 0.0, cg.gt[5])
+	src = gdal.GetDriverByName('MEM').Create('', c1 - c0, r1 - r0, 1, gdal.GDT_Int32)
+	src.SetGeoTransform(gt)
+	src.SetProjection(cg.wkt)
+	src.GetRasterBand(1).WriteArray(labels)
+	msk = gdal.GetDriverByName('MEM').Create('', c1 - c0, r1 - r0, 1, gdal.GDT_Byte)
+	msk.GetRasterBand(1).WriteArray((labels > 0).astype(np.uint8))
+	del labels
+	mem = _mem_vector()
+	tmp = mem.CreateLayer('t', srs=cg.srs(), geom_type=ogr.wkbPolygon)
+	tmp.CreateField(ogr.FieldDefn('patch', ogr.OFTInteger))
+	gdal.Polygonize(src.GetRasterBand(1), msk.GetRasterBand(1), tmp, 0, [])  # 4 neighbours: valid polygons
 	px = cg.res * cg.res
 	lyr.StartTransaction()
+
+	def write(pid, g):
+		a = g.GetArea()
+		cat_v = int(category[pid])
+		feat = ogr.Feature(lyr.GetLayerDefn())
+		feat.SetGeometry(g)
+		feat.SetField('category', cat_v)
+		feat.SetField('id', str(hid))
+		feat.SetField('hft', int(h // 100 if classes == 'subclass' else h))
+		if classes == 'subclass':
+			feat.SetField('subclass', subclass_name(h))
+		feat.SetField('large', int(cat_v == 2))
+		feat.SetField('pixels', int(round(a / px)))
+		feat.SetField('area_ha', round(a / 1e4, 4))
+		lyr.CreateFeature(feat)
+
+	# the parts in the order of their patch, each patch written as its parts end (not all of them held at once)
+	ordered = mem.ExecuteSQL('SELECT * FROM t ORDER BY patch')
 	gdal.PushErrorHandler('CPLQuietErrorHandler')  # IsValid() warns about every invalid ring
 	try:
-		for src_f in tmp:
-			g = src_f.GetGeometryRef()
-			if not g.IsValid():
-				g = g.MakeValid()
-			g = ogr.ForceToMultiPolygon(g)
-			a = g.GetArea()
-			feat = ogr.Feature(lyr.GetLayerDefn())
-			feat.SetGeometry(g)
-			cat_v = src_f.GetField('category')
-			feat.SetField('category', cat_v)
-			feat.SetField('id', str(hid))
-			feat.SetField('hft', int(h // 100 if classes == 'subclass' else h))
-			if classes == 'subclass':
-				feat.SetField('subclass', subclass_name(h))
-			feat.SetField('large', int(cat_v == 2))
-			feat.SetField('pixels', int(round(a / px)))
-			feat.SetField('area_ha', round(a / 1e4, 4))
-			lyr.CreateFeature(feat)
+		pid, g = None, None
+		for f in ordered:
+			if f.GetField('patch') != pid:
+				if pid is not None:
+					write(pid, g)
+				pid, g = f.GetField('patch'), ogr.Geometry(ogr.wkbMultiPolygon)
+			part = f.GetGeometryRef()
+			if not part.IsValid():  # not expected with 4 neighbours: repaired all the same
+				part = part.MakeValid()
+			part = ogr.ForceToMultiPolygon(part)
+			for i in range(part.GetGeometryCount()):
+				g.AddGeometry(part.GetGeometryRef(i))
+		if pid is not None:
+			write(pid, g)
 	finally:
 		gdal.PopErrorHandler()
+		mem.ReleaseResultSet(ordered)
+	tmp = mem = src = msk = None
 	lyr.CommitTransaction()
-	tmp = mem = None
-	ds = src = None
+	ds = None
 	return name
 
 

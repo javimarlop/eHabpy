@@ -31,6 +31,10 @@ it reaches (the **Desktop app**, its **Installers**, the **HFT model**: `setup.p
 **Documentation**), and **(fix)** marks an error that was fixed. The desktop app updates itself from `master` every
 time it opens, so it has each release as soon as it is made.
 
+### Unreleased
+
+- **Similarity**: The polygons of the similar patches (`similar_<id>_hft_<n>.gpkg`) are written several times faster, with much less memory, when the similar areas have large patches with holes and pixels joined only at corners (e.g. from 2 minutes to 12 s for a grid of 8000 × 8000 pixels), with the same patches.
+
 ### [1.6.15](https://github.com/monitoreo-obsnev/eHabpy/releases/tag/1.6.15) · 2026-11-27
 
 - **eHabitat+**: The repository of eHabitat+ moved to [monitoreo-obsnev/eHabpy](https://github.com/monitoreo-obsnev/eHabpy) (the old address, javimarlop/eHabpy, leads there): the desktop app updates itself from it, the installers download the code from it and the documentation links to its new address.

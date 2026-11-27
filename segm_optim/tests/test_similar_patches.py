@@ -3,7 +3,8 @@
 """
 Checks that similarity.py writes the similar patches of every HFT or subclass (categories 1 and 2 of
 similar_<id>_hft<h>.tif) as polygons, one per patch, in similar_<id>_hft_<h>.gpkg or similar_<id>_hft_<h>_sub_<s>.gpkg,
-with their fields, and that the patches follow ECOSIM_NEIGHBOURS (8 or 4 neighbours); and that the map All of the app
+with their fields, and that the patches follow ECOSIM_NEIGHBOURS (8 or 4 neighbours), valid and in their place also
+for a large patch with holes and cells joined only at corners; and that the map All of the app
 (ecosim.patches) draws them, from the GeoPackages or, in the runs made before them, from the maps of the similar areas.
 
     cd segm_optim && python -s tests/test_similar_patches.py
@@ -81,8 +82,44 @@ def main():
 
 		name = similarity.write_patches(d, np.zeros_like(CAT), cg, ctx, '555', 1005)  # nothing similar: no polygon
 		assert read(os.path.join(d, name))[1] == []
+	large_patches()
 	app_patches(cg)
 	print('test_similar_patches: OK')
+
+
+def large_patches():
+	"""A large patch with holes (one with a similar island) and cells joined only at corners, among NoData and the HFT:
+	one valid multipolygon per patch, with the pixels and category of the patch, for 8 and 4 neighbours, also when the
+	similar pixels are far from the corner of the grid (the polygons are drawn in their box)."""
+	cat = np.zeros((120, 150), dtype=np.uint8)
+	cat[:5, :] = similarity.CAT_NODATA
+	cat[30:100, 40:130] = 2  # the large patch
+	cat[40:60, 50:70] = 0  # a hole
+	cat[45:55, 55:65] = 1  # an island of similar pixels in it
+	cat[70:80, 90:100] = 3  # the HFT, inside the patch
+	for i in range(12):  # holes that touch at corners, a diagonal line of similar cells and a staircase hole
+		cat[85 + i % 6, 45 + 2 * i] = 0
+		cat[105 + i % 6 if i < 6 else 110 - i % 6, 20 + i] = 1
+	cg = Grid(cat.shape[1], cat.shape[0], 30.0)
+	for nb in (8, 4):
+		st = ndimage.generate_binary_structure(2, 2 if nb == 8 else 1)
+		lab, n = ndimage.label((cat == 1) | (cat == 2), structure=st)
+		want = sorted((int(cat[lab == i][0]), int((lab == i).sum())) for i in range(1, n + 1))
+		with tempfile.TemporaryDirectory() as d:
+			name = similarity.write_patches(d, cat, cg, {'classes': 'hft', 'structure': st}, '7', 3)
+			ds = ogr.Open(os.path.join(d, name))
+			got = []
+			for f in ds.GetLayer(0):
+				g = f.GetGeometryRef()
+				assert g.GetGeometryType() == ogr.wkbMultiPolygon and g.IsValid(), (nb, g.ExportToWkt()[:200])
+				assert abs(g.GetArea() - f.GetField('pixels') * 900) < 1e-6, nb
+				assert f.GetField('large') == int(f.GetField('category') == 2)
+				got.append((f.GetField('category'), f.GetField('pixels')))
+				if f.GetField('category') == 2:  # the large patch where it is: columns 40-130, rows 30-100
+					x0, y0 = cg.gt[0], cg.gt[3]
+					assert g.GetEnvelope() == (x0 + 40 * 30, x0 + 130 * 30, y0 - 100 * 30, y0 - 30 * 30), g.GetEnvelope()
+			ds = None
+		assert sorted(got) == want, (nb, sorted(got)[:5], want[:5])
 
 
 def app_patches(cg):
