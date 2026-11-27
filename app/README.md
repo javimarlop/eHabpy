@@ -6,7 +6,8 @@ the pixel of that grid when the area does not contain it; `monitoreo` is kept at
 app opens and its catalog is read again without restarting), options of the HFT model, run and results with an
 interactive map of the HFTs, and the similarity of the HFTs in their ecoregion or in a comparison area
 (`similarity.py`: pixels of each HFT at the chosen pixel size, maps of the similarity and of the similar areas,
-landscape metrics and THDI).
+landscape metrics of FRAGSTATS and THDI), and the landscape metrics of maps of patches of your own, rasters or
+polygons at several dates (`landscape_metrics.py`: the 133 metrics of the R package landscapemetrics, in `lsm.py`).
 
 - Install: `installer/macos/install.command` (macOS), `bash installer/linux/install.sh` (Ubuntu and other Linux on
   x86_64, and Windows in WSL2) or `installer\windows\install.bat` (native Windows, where the HFT model does not run

@@ -47,6 +47,10 @@
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="8" r="3"/><circle cx="17" cy="16" r="3"/><circle cx="17" cy="6" r="2"/><path d="m9.5 9.8 5 4.4M9.8 7l5.4-.8"/></svg>
 			<span>Similarity &amp; landscape</span><span class="dot hidden" id="dot-ecosim"></span>
 		</button>
+		<button data-page="landscape">
+			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v16H3z" opacity=".45"/><path d="M6 8h4v4H6zM13 7h5v3h-5zM12 14h3v3h-3zM6 15h2v2H6z"/></svg>
+			<span>Landscape metrics</span><span class="dot hidden" id="dot-landscape"></span>
+		</button>
 		<button data-page="hftcomp">
 			<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 7.5 15.6 11M8.5 16.5l7.1-3.5" opacity=".6"/><path d="M3 21h18" opacity=".4"/></svg>
 			<span>HFT comparator</span><span class="dot hidden" id="dot-hftcomp"></span>
@@ -536,15 +540,33 @@
 		</div>
 		<div class="empty hidden" id="s-res-empty">No similarity computed yet for this scenario.</div>
 		<div class="stack" style="gap:12px" id="s-res-body">
+			<div class="notice info how-read">
+				<div><b>How to read these results.</b> For every HFT: <b>1</b> each pixel of the area compared gets a
+				<b>similarity</b> to the HFT (0–1: the χ² probability of its Mahalanobis distance to the pixels of the HFT);
+				<b>2</b> the threshold <b>T</b> is the mean (or median) similarity of the pixels of the HFT itself;
+				<b>3</b> the pixels with a similarity of at least T, outside the HFT, are its <b>similar areas</b>;
+				<b>4</b> their <b>patches</b> (pixels that touch) give the metrics: how much similar land there is, in how many
+				patches, how large and how scattered, and how far it can replace the HFT. Click an HFT to read its results
+				in words; the <span class="kbd">ⓘ</span> of each column explains it, and the guide at the end has them all.</div>
+			</div>
 			<div class="stack" style="gap:10px" id="s-thdi"></div>
 			<div class="stack" style="gap:6px">
-				<div class="row"><h3>Similarity and landscape metrics of each HFT</h3><span class="small faint" id="s-hri-file"></span></div>
+				<div class="row"><h3>Similarity and patches of each HFT</h3><span class="small faint" id="s-hri-file"></span></div>
 				<div class="table-wrap"><table class="t" id="s-hri"></table></div>
-				<p class="small muted" style="margin:0">T: the similarity threshold of the HFT. Similar pixels: those of the
-					rest of the ecoregion with a similarity of at least T. HSR (Habitat Similarity Ratio): pixels of the similar
-					patches at least as large as the HFT (or else of the largest patch) / pixels of the HFT. Aggregation:
-					similar pixels per patch. Click an HFT to see its maps; the map "All" shows the similar patches of every HFT
-					at once (the polygons of <code>similar_&lt;id&gt;_hft_&lt;n&gt;.gpkg</code>).</p>
+				<p class="small muted" style="margin:0">Click an HFT to read its results and see its maps; the map "All" shows
+					the similar patches of every HFT at once (the polygons of <code>similar_&lt;id&gt;_hft_&lt;n&gt;.gpkg</code>).</p>
+			</div>
+			<div class="hft-reading hidden" id="s-reading"></div>
+			<div class="stack" style="gap:6px" id="s-lsm-box">
+				<div class="row"><h3>Fragmentation of the similar areas</h3><span class="small muted">landscape metrics of
+					FRAGSTATS, as the R package landscapemetrics computes them</span></div>
+				<div class="table-wrap"><table class="t" id="s-lsm"></table></div>
+				<p class="small muted" style="margin:0" id="s-lsm-note">The similar pixels of each HFT as one class, in the
+					landscape of the pixels compared (with data, in its ecoregion) without the HFT itself. Many of them are
+					relative to that landscape: with a whole ecoregion, PLAND, PD, LPI and MESH are small and DIVISION near 1
+					even for a lot of similar land; AREA_MN, ENN_MN, SHAPE_MN, AI and COHESION do not depend on its size.
+					<span class="frag-key"><span class="up">▲</span> more fragmented when larger,
+					<span class="down">▼</span> more fragmented when smaller.</span></p>
 			</div>
 			<details class="more"><summary>All the columns (hri_results.csv)</summary><div class="table-wrap"><table class="t" id="s-hri-all"></table></div></details>
 			<details class="more"><summary>Options, inputs and notes of the run (similarity_metadata.txt)</summary><pre id="s-meta"></pre></details>
@@ -570,6 +592,160 @@
 	<div class="card" id="s-plots-card">
 		<div class="card-head"><h2>Plots of the run</h2><span class="sub">similarity maps and metrics of each HFT (<code>similarity_plots.R</code>)</span></div>
 		<div class="gallery" id="s-plots"></div>
+	</div>
+	<div class="card" id="s-guide-card">
+		<div class="card-head"><h2>Guide to the metrics</h2><span class="sub">what each column of
+			<code>hri_results.csv</code> and <code>thdi_res.csv</code> measures and how to read it</span></div>
+		<div class="stack" style="gap:10px" id="s-guide"></div>
+	</div>
+</section>
+
+<!-- 6. Landscape metrics ========================================================================================= -->
+<section class="page" id="page-landscape">
+	<div class="page-head">
+		<div>
+			<h1>Landscape metrics</h1>
+			<p>The landscape metrics of FRAGSTATS, as the R package <b>landscapemetrics</b> computes them (all its 133
+			metrics of patches, classes and landscape), of maps of patches of your own, without the similarity: rasters
+			of classes (GeoTIFF) or polygons (GeoPackage, shapefile, GeoJSON). Add the same habitat (or land cover)
+			mapped at several dates to follow its <b>fragmentation</b> over time: its amount, how many patches it is
+			split into, how large, how far apart and how connected they are.</p>
+		</div>
+	</div>
+
+	<div class="grid-model">
+		<div class="card">
+			<div class="card-head"><h2>Maps of patches</h2><span class="sub">one per date, in order</span>
+				<div class="btns right"><button class="btn small primary" id="l-add">Add maps…</button></div></div>
+			<div class="empty" id="l-empty">Add rasters of classes (e.g. 1 = habitat, 0 = not, or the classes of a land cover
+				map) or polygon files (every polygon a patch of habitat, or a column with their classes).</div>
+			<div class="table-wrap hidden" id="l-inputs-wrap"><table class="t" id="l-inputs"></table></div>
+			<div class="stack" style="gap:6px" id="l-input-notes"></div>
+		</div>
+		<div class="card">
+			<div class="card-head"><h2>Options</h2></div>
+			<div class="field">
+				<label for="l-name">Name of the run</label>
+				<div class="ctl"><input type="text" id="l-name" class="grow" placeholder="e.g. forest_1990_2020"></div>
+				<div class="help">Its folder: <code>segm_optim/landscape/&lt;name&gt;</code> (letters, digits, - and _). A run
+					with the same name is replaced.</div>
+			</div>
+			<div class="field">
+				<label for="l-mode">What to measure</label>
+				<div class="ctl"><select id="l-mode">
+					<option value="habitat">A habitat: the classes chosen as habitat, as one class</option>
+					<option value="classes">Every class, and the whole landscape</option></select></div>
+				<div class="help" id="l-mode-help"></div>
+			</div>
+			<div class="field">
+				<label for="l-nb">Neighbours of the patches</label>
+				<div class="ctl"><select id="l-nb"><option value="8">8 neighbours (queen: cells that touch at a corner too)</option>
+					<option value="4">4 neighbours (rook: only cells that share a side)</option></select></div>
+				<div class="help">Two cells of a class are in the same patch when they touch: 8 is the default of FRAGSTATS
+					and landscapemetrics; with 4, a diagonal line of cells is several patches.</div>
+			</div>
+			<div class="field">
+				<label for="l-edge">Edge depth</label>
+				<div class="ctl"><input type="number" id="l-edge" min="1" step="1" value="1"><span class="unit">cells</span>
+					<span class="small muted" id="l-edge-m"></span></div>
+				<div class="help">The core area of a patch is its part farther from its edge than this (cells next to
+					another class, to cells without data or to the edge of the map are edge). Choose the distance at which
+					the edge effects of your habitat fade.</div>
+			</div>
+			<div class="field">
+				<label for="l-res">Pixel size</label>
+				<div class="ctl"><input type="number" id="l-res" min="0" step="any" placeholder="automatic"><span class="unit">m</span></div>
+				<div class="help">Polygons are measured on a grid of this size (every polygon map of the run on the same
+					grid); empty = about 1/2000 of the longer side. Rasters keep their pixel unless you give one (then the
+					most common class of each new pixel). Edges, shapes and the number of patches depend on it: use the
+					same for every date.</div>
+			</div>
+			<div class="field">
+				<label for="l-bnd">Boundary</label>
+				<div class="ctl" style="flex-wrap:nowrap"><input type="text" id="l-bnd" class="grow" placeholder="none" readonly>
+					<button class="btn small" id="l-bnd-pick">Browse…</button><button class="btn small ghost" id="l-bnd-clear">None</button></div>
+				<div class="help">Optional polygons of the landscape (e.g. the study area): cells outside are left out.
+					PLAND, PD, ED, LPI, MESH… are relative to the landscape, so give the same boundary to compare dates.</div>
+			</div>
+			<div class="field">
+				<label for="l-set">Metrics</label>
+				<div class="ctl"><select id="l-set"><option value="fragmentation">Fragmentation set (recommended)</option>
+					<option value="all">All the metrics of landscapemetrics (133)</option><option value="custom">Choose…</option></select>
+					<button class="btn small hidden" id="l-choose">Choose…</button><span class="small muted" id="l-set-n"></span></div>
+				<div class="help">The metrics of every patch are always computed (area, perimeter, core, shape, distance
+					to the nearest patch…). The guide at the end explains every metric.</div>
+			</div>
+		</div>
+	</div>
+
+	<div class="card">
+		<div class="card-head"><h2>Run</h2><span class="sub" id="l-run-sub"></span></div>
+		<div class="btns"><button class="btn primary" id="l-run" disabled>Compute the landscape metrics</button>
+			<button class="btn danger hidden" id="l-stop">Stop</button><span class="small muted" id="l-run-why"></span></div>
+		<div class="job-bar" id="l-bar"></div>
+		<pre class="console" id="l-log"></pre>
+	</div>
+
+	<div class="card" id="l-res-card">
+		<div class="card-head"><h2>Results</h2>
+			<label class="muted" for="l-runs">Run</label><select id="l-runs"></select>
+			<span class="sub" id="l-res-sub"></span>
+			<div class="btns right"><button class="btn small ghost" id="l-load">Load its maps and options</button>
+				<button class="btn small ghost" id="l-open">Open folder</button>
+				<button class="btn small ghost danger" id="l-del">Delete</button></div>
+		</div>
+		<div class="empty" id="l-res-empty">No landscape metrics computed yet.</div>
+		<div class="stack" style="gap:14px" id="l-res-body">
+			<div class="stack" style="gap:8px" id="l-warnings"></div>
+			<div class="facts" id="l-facts"></div>
+			<div class="stack" style="gap:8px">
+				<div class="row"><h3 id="l-change-title">Change between the first and the last map</h3>
+					<label class="muted" id="l-class-lab">Class <select id="l-class"></select></label></div>
+				<div class="table-wrap"><table class="t" id="l-change"></table></div>
+				<p class="small muted" style="margin:0"><span class="frag-key"><span class="up">▲</span> more fragmented
+					when larger, <span class="down">▼</span> more fragmented when smaller</span> (the usual reading for a
+					habitat). Fragmentation is not habitat loss: CA, PLAND, TCA and CPLAND are the amount (loss or gain);
+					NP, PD, LPI, AREA_MN, ED, MESH, DIVISION, ENN_MN, AI, COHESION… its configuration. A habitat can lose area
+					without breaking up, or break up without losing area.</p>
+			</div>
+			<div class="stack" style="gap:8px">
+				<div class="row"><h3>Metrics in every map</h3><span class="small muted">click a chart to read about its metric</span></div>
+				<div class="charts" id="l-charts"></div>
+			</div>
+			<details class="more" id="l-land-box"><summary>Landscape-level metrics (metrics_landscape.csv)</summary>
+				<div class="charts" id="l-land-charts"></div>
+				<div class="table-wrap"><table class="t" id="l-land"></table></div></details>
+			<details class="more"><summary>Class metrics (metrics_class.csv)</summary><div class="table-wrap"><table class="t" id="l-cls"></table></div></details>
+			<details class="more"><summary id="l-patch-sum">Metrics of every patch (metrics_patch.csv)</summary><div class="table-wrap"><table class="t" id="l-patch"></table></div></details>
+			<div class="gallery" id="l-plots"></div>
+			<details class="more"><summary>Options, inputs and notes of the run (landscape_metadata.txt)</summary><pre id="l-meta"></pre></details>
+		</div>
+	</div>
+
+	<div class="card" id="l-map-card">
+		<div class="card-head"><h2 id="l-map-title">Patches</h2><span class="sub" id="l-map-sub"></span>
+			<div class="map-tools right">
+				<label>Map <select id="l-map-sel"></select></label>
+				<label>Colour by <select id="l-map-by"><option value="area">Patch area</option><option value="class">Class</option>
+					<option value="enn">Distance to the nearest patch (ENN)</option><option value="cai">Core area index (CAI)</option>
+					<option value="shape">Shape index</option></select></label>
+				<label>Basemap <select id="l-base"></select></label>
+				<label>Opacity <input type="range" id="l-op" min="0" max="100" value="80"></label>
+				<label class="check"><input type="checkbox" id="l-bnd-show" checked> Boundary</label>
+			</div>
+		</div>
+		<div class="map-wrap"><div class="map big" id="l-map"></div><div class="legend-box hidden" id="l-legend"></div></div>
+	</div>
+
+	<div class="card">
+		<div class="card-head"><h2>Guide to the metrics</h2><span class="sub">the 133 metrics of landscapemetrics: what
+			they measure and how to read them</span>
+			<div class="map-tools right"><label>Level <select id="l-g-level"><option value="class">Class</option>
+				<option value="landscape">Landscape</option><option value="patch">Patch</option></select></label>
+				<label>Type <select id="l-g-type"><option value="">All</option></select></label>
+				<input type="text" id="l-g-q" placeholder="Search…" style="width:160px"></div></div>
+		<div class="table-wrap" style="max-height:520px"><table class="t guide" id="l-guide"></table></div>
+		<p class="small muted" style="margin:0" id="l-refs"></p>
 	</div>
 </section>
 <section class="page" id="page-hftcomp">

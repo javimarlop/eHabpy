@@ -55,3 +55,5 @@ similarity_run.json
 similarity_run.json.tmp
 # areas from MonitorEO made by the app (burned areas, protected areas, administrative units)
 segm_optim/areas/
+# landscape metrics of maps of patches (segm_optim/landscape_metrics.py and the app): the results of each run
+segm_optim/landscape/

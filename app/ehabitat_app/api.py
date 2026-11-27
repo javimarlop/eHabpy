@@ -11,7 +11,8 @@ import time
 import traceback
 import webbrowser
 
-from . import __version__, areas, ecosim, envsetup, gee, hftcomp, inputs, jobs, model, paths, presets, results, updater
+from . import __version__, areas, ecosim, envsetup, gee, hftcomp, inputs, jobs, landscape, model, paths, presets, results, \
+	updater
 
 import hft_state
 
@@ -33,6 +34,7 @@ def exposed(fn):
 FILE_TYPES = {
 	'tif': ('GeoTIFF (*.tif;*.tiff)', 'All files (*.*)'),
 	'vector': ('Vector files (*.gpkg;*.shp;*.geojson;*.json)', 'All files (*.*)'),
+	'patches': ('Maps of patches (*.tif;*.tiff;*.gpkg;*.shp;*.geojson;*.json)', 'All files (*.*)'),
 	'yaml': ('YAML recipe (*.yaml;*.yml)', 'All files (*.*)'),
 	'params': ('Parameters of eHabitat+ (*.yaml;*.yml)', 'All files (*.*)'),
 }
@@ -607,3 +609,36 @@ class Api:
 	@exposed
 	def ecosim_outline(self, path, field=None, ids=None, folder=None):
 		return ecosim.outline(path, field, ids, folder)
+
+	# Landscape metrics of maps of patches -------------------------------------------------------------------------
+	@exposed
+	def lsm_catalogue(self):
+		return landscape.catalogue()
+
+	@exposed
+	def landscape_inspect(self, path, layer=None):
+		return landscape.inspect(path, layer)
+
+	@exposed
+	def landscape_runs(self):
+		return landscape.runs()
+
+	@exposed
+	def landscape_run(self, spec):
+		return landscape.run(spec)
+
+	@exposed
+	def landscape_results(self, name):
+		return landscape.run_results(name)
+
+	@exposed
+	def landscape_patches(self, name, index):
+		return landscape.patches(name, index)
+
+	@exposed
+	def landscape_boundary(self, name):
+		return landscape.boundary_geojson(name)
+
+	@exposed
+	def landscape_remove(self, name):
+		return landscape.remove(name)
